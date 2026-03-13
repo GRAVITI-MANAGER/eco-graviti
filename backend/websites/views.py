@@ -114,6 +114,18 @@ class WebsiteConfigViewSet(viewsets.ModelViewSet):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    def perform_update(self, serializer):
+        """Keep onboarding logo_upload in sync when logo changes from editor."""
+        old_logo = (serializer.instance.media_data or {}).get('logo_url', '')
+        instance = serializer.save()
+        new_logo = (instance.media_data or {}).get('logo_url', '')
+        # Only sync when logo actually changed
+        if new_logo and new_logo != old_logo:
+            OnboardingResponse.objects.filter(
+                website_config=instance,
+                question__question_key='logo_upload',
+            ).update(response_value=new_logo)
+
     @action(detail=False, methods=['get'])
     def my_site(self, request):
         """
@@ -260,6 +272,13 @@ class SaveOnboardingResponsesView(OnboardingView):
                     defaults={'response_value': response_value}
                 )
                 saved_count += 1
+
+                # Sync logo changes to media_data immediately
+                if question_key == 'logo_upload' and response_value:
+                    media = dict(config.media_data or {})
+                    media['logo_url'] = response_value
+                    config.media_data = media
+                    config.save(update_fields=['media_data'])
 
         return Response({
             "saved": saved_count,
@@ -428,8 +447,18 @@ class GenerateContentView(APIView):
             if responses_dict.get('logo_upload'):
                 media_data['logo_url'] = responses_dict['logo_upload']
 
+            # ── Asegurar que header y footer existan en content_data ──
+            if 'header' not in content_data:
+                content_data['header'] = {
+                    'logo_text': tenant.name,
+                    'cta_text': '',
+                    'cta_link': '#contact',
+                }
+            if 'footer' not in content_data:
+                content_data['footer'] = {}
+
             # ── Agregar _section_order al content ──
-            section_keys = [k for k in content_data.keys() if not k.startswith('_')]
+            section_keys = [k for k in content_data.keys() if not k.startswith('_') and k not in ('header', 'footer')]
             ordered = []
             if 'hero' in section_keys:
                 ordered.append('hero')
@@ -913,10 +942,19 @@ class PublishWebsiteView(APIView):
         if new_subdomain:
             config.subdomain = new_subdomain
 
+        # Crear snapshot de datos publicados
+        config.published_data = {
+            'content_data': config.content_data or {},
+            'theme_data': config.theme_data or {},
+            'pages_data': config.pages_data or {},
+            'seo_data': config.seo_data or {},
+            'media_data': config.media_data or {},
+        }
+
         # Publicar
         config.status = 'published'
         config.published_at = timezone.now()
-        config.save(update_fields=['status', 'published_at', 'subdomain'])
+        config.save(update_fields=['published_data', 'status', 'published_at', 'subdomain'])
 
         return Response({
             "message": "Sitio publicado exitosamente",
@@ -1019,23 +1057,70 @@ class PreviewRenderView(APIView):
             )
 
         theme = {**config.template.default_theme, **config.theme_data}
-        content = config.content_data or {}
         seo = config.seo_data or {}
         structure = config.template.structure_schema or {}
+        pages_data = config.pages_data or {}
 
-        # Orden: usar _section_order custom o structure_schema
-        custom_order = content.get('_section_order', [])
-        if custom_order:
-            section_order = custom_order
+        # ── Multi-page: resolver página solicitada ──────────────────────
+        page_id = request.query_params.get('page', 'home')
+        page_slugs = {}  # { page_id: slug } para nav links
+
+        if pages_data.get('pages'):
+            # Nueva arquitectura: extraer contenido de la página solicitada
+            global_block = pages_data.get('global', {})
+            global_sections = global_block.get('sections', [])
+            global_content = global_block.get('content', {})
+
+            # Encontrar la página pedida (o usar la primera si no existe)
+            all_pages = pages_data['pages']
+            page_slugs = {p['id']: p.get('slug', '/') for p in all_pages}
+            page_obj = next((p for p in all_pages if p['id'] == page_id), all_pages[0] if all_pages else {})
+
+            page_sections = page_obj.get('sections', [])
+            page_content = page_obj.get('content', {})
+            page_seo = page_obj.get('seo', {})
+
+            # SEO de página sobreescribe el global
+            if page_seo:
+                seo = {**seo, **page_seo}
+
+            # Contenido fusionado: global + página
+            content = {**global_content, **page_content}
+
+            # Secciones en orden: globales delanteras + página + globales traseras
+            # Header va primero, Footer va al final (se manejan en _render_footer)
+            active_sections = (
+                [s for s in global_sections if s == 'header']
+                + page_sections
+                + [s for s in global_sections if s == 'footer']
+            )
+            # Filtrar solo las que tienen contenido real
+            active_sections = [s for s in active_sections if s in content or s in ('header', 'footer')]
+
         else:
-            section_order = [s['id'] for s in structure.get('sections', [])]
-        # Solo mostrar secciones que tienen contenido
-        active_sections = [sid for sid in section_order if sid in content and sid != '_section_order']
+            # Arquitectura antigua: fallback compatible
+            content = config.content_data or {}
+            custom_order = content.get('_section_order', [])
+            if custom_order:
+                section_order = custom_order
+            else:
+                section_order = [s['id'] for s in structure.get('sections', [])]
+            active_sections = [sid for sid in section_order if sid in content and sid != '_section_order']
 
         industry = config.template.industry
         tenant_name = tenant.name
 
-        media = config.media_data or {}
+        media = dict(config.media_data or {})
+        current_logo = media.get('logo_url', '')
+        # Sync from onboarding if missing or stale data URL
+        if not current_logo or current_logo.startswith('data:'):
+            logo_resp = OnboardingResponse.objects.filter(
+                website_config=config, question__question_key='logo_upload',
+            ).values_list('response_value', flat=True).first()
+            if logo_resp and current_logo != logo_resp:
+                media['logo_url'] = logo_resp
+                config.media_data = media
+                config.save(update_fields=['media_data'])
         base_url = config.public_url or ''
 
         tenant_modules = {
@@ -1058,28 +1143,31 @@ class PreviewRenderView(APIView):
         show_badge = True
         try:
             if tenant.subscription.status != 'trial':
-                show_badge = seo.get('show_gravitify_badge', True)
+                show_badge = seo.get('show_nerbis_badge', True)
         except Exception:
             pass
 
         # Badge logo URL (static file, cacheable por el browser)
         from django.templatetags.static import static as _static
-        badge_logo_url = request.build_absolute_uri(_static('images/gravitify-badge.png'))
+        badge_logo_url = request.build_absolute_uri(_static('images/nerbis-badge.png'))
 
         html = self._render_html(
             theme, content, seo, active_sections,
             tenant_name, industry, structure, media, base_url,
             tenant_modules, is_preview=True, tenant_info=tenant_info,
+            page_slugs=page_slugs,
             show_badge=show_badge, badge_logo_url=badge_logo_url,
         )
 
         from django.http import HttpResponse
         return HttpResponse(html, content_type='text/html; charset=utf-8')
 
-    def _render_html(self, theme, content, seo, sections, tenant_name, industry='generic', structure=None, media=None, base_url='', tenant_modules=None, is_preview=False, tenant_info=None, show_badge=True, badge_logo_url=None):
+    def _render_html(self, theme, content, seo, sections, tenant_name, industry='generic', structure=None, media=None, base_url='', tenant_modules=None, is_preview=False, tenant_info=None, show_badge=True, badge_logo_url=None, page_slugs=None):
         media = media or {}
+        page_slugs = page_slugs or {}
         self._base_url = base_url  # URL pública del tenant para CTAs
         self._tenant_modules = tenant_modules or {}
+        self._page_slugs = page_slugs  # { page_id: slug } para nav multi-página
         primary = theme.get('primary_color', '#3b82f6')
         secondary = theme.get('secondary_color', '#10b981')
         font_heading = theme.get('font_heading', 'Poppins')
@@ -1135,10 +1223,31 @@ class PreviewRenderView(APIView):
         # Build nav items from active sections (skip hero and header)
         nav_sections = [s for s in sections if s not in ('hero', 'header', '_section_order')]
 
+        # Contact data for info bar
+        contact_data = content.get('contact', {})
+
         # Build header HTML
+        header_nav_items = header_data.get('nav_items', None)
         header_html = self._render_header(
-            logo_text, nav_sections, header_cta_text, header_cta_link, primary, secondary, logo_url
+            logo_text, nav_sections, header_cta_text, header_cta_link, primary, secondary, logo_url,
+            custom_nav_items=header_nav_items, header_data=header_data, industry=industry
         )
+
+        # Info bar (above everything)
+        info_bar_html = self._render_info_bar(header_data, contact_data, social_links, industry)
+
+        # Promo bar (above header)
+        promo_html = ''
+        if header_data.get('promo_bar_enabled'):
+            _promo_text = self._esc(header_data.get('promo_bar_text', ''))
+            _promo_bg = header_data.get('promo_bar_bg', '#1C3B57')
+            _promo_tc = header_data.get('promo_bar_text_color', '#FFFFFF')
+            _promo_lt = header_data.get('promo_bar_link_text', '')
+            _promo_lk = header_data.get('promo_bar_link', '')
+            _promo_link_html = ''
+            if _promo_lt and _promo_lk:
+                _promo_link_html = f' <a href="{self._esc(_promo_lk)}" style="color:{_promo_tc};text-decoration:underline;font-weight:600;margin-left:8px;">{self._esc(_promo_lt)}</a>'
+            promo_html = f'<div class="promo-bar" style="background:{_promo_bg};color:{_promo_tc};text-align:center;padding:10px 24px;font-size:.85rem;font-family:var(--font-body);letter-spacing:.01em;">{_promo_text}{_promo_link_html}</div>'
 
         # Section divider SVG (for modern/artistic wave, others use CSS-only)
         _divider_html = '<div class="section-divider" aria-hidden="true"><svg viewBox="0 0 1200 48" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 24C200 44 400 4 600 24C800 44 1000 4 1200 24V48H0Z" fill="currentColor" opacity="0.04"/></svg><span></span></div>'
@@ -1148,8 +1257,8 @@ class PreviewRenderView(APIView):
         alt_counter = 0
         non_hero_count = 0
         for section_id in sections:
-            if section_id == 'header':
-                continue  # header is rendered separately
+            if section_id in ('header', 'footer'):
+                continue  # header and footer are rendered separately
             data = content.get(section_id, {})
             renderer = getattr(self, f'_render_{section_id}', None)
             if renderer:
@@ -1182,7 +1291,8 @@ class PreviewRenderView(APIView):
 
         # Build footer HTML (now with social links)
         contact_data = content.get('contact', {})
-        footer_html = self._render_footer(logo_text, contact_data, nav_sections, primary, social_links, show_badge=show_badge, badge_logo_url=badge_logo_url)
+        footer_data = content.get('footer', {})
+        footer_html = self._render_footer(logo_text, contact_data, nav_sections, primary, social_links, show_badge=show_badge, badge_logo_url=badge_logo_url, footer_data=footer_data)
 
         border_radius = '12px' if style in ('modern', 'clean') else '4px' if style == 'elegant' else '8px'
 
@@ -1297,7 +1407,7 @@ class PreviewRenderView(APIView):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="GRAVITIFY — gravitify.co">
+    <meta name="generator" content="NERBIS — nerbis.co">
     <title>{self._esc(meta_title)}</title>
 {head_extra}    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family={font_heading.replace(' ', '+')}:wght@400;600;700&family={font_body.replace(' ', '+')}:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -1525,6 +1635,42 @@ class PreviewRenderView(APIView):
             text-decoration: none; transition: all .2s;
         }}
         .site-header .header-cta:hover {{ box-shadow: var(--shadow-md); transform: translateY(-1px); }}
+
+        /* ─── Info Bar ─────────────────────── */
+        .info-bar {{
+            font-size: .78rem; font-family: var(--font-body);
+            padding: 7px 0; letter-spacing: .01em;
+        }}
+        .info-bar .container {{ max-width: 1200px; margin: 0 auto; }}
+        .info-bar-left {{ display: flex; align-items: center; gap: 20px; }}
+        .info-bar-item {{ display: inline-flex; align-items: center; gap: 5px; }}
+        .info-bar-social {{ display: flex; align-items: center; gap: 10px; }}
+        .info-bar-social-link {{ color: inherit; opacity: .7; transition: opacity .2s; display: inline-flex; }}
+        .info-bar-social-link:hover {{ opacity: 1; }}
+
+        /* ─── Header Actions ───────────────── */
+        .header-actions {{
+            display: flex; align-items: center; gap: 2px; margin-left: 8px;
+        }}
+        .header-action {{
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 7px 12px; border-radius: 8px;
+            font-size: .82rem; font-weight: 500;
+            color: #4b5563; text-decoration: none;
+            transition: all .15s;
+        }}
+        .header-action:hover {{
+            color: var(--primary);
+            background: color-mix(in srgb, var(--primary), #fff 94%);
+        }}
+        .header-action-booking {{
+            color: var(--primary); font-weight: 600;
+            background: color-mix(in srgb, var(--primary), #fff 92%);
+            border-radius: var(--radius);
+        }}
+        .header-action-booking:hover {{
+            background: color-mix(in srgb, var(--primary), #fff 86%);
+        }}
 
         /* ─── Hero ─────────────────────────── */
         .hero {{
@@ -2353,6 +2499,8 @@ class PreviewRenderView(APIView):
             .section-title {{ font-size: 1.8rem; }}
             .site-footer .container {{ grid-template-columns: 1fr; gap: 28px; }}
             .site-header nav {{ display: none; }}
+            .header-actions {{ display: none; }}
+            .info-bar {{ display: none; }}
         }}
 
         /* ─── Scroll animations (anim-*) ─── */
@@ -2472,7 +2620,7 @@ class PreviewRenderView(APIView):
     </style>
 </head>
 <body class="pw-style-{style}" data-color-mode="{color_mode}">
-{analytics_body_start}{header_html}
+{analytics_body_start}{info_bar_html}{promo_html}{header_html}
 {sections_html}
 <button class="scroll-top-btn" aria-label="Volver arriba" onclick="window.scrollTo({{top:0,behavior:'smooth'}})">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
@@ -2518,13 +2666,16 @@ class PreviewRenderView(APIView):
             }} catch(err) {{}}
         }});
     }});
-    // Prevent navigation in preview iframe (editor context)
+    // Prevent navigation and text editing in preview iframe (editor context)
     if (window.parent !== window) {{
         document.querySelectorAll('a:not([href^="#"])').forEach(a => {{
             a.addEventListener('click', (e) => {{
                 e.preventDefault();
             }});
         }});
+        // Block text selection & editing in preview mode
+        document.body.style.userSelect = 'none';
+        document.body.style.webkitUserSelect = 'none';
     }}
     // Scroll reveal animations (anim-* and .reveal)
     const animSelector = '[class*="anim-"], .reveal';
@@ -2633,9 +2784,51 @@ class PreviewRenderView(APIView):
 {self._render_privacy_modal(tenant_info or {}, seo)}
 {self._render_cookie_banner(cookie_enabled, cookie_position, cookie_text, cookie_accept, cookie_decline, primary, is_preview=is_preview) if cookie_enabled else ''}
 {self._render_whatsapp_button(whatsapp_float_enabled, whatsapp_float_number, whatsapp_float_message, whatsapp_float_position) if whatsapp_float_enabled else ''}
+{self._render_header_whatsapp_float(header_data, contact_data) if (not whatsapp_float_enabled and header_data.get('whatsapp_float_enabled')) else ''}
 {custom_body_code if custom_body_code else ''}
 </body>
 </html>"""
+
+    # ─── Industry header defaults ────────────────────────
+    INDUSTRY_HEADER_DEFAULTS = {
+        'retail': {
+            'action_login_enabled': True,
+            'action_cart_enabled': True,
+            'action_wishlist_enabled': True,
+        },
+        'beauty': {
+            'action_login_enabled': True,
+            'action_booking_enabled': True,
+            'action_booking_text': 'Reservar cita',
+        },
+        'health': {
+            'action_login_enabled': True,
+            'action_booking_enabled': True,
+            'action_booking_text': 'Agendar cita',
+        },
+        'fitness': {
+            'action_login_enabled': True,
+            'action_booking_enabled': True,
+            'action_booking_text': 'Reservar clase',
+        },
+        'restaurant': {
+            'action_booking_enabled': True,
+            'action_booking_text': 'Reservar mesa',
+        },
+        'events': {
+            'action_booking_enabled': True,
+            'action_booking_text': 'Reservar',
+        },
+    }
+
+    def _header_field(self, header_data, field, industry='generic', default=None):
+        """Get header field with industry-aware defaults."""
+        if field in header_data:
+            return header_data[field]
+        ind_defaults = self.INDUSTRY_HEADER_DEFAULTS.get(industry, {})
+        if field in ind_defaults:
+            return ind_defaults[field]
+        return default
 
     # ─── Nav labels ─────────────────────────────────────
     SECTION_NAV_LABELS = {
@@ -3020,7 +3213,7 @@ class PreviewRenderView(APIView):
         return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
     def _tenant_url(self, path: str) -> str:
-        """Construye URL absoluta del tenant. Ej: https://tenant.graviti.co/products"""
+        """Construye URL absoluta del tenant. Ej: https://tenant.nerbis.com/products"""
         base = getattr(self, '_base_url', '') or ''
         if base:
             return f"{base.rstrip('/')}/{path.lstrip('/')}"
@@ -3048,44 +3241,178 @@ class PreviewRenderView(APIView):
         'contact': '/contact',
     }
 
-    def _render_header(self, logo_text, nav_sections, cta_text, cta_link, primary, secondary, logo_url=''):
-        nav_items = ''
-        for sid in nav_sections:
-            label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
-            page = self.SECTION_PAGE_MAP.get(sid)
-            href = self._tenant_url(page) if page else f'#{sid}'
-            nav_items += f'<a href="{href}">{self._esc(label)}</a>\n'
+    # ─── SVG icons for header ──────────────────────────
+    _SVG_PHONE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
+    _SVG_MAIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
+    _SVG_CLOCK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+    _SVG_USER = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+    _SVG_CART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>'
+    _SVG_HEART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'
+    _SVG_CALENDAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>'
+
+    def _render_info_bar(self, header_data, contact_data, social_links, industry='generic'):
+        """Render the info bar above the header nav."""
+        if not self._header_field(header_data, 'info_bar_enabled', industry, False):
+            return ''
+
+        bg = header_data.get('info_bar_bg', '#1C3B57')
+        tc = header_data.get('info_bar_text_color', '#FFFFFF')
+
+        items_html = ''
+        show_phone = header_data.get('info_bar_show_phone', True)
+        show_email = header_data.get('info_bar_show_email', True)
+        show_hours = header_data.get('info_bar_show_hours', True)
+
+        phone = contact_data.get('phone', '')
+        email = contact_data.get('email', '')
+        hours = contact_data.get('hours', '')
+
+        info_parts = []
+        if show_phone and phone:
+            info_parts.append(f'<span class="info-bar-item">{self._SVG_PHONE} {self._esc(phone)}</span>')
+        if show_email and email:
+            info_parts.append(f'<span class="info-bar-item">{self._SVG_MAIL} {self._esc(email)}</span>')
+        if show_hours and hours:
+            info_parts.append(f'<span class="info-bar-item">{self._SVG_CLOCK} {self._esc(hours)}</span>')
+
+        if info_parts:
+            items_html = f'<div class="info-bar-left">{" ".join(info_parts)}</div>'
+
+        social_html = ''
+        show_social = header_data.get('info_bar_show_social', True)
+        if show_social and social_links:
+            social_icons_map = {
+                'facebook': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>',
+                'instagram': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>',
+                'twitter': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+                'linkedin': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>',
+                'youtube': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg>',
+                'tiktok': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.19a8.16 8.16 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.62z"/></svg>',
+            }
+            social_parts = []
+            for network, url in social_links.items():
+                if url and network in social_icons_map:
+                    social_parts.append(f'<a href="{self._esc(url)}" target="_blank" rel="noopener noreferrer" class="info-bar-social-link" title="{network.title()}">{social_icons_map[network]}</a>')
+            if social_parts:
+                social_html = f'<div class="info-bar-social">{" ".join(social_parts)}</div>'
+
+        if not items_html and not social_html:
+            return ''
+
+        return f'''<div class="info-bar" style="background:{bg};color:{tc};">
+    <div class="container" style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        {items_html}
+        {social_html}
+    </div>
+</div>'''
+
+    def _render_header(self, logo_text, nav_sections, cta_text, cta_link, primary, secondary, logo_url='', custom_nav_items=None, header_data=None, industry='generic'):
+        nav_html = ''
+        page_slugs = getattr(self, '_page_slugs', {})
+
+        if custom_nav_items:
+            # Navegación personalizada desde content_data['header']['nav_items']
+            for item in custom_nav_items:
+                if not item.get('visible', True):
+                    continue
+                sid = item.get('id', '')
+                label = item.get('label', self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title()))
+                if page_slugs and sid in page_slugs:
+                    href = page_slugs[sid]
+                else:
+                    page = self.SECTION_PAGE_MAP.get(sid)
+                    href = self._tenant_url(page) if page else f'#{sid}'
+                nav_html += f'<a href="{href}">{self._esc(label)}</a>\n'
+        else:
+            # Fallback: auto-generar desde secciones activas
+            for sid in nav_sections:
+                label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
+                page = self.SECTION_PAGE_MAP.get(sid)
+                href = self._tenant_url(page) if page else f'#{sid}'
+                nav_html += f'<a href="{href}">{self._esc(label)}</a>\n'
 
         cta_html = ''
         if cta_text:
             cta_html = f'<a href="{self._esc(cta_link)}" class="header-cta">{self._esc(cta_text)}</a>'
 
-        # Logo: imagen si existe, texto como fallback
-        if logo_url:
-            logo_inner = f'<img src="{self._esc(logo_url)}" alt="{self._esc(logo_text)}" style="max-height:36px;width:auto;display:block;">'
+        # Logo: mode-aware rendering
+        header_data = header_data or {}
+        logo_mode = header_data.get('logo_mode', 'image' if logo_url else 'text')
+        logo_scale = int(header_data.get('logo_scale', 100))
+        logo_padding = int(header_data.get('logo_padding', 0))
+        logo_height = round(36 * logo_scale / 100)
+        padding_style = f'padding:{logo_padding}px;' if logo_padding > 0 else ''
+        font_scale = round(1.25 * logo_scale / 100, 2)
+
+        if logo_mode == 'image' and logo_url:
+            logo_inner = f'<img src="{self._esc(logo_url)}" alt="{self._esc(logo_text)}" style="max-height:{logo_height}px;width:auto;display:block;{padding_style}">'
+        elif logo_mode == 'image_text' and logo_url:
+            logo_inner = (
+                f'<span style="display:inline-flex;align-items:center;gap:8px;{padding_style}">'
+                f'<img src="{self._esc(logo_url)}" alt="{self._esc(logo_text)}" style="max-height:{logo_height}px;width:auto;display:block;">'
+                f'<span style="font-size:{font_scale}rem;">{self._esc(logo_text)}</span>'
+                f'</span>'
+            )
         else:
-            logo_inner = self._esc(logo_text)
+            logo_inner = f'<span style="font-size:{font_scale}rem;{padding_style}">{self._esc(logo_text)}</span>'
+
+        # User action icons
+        actions_html = ''
+
+        if self._header_field(header_data, 'action_login_enabled', industry, False):
+            _login_text = self._esc(header_data.get('action_login_text', 'Mi cuenta'))
+            _login_link = self._esc(header_data.get('action_login_link', '/login'))
+            actions_html += f'<a href="{_login_link}" class="header-action" title="{_login_text}">{self._SVG_USER} <span>{_login_text}</span></a>'
+
+        if self._header_field(header_data, 'action_wishlist_enabled', industry, False):
+            _wish_link = self._esc(header_data.get('action_wishlist_link', '/favoritos'))
+            actions_html += f'<a href="{_wish_link}" class="header-action" title="Favoritos">{self._SVG_HEART}</a>'
+
+        if self._header_field(header_data, 'action_cart_enabled', industry, False):
+            _cart_link = self._esc(header_data.get('action_cart_link', '/carrito'))
+            actions_html += f'<a href="{_cart_link}" class="header-action" title="Carrito">{self._SVG_CART}</a>'
+
+        if self._header_field(header_data, 'action_booking_enabled', industry, False):
+            _book_text = self._esc(header_data.get('action_booking_text',
+                         self.INDUSTRY_HEADER_DEFAULTS.get(industry, {}).get('action_booking_text', 'Reservar cita')))
+            _use_system = header_data.get('action_booking_use_system', True)
+            if _use_system:
+                _base = getattr(self, '_base_url', '')
+                _book_link = f'{_base}/booking' if _base else '#booking'
+            else:
+                _book_link = self._esc(header_data.get('action_booking_link', '#'))
+            actions_html += f'<a href="{_book_link}" class="header-action header-action-booking">{self._SVG_CALENDAR} <span>{_book_text}</span></a>'
+
+        actions_wrapper = f'<div class="header-actions">{actions_html}</div>' if actions_html else ''
 
         return f"""<header class="site-header" data-section="header">
     <div class="container">
         <a href="#" class="logo">{logo_inner}</a>
         <nav>
-            {nav_items}
+            {nav_html}
             {cta_html}
         </nav>
+        {actions_wrapper}
     </div>
 </header>
 """
 
-    def _render_footer(self, logo_text, contact_data, nav_sections, primary, social_links=None, show_badge=True, badge_logo_url=None):
+    def _render_footer(self, logo_text, contact_data, nav_sections, primary, social_links=None, show_badge=True, badge_logo_url=None, footer_data=None):
         social_links = social_links or {}
+        footer_data = footer_data or {}
 
-        # Nav links
+        # Nav links — usa slugs de página si está disponible (multi-page)
         nav_links = ''
+        page_slugs = getattr(self, '_page_slugs', {})
         for sid in nav_sections[:6]:
             label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
-            page = self.SECTION_PAGE_MAP.get(sid)
-            href = self._tenant_url(page) if page else f'#{sid}'
+            if page_slugs and sid in page_slugs:
+                # Multi-page: link a la URL real de la página
+                href = page_slugs[sid]
+            else:
+                # Single-page legado: anchor o tenant URL
+                page = self.SECTION_PAGE_MAP.get(sid)
+                href = self._tenant_url(page) if page else f'#{sid}'
             nav_links += f'<li><a href="{href}">{self._esc(label)}</a></li>\n'
 
         # Contact info
@@ -3098,12 +3425,14 @@ class PreviewRenderView(APIView):
 
         # Social links
         social_icons = {
+            'whatsapp': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>',
             'instagram': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.38 3.86 3.9 2.31 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1018.16 12 6.16 6.16 0 0012 5.84zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>',
             'facebook': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07c0 6.02 4.39 11.01 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.23 2.68.23v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.33l-.53 3.49h-2.8v8.44C19.61 23.08 24 18.09 24 12.07z"/></svg>',
             'tiktok': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52V6.8a4.84 4.84 0 01-1-.11z"/></svg>',
             'youtube': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 00.5 6.19 31.6 31.6 0 000 12a31.6 31.6 0 00.5 5.81 3.02 3.02 0 002.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 002.12-2.14A31.6 31.6 0 0024 12a31.6 31.6 0 00-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>',
             'linkedin': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05a3.74 3.74 0 013.37-1.85c3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 11-.01-4.13 2.06 2.06 0 01.01 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>',
             'twitter': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+            'pinterest': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>',
         }
 
         social_html = ''
@@ -3117,25 +3446,44 @@ class PreviewRenderView(APIView):
 
         esc_name = self._esc(logo_text)
 
-        # Badge "Hecho con GRAVITIFY" — isotipo embebido como data URI + animación pendulo
+        # Footer editable fields (con defaults para backward compat)
+        footer_desc = footer_data.get('description', 'Visítanos y descubre todo lo que tenemos para ofrecerte.')
+        footer_copyright = footer_data.get('copyright_text', f'2026 {logo_text}. Todos los derechos reservados.')
+        footer_privacy = footer_data.get('privacy_label', 'Política de privacidad')
+
+        # Newsletter form (visual only)
+        newsletter_html = ''
+        if footer_data.get('newsletter_enabled'):
+            _nl_title = self._esc(footer_data.get('newsletter_title', 'Suscríbete a nuestro boletín'))
+            _nl_placeholder = self._esc(footer_data.get('newsletter_placeholder', 'Tu correo electrónico'))
+            _nl_btn = self._esc(footer_data.get('newsletter_button_text', 'Suscribirse'))
+            newsletter_html = f'''<div class="footer-newsletter" style="grid-column:1/-1;padding:32px 0 24px;border-top:1px solid rgba(255,255,255,.08);margin-top:16px;">
+            <h4 style="margin-bottom:12px;font-size:.95rem;">{_nl_title}</h4>
+            <form onsubmit="return false" style="display:flex;gap:8px;max-width:420px;">
+                <input type="email" placeholder="{_nl_placeholder}" style="flex:1;padding:10px 14px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:inherit;font-size:.88rem;outline:none;">
+                <button type="submit" class="btn btn-primary" style="white-space:nowrap;padding:10px 20px;font-size:.85rem;">{_nl_btn}</button>
+            </form>
+        </div>'''
+
+        # Badge "Hecho con NERBIS" — isotipo embebido como data URI + animación pendulo
         _b64 = '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'
         if show_badge:
             badge_html = '''<div style="text-align:center;padding:4px 24px 8px;">
-        <a href="https://gravitify.co" target="_blank" rel="noopener nofollow"
+        <a href="https://nerbis.co" target="_blank" rel="noopener nofollow"
            style="display:inline-flex;align-items:center;gap:5px;color:rgba(255,255,255,0.45);text-decoration:none;font-size:.68rem;opacity:.45;transition:all .25s ease;letter-spacing:.01em;"
            onmouseover="this.style.opacity=\'1\';this.style.color=\'rgba(255,255,255,0.9)\';this.style.fontSize=\'.72rem\';this.style.letterSpacing=\'.04em\';"
            onmouseout="this.style.opacity=\'.45\';this.style.color=\'rgba(255,255,255,0.45)\';this.style.fontSize=\'.68rem\';this.style.letterSpacing=\'.01em\';">
-            Hecho con GRAVITIFY
+            Hecho con NERBIS
         </a>
     </div>'''
         else:
             badge_html = ''
 
-        return f"""<footer class="site-footer">
+        return f"""<footer class="site-footer" data-section="footer">
     <div class="container">
         <div>
             <div class="footer-brand">{esc_name}</div>
-            <p class="footer-desc">Visítanos y descubre todo lo que tenemos para ofrecerte.</p>
+            <p class="footer-desc">{self._esc(footer_desc)}</p>
             {social_section}
         </div>
         <div>
@@ -3149,11 +3497,12 @@ class PreviewRenderView(APIView):
         <div>
             <h4>Legal</h4>
             <ul>
-                <li><a href="#" onclick="openPrivacyPolicy();return false;">Política de privacidad</a></li>
+                <li><a href="#" onclick="openPrivacyPolicy();return false;">{self._esc(footer_privacy)}</a></li>
             </ul>
         </div>
+        {newsletter_html}
         <div class="footer-bottom">
-            &copy; 2026 {esc_name}. Todos los derechos reservados.
+            &copy; {self._esc(footer_copyright)}
         </div>
     </div>
     {badge_html}
@@ -3196,7 +3545,7 @@ class PreviewRenderView(APIView):
         photographer_url = self._esc(image.get('photographer_url', ''))
         if not photographer:
             return ''
-        return f'<span class="{css_class}">Foto: <a href="{photographer_url}?utm_source=gravitify&utm_medium=referral" target="_blank" rel="noopener">{photographer}</a> / <a href="https://unsplash.com?utm_source=gravitify&utm_medium=referral" target="_blank" rel="noopener">Unsplash</a></span>'
+        return f'<span class="{css_class}">Foto: <a href="{photographer_url}?utm_source=nerbis&utm_medium=referral" target="_blank" rel="noopener">{photographer}</a> / <a href="https://unsplash.com?utm_source=nerbis&utm_medium=referral" target="_blank" rel="noopener">Unsplash</a></span>'
 
     def _render_hero_centered(self, data, primary, secondary):
         """Gradiente, texto centrado, CTAs."""
@@ -4367,6 +4716,35 @@ class PreviewRenderView(APIView):
                 return f'https://wa.me/{digits.lstrip("+")}'
         return None
 
+    def _render_header_whatsapp_float(self, header_data, contact_data):
+        """WhatsApp floating button from header toggle (uses contact whatsapp number)."""
+        if not header_data.get('whatsapp_float_enabled'):
+            return ''
+        wa_url = self._get_wa_link(contact_data)
+        if not wa_url:
+            return ''
+        return f'''<a href="{wa_url}" target="_blank" rel="noopener" class="wa-float-btn"
+   style="position:fixed;bottom:24px;right:24px;z-index:9990;width:56px;height:56px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.18);transition:transform .2s,box-shadow .2s;text-decoration:none;"
+   onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.25)'"
+   onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.18)'"
+   title="WhatsApp">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+</a>'''
+
+    def _render_map_embed(self, data):
+        """Google Maps embed iframe if map is enabled in contact section."""
+        if not data.get('map_enabled'):
+            return ''
+        import urllib.parse
+        address = data.get('map_address', '') or data.get('address', '')
+        if not address:
+            return ''
+        encoded = urllib.parse.quote(address)
+        return f'''<div class="contact-map" style="margin-top:2.5rem;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
+    <iframe src="https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q={encoded}"
+        width="100%" height="300" style="border:0;display:block;" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+</div>'''
+
     def _contact_items_html(self, data, item_class='contact-item'):
         items_html = ''
         for key in ('phone', 'email', 'address', 'whatsapp', 'hours'):
@@ -4400,6 +4778,7 @@ class PreviewRenderView(APIView):
         subtitle = self._esc(data.get('subtitle', ''))
         items_html = self._contact_items_html(data)
         wa_cta = self._whatsapp_cta(data)
+        map_html = self._render_map_embed(data)
         sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
         return f"""<section class="section" data-section="contact">
     <div class="container">
@@ -4410,6 +4789,7 @@ class PreviewRenderView(APIView):
         </div>
         <div class="contact-grid anim-fade-up stagger">{items_html}</div>
         {wa_cta}
+        {map_html}
     </div>
 </section>
 """
@@ -4420,6 +4800,7 @@ class PreviewRenderView(APIView):
         items_html = self._contact_items_html(data, 'contact-split-item')
         wa_url = self._get_wa_link(data)
         wa_btn = f'<a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta" style="margin-top:16px">{self._CONTACT_ICONS["whatsapp"]} WhatsApp</a>' if wa_url else ''
+        map_html = self._render_map_embed(data)
         sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
         return f"""<section class="section" data-section="contact">
     <div class="container">
@@ -4439,6 +4820,7 @@ class PreviewRenderView(APIView):
                 </div>
             </div>
         </div>
+        {map_html}
     </div>
 </section>
 """
@@ -4459,6 +4841,7 @@ class PreviewRenderView(APIView):
         wa_cta = ''
         if wa_url:
             wa_cta = f'<a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta" style="margin-top:28px">{self._CONTACT_ICONS["whatsapp"]} Escríbenos por WhatsApp</a>'
+        map_html = self._render_map_embed(data)
         sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
         return f"""<section class="section" data-section="contact">
     <div class="container">
@@ -4468,6 +4851,7 @@ class PreviewRenderView(APIView):
             {sub_html}
             <div class="contact-centered-items">{items_html}</div>
             {wa_cta}
+            {map_html}
         </div>
     </div>
 </section>
@@ -4607,21 +4991,30 @@ class AddSectionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Crear sección vacía con estructura base
-        section_defaults = {
-            'header': {'logo_text': '', 'cta_text': 'Contáctanos', 'cta_link': '#contact'},
-            'hero': {'title': '', 'subtitle': '', 'cta_text': '', 'cta_link': '#'},
-            'about': {'title': 'Sobre Nosotros', 'content': '', 'highlights': []},
-            'services': {'title': 'Servicios', 'subtitle': '', 'items': []},
-            'products': {'title': 'Productos', 'subtitle': '', 'items': []},
-            'testimonials': {'title': 'Testimonios', 'items': []},
-            'gallery': {'title': 'Galería', 'subtitle': '', 'items': []},
-            'pricing': {'title': 'Precios', 'subtitle': '', 'items': []},
-            'faq': {'title': 'Preguntas Frecuentes', 'items': []},
-            'contact': {'title': 'Contacto', 'subtitle': ''},
-        }
+        # Usar contenido inicial del frontend si viene, o defaults
+        initial_content = request.data.get('initial_content')
+        variant = request.data.get('variant')
 
-        content[section_id] = section_defaults.get(section_id, {'title': '', 'content': ''})
+        if initial_content and isinstance(initial_content, dict):
+            content[section_id] = initial_content
+        else:
+            section_defaults = {
+                'header': {'logo_text': '', 'cta_text': 'Contáctanos', 'cta_link': '#contact'},
+                'hero': {'title': '', 'subtitle': '', 'cta_text': '', 'cta_link': '#'},
+                'about': {'title': 'Sobre Nosotros', 'content': '', 'highlights': []},
+                'services': {'title': 'Servicios', 'subtitle': '', 'items': []},
+                'products': {'title': 'Productos', 'subtitle': '', 'items': []},
+                'testimonials': {'title': 'Testimonios', 'items': []},
+                'gallery': {'title': 'Galería', 'subtitle': '', 'items': []},
+                'pricing': {'title': 'Precios', 'subtitle': '', 'items': []},
+                'faq': {'title': 'Preguntas Frecuentes', 'items': []},
+                'contact': {'title': 'Contacto', 'subtitle': ''},
+            }
+            content[section_id] = section_defaults.get(section_id, {'title': '', 'content': ''})
+
+        # Guardar variante si viene
+        if variant:
+            content[section_id]['_variant'] = variant
 
         # Actualizar orden
         order = content.get('_section_order', [])
@@ -4705,6 +5098,85 @@ class RemoveSectionView(APIView):
         config.save(update_fields=['content_data', 'updated_at'])
 
         return Response({"message": f"Sección '{section_id}' eliminada"})
+
+    def _get_tenant(self, request):
+        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+            return None
+        return request.user.tenant
+
+
+# ===================================
+# DUPLICAR SECCIÓN
+# ===================================
+
+class DuplicateSectionView(APIView):
+    """
+    POST /api/websites/sections/duplicate/
+
+    Duplica una sección existente con todo su contenido.
+    Body: {"section_id": "services"}
+    Genera un id único: services_2, services_3, etc.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        tenant = self._get_tenant(request)
+        if not tenant:
+            return Response(
+                {"error": "Usuario no asociado a un tenant"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            config = WebsiteConfig.objects.get(tenant=tenant)
+        except WebsiteConfig.DoesNotExist:
+            return Response(
+                {"error": "No tienes un sitio web configurado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        section_id = request.data.get('section_id', '')
+        if not section_id:
+            return Response(
+                {"error": "Se requiere 'section_id'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        content = config.content_data or {}
+        if section_id not in content:
+            return Response(
+                {"error": f"La sección '{section_id}' no existe en el contenido"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Generar id único para la copia
+        import copy
+        base_id = section_id.split('_')[0] if '_' in section_id else section_id
+        counter = 2
+        new_id = f"{base_id}_{counter}"
+        while new_id in content:
+            counter += 1
+            new_id = f"{base_id}_{counter}"
+
+        # Copiar contenido de la sección original
+        content[new_id] = copy.deepcopy(content[section_id])
+
+        # Insertar justo después del original en el orden
+        order = content.get('_section_order', [])
+        if order and section_id in order:
+            idx = order.index(section_id)
+            order.insert(idx + 1, new_id)
+            content['_section_order'] = order
+
+        config.content_data = content
+        config.save(update_fields=['content_data', 'updated_at'])
+
+        return Response({
+            "message": f"Sección '{section_id}' duplicada como '{new_id}'",
+            "new_section_id": new_id,
+            "section": content[new_id],
+        }, status=status.HTTP_201_CREATED)
 
     def _get_tenant(self, request):
         if not hasattr(request.user, 'tenant') or not request.user.tenant:

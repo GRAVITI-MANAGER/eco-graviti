@@ -23,6 +23,7 @@ from .views import (
     ReorderSectionsView,
     AddSectionView,
     RemoveSectionView,
+    DuplicateSectionView,
     UpdateSectionVariantView,
 )
 
@@ -60,5 +61,6 @@ urlpatterns = [
     path('sections/reorder/', ReorderSectionsView.as_view(), name='sections-reorder'),
     path('sections/add/', AddSectionView.as_view(), name='sections-add'),
     path('sections/remove/', RemoveSectionView.as_view(), name='sections-remove'),
+    path('sections/duplicate/', DuplicateSectionView.as_view(), name='sections-duplicate'),
     path('sections/variant/', UpdateSectionVariantView.as_view(), name='sections-variant'),
 ]

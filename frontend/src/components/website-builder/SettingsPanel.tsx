@@ -87,7 +87,7 @@ export interface SiteSettings {
   schema_enabled?: boolean;
   schema_business_type?: string;
   // Branding
-  show_gravitify_badge?: boolean;
+  show_nerbis_badge?: boolean;
 }
 
 export interface SeoSuggestion {
@@ -565,7 +565,7 @@ export default function SettingsPanel({ settings, siteName, siteUrl, isPublished
   const ogInherit = settings.og_inherit_seo !== false; // default true
   const resolvedOgTitle = ogInherit ? settings.meta_title : (settings.og_title || settings.meta_title);
   const resolvedOgDesc = ogInherit ? settings.meta_description : (settings.og_description || settings.meta_description);
-  const displayUrl = siteUrl || 'tusitio.graviti.co';
+  const displayUrl = siteUrl || 'tusitio.nerbis.com';
 
   const metaTitleLength = settings.meta_title.length;
   const metaDescLength = settings.meta_description.length;
@@ -1313,7 +1313,7 @@ export default function SettingsPanel({ settings, siteName, siteUrl, isPublished
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-[0.6rem] text-gray-400 shrink-0 w-14">Web</span>
-                  <span className="text-[0.68rem] text-gray-700">{siteUrl || 'tusitio.graviti.co'}</span>
+                  <span className="text-[0.68rem] text-gray-700">{siteUrl || 'tusitio.nerbis.com'}</span>
                 </div>
               </div>
               <p className="text-[0.55rem] text-gray-400 mt-2 pt-2 border-t border-gray-200">
@@ -1552,7 +1552,7 @@ export default function SettingsPanel({ settings, siteName, siteUrl, isPublished
         onToggle={() => toggle('brand')}
       >
         <div className="space-y-3">
-          {/* Badge "Hecho con GRAVITIFY" */}
+          {/* Badge "Hecho con NERBIS" */}
           <div className={`rounded-xl border p-3.5 ${hasWhiteLabel ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'}`}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -1561,21 +1561,21 @@ export default function SettingsPanel({ settings, siteName, siteUrl, isPublished
                 </p>
                 <p className="text-[0.62rem] text-gray-500 mt-0.5 leading-relaxed">
                   {hasWhiteLabel
-                    ? 'Tu sitio muestra un pequeño "Hecho con GRAVITIFY" al final de la página. Si prefieres que no aparezca, apágalo aquí.'
-                    : 'Tu sitio muestra un pequeño "Hecho con GRAVITIFY" al final de la página. Podrás quitarlo una vez actives tu suscripción.'}
+                    ? 'Tu sitio muestra un pequeño "Hecho con NERBIS" al final de la página. Si prefieres que no aparezca, apágalo aquí.'
+                    : 'Tu sitio muestra un pequeño "Hecho con NERBIS" al final de la página. Podrás quitarlo una vez actives tu suscripción.'}
                 </p>
               </div>
               {hasWhiteLabel ? (
                 <button
-                  onClick={() => update('show_gravitify_badge', !(settings.show_gravitify_badge ?? true))}
+                  onClick={() => update('show_nerbis_badge', !(settings.show_nerbis_badge ?? true))}
                   className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                    (settings.show_gravitify_badge ?? true) ? 'bg-[#95D0C9]' : 'bg-gray-200'
+                    (settings.show_nerbis_badge ?? true) ? 'bg-[#95D0C9]' : 'bg-gray-200'
                   }`}
                   role="switch"
-                  aria-checked={settings.show_gravitify_badge ?? true}
+                  aria-checked={settings.show_nerbis_badge ?? true}
                 >
                   <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    (settings.show_gravitify_badge ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+                    (settings.show_nerbis_badge ?? true) ? 'translate-x-4' : 'translate-x-0.5'
                   }`} />
                 </button>
               ) : (

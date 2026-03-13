@@ -145,6 +145,7 @@ class WebsiteConfigSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     public_url = serializers.CharField(read_only=True)
     is_published = serializers.BooleanField(read_only=True)
+    has_unpublished_changes = serializers.BooleanField(read_only=True)
     remaining_generations = serializers.SerializerMethodField()
 
     class Meta:
@@ -152,8 +153,8 @@ class WebsiteConfigSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'template', 'template_name', 'template_industry',
             'status', 'status_display', 'content_data', 'theme_data',
-            'media_data', 'seo_data', 'enabled_pages', 'subdomain', 'custom_domain',
-            'public_url', 'is_published', 'ai_generations_count',
+            'media_data', 'seo_data', 'enabled_pages', 'pages_data', 'subdomain', 'custom_domain',
+            'public_url', 'is_published', 'has_unpublished_changes', 'ai_generations_count',
             'remaining_generations',
             'last_generation_at', 'published_at', 'created_at', 'updated_at'
         ]
@@ -170,6 +171,24 @@ class WebsiteConfigSerializer(serializers.ModelSerializer):
             return max(0, limit - used)
         except Exception:
             return 0
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        media = data.get('media_data') or {}
+        current_logo = media.get('logo_url', '')
+        # Only query onboarding if logo is missing OR is a data URL (from onboarding/generation)
+        # Real uploaded URLs (https://) are set by the editor and should NOT be overwritten
+        if not current_logo or current_logo.startswith('data:'):
+            logo_resp = OnboardingResponse.objects.filter(
+                website_config=instance, question__question_key='logo_upload',
+            ).values_list('response_value', flat=True).first()
+            if logo_resp and current_logo != logo_resp:
+                media = dict(media)
+                media['logo_url'] = logo_resp
+                data['media_data'] = media
+                instance.media_data = media
+                instance.save(update_fields=['media_data'])
+        return data
 
 
 class WebsiteConfigCreateSerializer(serializers.Serializer):

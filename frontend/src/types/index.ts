@@ -490,7 +490,7 @@ export interface Banner {
 }
 
 // ===================================
-// SUBSCRIPTIONS (GRAVITIFY SERVICES)
+// SUBSCRIPTIONS (NERBIS SERVICES)
 // ===================================
 
 export interface SubscriptionCategory {

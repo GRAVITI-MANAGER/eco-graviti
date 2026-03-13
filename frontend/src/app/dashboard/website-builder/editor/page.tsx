@@ -1032,8 +1032,8 @@ export default function EditorPage() {
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <Image
-              src="/Isotipo_color_GRAVITIFY.png"
-              alt="Gravitify"
+              src="/Isotipo_color_NERBIS.png"
+              alt="Nerbis"
               width={24}
               height={24}
             />

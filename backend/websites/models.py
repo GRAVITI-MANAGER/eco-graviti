@@ -1,6 +1,6 @@
 # backend/websites/models.py
 """
-Sistema de Website Builder para GRAVITIFY.
+Sistema de Website Builder para NERBIS.
 
 Este módulo gestiona:
 - Templates de sitio web por industria
@@ -320,11 +320,38 @@ class WebsiteConfig(models.Model):
         help_text="Referencias a imágenes y archivos del sitio"
     )
 
+    # Estructura multi-página
+    # Reemplaza content_data + enabled_pages en la nueva arquitectura
+    # Estructura:
+    # {
+    #   "global": { "sections": ["header","footer"], "content": {...} },
+    #   "pages": [
+    #     { "id": "home", "slug": "/", "name": "Inicio", "order": 0,
+    #       "sections": ["hero","testimonials"], "content": {...}, "seo": {...} },
+    #     { "id": "about", "slug": "/nosotros", "name": "Nosotros", ... }
+    #   ]
+    # }
+    pages_data = models.JSONField(
+        'Estructura de páginas',
+        default=dict,
+        blank=True,
+        help_text="Estructura multi-página: global (header/footer) + páginas con sus secciones"
+    )
+
     # SEO
     seo_data = models.JSONField(
         'Datos SEO',
         default=dict,
         help_text="Meta títulos, descripciones, keywords"
+    )
+
+    # Snapshot de datos publicados
+    # Se llena al publicar con copia de content_data, theme_data, etc.
+    published_data = models.JSONField(
+        'Datos publicados',
+        default=dict,
+        blank=True,
+        help_text="Snapshot de todos los datos al momento de publicar"
     )
 
     # Dominio personalizado
@@ -338,7 +365,7 @@ class WebsiteConfig(models.Model):
         'Subdominio',
         max_length=50,
         blank=True,
-        help_text="Subdominio en graviti (ej: minegocio.graviti.co)"
+        help_text="Subdominio en nerbis (ej: minegocio.nerbis.com)"
     )
 
     # Tracking
@@ -368,6 +395,27 @@ class WebsiteConfig(models.Model):
     @property
     def is_published(self):
         return self.status == 'published'
+
+    @property
+    def has_unpublished_changes(self):
+        """True si los datos del editor difieren del último snapshot publicado."""
+        if not self.published_data:
+            return bool(self.content_data or self.theme_data)
+        current = {
+            'content_data': self.content_data,
+            'theme_data': self.theme_data,
+            'pages_data': self.pages_data,
+            'seo_data': self.seo_data,
+            'media_data': self.media_data,
+        }
+        published = {
+            'content_data': self.published_data.get('content_data', {}),
+            'theme_data': self.published_data.get('theme_data', {}),
+            'pages_data': self.published_data.get('pages_data', {}),
+            'seo_data': self.published_data.get('seo_data', {}),
+            'media_data': self.published_data.get('media_data', {}),
+        }
+        return current != published
 
     @property
     def public_url(self):
