@@ -1,10 +1,11 @@
 # backend/reviews/models.py
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from core.models import TenantAwareModel, User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+
+from core.models import TenantAwareModel, User
 
 
 class Review(TenantAwareModel):

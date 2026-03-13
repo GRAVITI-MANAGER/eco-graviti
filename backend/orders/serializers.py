@@ -1,7 +1,9 @@
 from rest_framework import serializers
+
 from core.serializers import UserSerializer
 from ecommerce.serializers import ProductListSerializer
 from services.serializers import ServiceListSerializer
+
 from .models import Order, OrderItem, OrderServiceItem, Payment
 
 
@@ -131,29 +133,17 @@ class CreateOrderSerializer(serializers.Serializer):
     # Información de facturación
     billing_name = serializers.CharField(required=True, max_length=200)
     billing_email = serializers.EmailField(required=True)
-    billing_phone = serializers.CharField(
-        required=False, max_length=50, allow_blank=True
-    )
+    billing_phone = serializers.CharField(required=False, max_length=50, allow_blank=True)
     billing_address = serializers.CharField(required=False, allow_blank=True)
-    billing_city = serializers.CharField(
-        required=False, max_length=100, allow_blank=True
-    )
-    billing_postal_code = serializers.CharField(
-        required=False, max_length=20, allow_blank=True
-    )
+    billing_city = serializers.CharField(required=False, max_length=100, allow_blank=True)
+    billing_postal_code = serializers.CharField(required=False, max_length=20, allow_blank=True)
     billing_country = serializers.CharField(required=False, max_length=2, default="ES")
 
     # Información de envío (opcional, si es diferente a facturación)
-    shipping_name = serializers.CharField(
-        required=False, max_length=200, allow_blank=True
-    )
+    shipping_name = serializers.CharField(required=False, max_length=200, allow_blank=True)
     shipping_address = serializers.CharField(required=False, allow_blank=True)
-    shipping_city = serializers.CharField(
-        required=False, max_length=100, allow_blank=True
-    )
-    shipping_postal_code = serializers.CharField(
-        required=False, max_length=20, allow_blank=True
-    )
+    shipping_city = serializers.CharField(required=False, max_length=100, allow_blank=True)
+    shipping_postal_code = serializers.CharField(required=False, max_length=20, allow_blank=True)
 
     # Notas
     customer_notes = serializers.CharField(required=False, allow_blank=True)
@@ -171,9 +161,7 @@ class PaymentIntentSerializer(serializers.Serializer):
         """Validar que la orden existe y pertenece al usuario"""
         request = self.context["request"]
         try:
-            order = Order.objects.get(
-                id=value, tenant=request.tenant, customer=request.user, status="pending"
-            )
+            Order.objects.get(id=value, tenant=request.tenant, customer=request.user, status="pending")
         except Order.DoesNotExist:
             raise serializers.ValidationError("Orden no encontrada")
         return value

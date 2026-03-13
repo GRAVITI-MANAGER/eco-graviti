@@ -1,27 +1,30 @@
 # backend/bookings/views.py
 
-from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
-from django_filters.rest_framework import DjangoFilterBackend
-from django.utils import timezone
+from datetime import datetime, timedelta
+
 from django.conf import settings
 from django.db.models import Q
-from datetime import datetime, timedelta, time
-from core.permissions import IsTenantStaffOrAdmin, IsOwnerOrStaff
-from services.models import Service, StaffMember
-from .models import BusinessHours, TimeOff, Appointment
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
+
+from core.permissions import IsOwnerOrStaff, IsTenantStaffOrAdmin
+from notifications.tasks import send_appointment_cancelled_email, send_appointment_confirmation_email
+from services.models import Service
+
+from .models import Appointment, BusinessHours, TimeOff
 from .serializers import (
-    BusinessHoursSerializer,
-    TimeOffSerializer,
-    AppointmentListSerializer,
-    AppointmentDetailSerializer,
     AppointmentCreateSerializer,
+    AppointmentDetailSerializer,
+    AppointmentListSerializer,
     AvailabilitySlotSerializer,
+    BusinessHoursSerializer,
     GuestBookingSerializer,
+    TimeOffSerializer,
 )
-from notifications.tasks import send_appointment_confirmation_email, send_appointment_cancelled_email
 
 
 class BusinessHoursViewSet(viewsets.ModelViewSet):
@@ -228,10 +231,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if not appointment.requires_payment:
             send_appointment_confirmation_email.delay(appointment.id)
 
-        return Response(
-            AppointmentDetailSerializer(appointment).data,
-            status=status.HTTP_201_CREATED
-        )
+        return Response(AppointmentDetailSerializer(appointment).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
@@ -433,10 +433,14 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             staff_member=staff_profile,
         )
 
-        today_count = base_qs.filter(
-            start_datetime__gte=today_start,
-            start_datetime__lt=today_end,
-        ).exclude(status="cancelled").count()
+        today_count = (
+            base_qs.filter(
+                start_datetime__gte=today_start,
+                start_datetime__lt=today_end,
+            )
+            .exclude(status="cancelled")
+            .count()
+        )
 
         pending_count = base_qs.filter(status="pending").count()
 
@@ -453,13 +457,15 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             status__in=["confirmed", "pending"],
         ).count()
 
-        return Response({
-            "today_count": today_count,
-            "pending_count": pending_count,
-            "confirmed_count": confirmed_count,
-            "completed_today": completed_today,
-            "upcoming_count": upcoming_count,
-        })
+        return Response(
+            {
+                "today_count": today_count,
+                "pending_count": pending_count,
+                "confirmed_count": confirmed_count,
+                "completed_today": completed_today,
+                "upcoming_count": upcoming_count,
+            }
+        )
 
     # ========================================
     # 🔥 ALGORITMO DE DISPONIBILIDAD
@@ -580,7 +586,6 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
         # Iterar sobre cada staff member
         for staff_member in staff_members:
-
             # Obtener tiempos libres de este staff member
             staff_time_offs = TimeOff.objects.filter(
                 tenant=tenant, staff_member=staff_member, start_datetime__lte=end_of_day, end_datetime__gte=start_of_day
@@ -697,9 +702,11 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             }
         }
         """
-        from core.models import User
-        from rest_framework_simplejwt.tokens import RefreshToken
         import secrets
+
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        from core.models import User
 
         serializer = GuestBookingSerializer(data=request.data, context={"tenant": request.tenant})
         serializer.is_valid(raise_exception=True)

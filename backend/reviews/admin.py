@@ -2,9 +2,11 @@
 
 from django.utils.html import format_html
 from unfold.admin import TabularInline
+
 from core.admin import MarketingModuleAdmin
 from core.admin_site import nerbis_admin_site
-from .models import Review, ReviewImage, ReviewHelpful
+
+from .models import Review, ReviewHelpful, ReviewImage
 
 
 class ReviewImageInline(TabularInline):

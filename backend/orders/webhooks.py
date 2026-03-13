@@ -5,9 +5,10 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from .models import Order, Payment
-from bookings.models import Appointment
+
 from notifications.tasks import send_payment_confirmation_email
+
+from .models import Payment
 
 
 @csrf_exempt

@@ -1,8 +1,10 @@
 # backend/bookings/management/commands/fix_pending_appointments.py
 
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta
+
 from bookings.models import Appointment
 
 
@@ -59,7 +61,7 @@ class Command(BaseCommand):
         # Calcular nuevo expires_at
         if expire_now:
             new_expires_at = timezone.now() - timedelta(minutes=1)  # Ya expirado
-            self.stdout.write(f"\nEstableciendo expires_at en el pasado (expirarán inmediatamente)...")
+            self.stdout.write("\nEstableciendo expires_at en el pasado (expirarán inmediatamente)...")
         else:
             new_expires_at = timezone.now() + timedelta(minutes=minutes)
             self.stdout.write(f"\nEstableciendo expires_at en {minutes} minutos desde ahora...")

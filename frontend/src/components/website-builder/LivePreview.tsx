@@ -811,7 +811,7 @@ export default function LivePreview({
 
   // Inject theme overrides into iframe CSS variables (live preview)
   const themeOverridesRef = useRef(themeOverrides);
-  themeOverridesRef.current = themeOverrides;
+  useEffect(() => { themeOverridesRef.current = themeOverrides; }, [themeOverrides]);
 
   const applyThemeToIframe = useCallback(() => {
     const overrides = themeOverridesRef.current;
@@ -889,7 +889,7 @@ export default function LivePreview({
 
   // ─── Live content overrides (direct DOM manipulation) ────
   const contentOverridesRef = useRef(contentOverrides);
-  contentOverridesRef.current = contentOverrides;
+  useEffect(() => { contentOverridesRef.current = contentOverrides; }, [contentOverrides]);
 
   const applyContentToIframe = useCallback(() => {
     const overrides = contentOverridesRef.current;
@@ -968,7 +968,7 @@ export default function LivePreview({
 
   // ─── Scroll to & highlight active section in iframe ────
   const activeSectionRef = useRef(activeSection);
-  activeSectionRef.current = activeSection;
+  useEffect(() => { activeSectionRef.current = activeSection; }, [activeSection]);
 
   const applyActiveSectionHighlight = useCallback(() => {
     if (!iframeRef.current) return;

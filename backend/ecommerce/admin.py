@@ -4,11 +4,13 @@ from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from unfold.admin import TabularInline, StackedInline
-from .models import ProductCategory, Product, ProductImage, Inventory
-from core.admin_site import nerbis_admin_site
+from unfold.admin import StackedInline, TabularInline
+
 from core.admin import ShopModuleAdmin
+from core.admin_site import nerbis_admin_site
 from core.widgets import ImagePreviewWidget
+
+from .models import Inventory, Product, ProductCategory, ProductImage
 
 
 class ProductCategoryForm(forms.ModelForm):
@@ -16,9 +18,9 @@ class ProductCategoryForm(forms.ModelForm):
 
     class Meta:
         model = ProductCategory
-        fields = '__all__'
+        fields = "__all__"
         widgets = {
-            'image': ImagePreviewWidget(),
+            "image": ImagePreviewWidget(),
         }
 
 
@@ -27,9 +29,9 @@ class ProductImageForm(forms.ModelForm):
 
     class Meta:
         model = ProductImage
-        fields = '__all__'
+        fields = "__all__"
         widgets = {
-            'image': ImagePreviewWidget(),
+            "image": ImagePreviewWidget(),
         }
 
 
@@ -212,7 +214,7 @@ class ProductAdmin(ShopModuleAdmin):
                 text = f"{stock} unidades"
 
             return format_html('<span style="color: {}; font-weight: bold;">{}</span>', color, text)
-        except:
+        except Exception:
             return "-"
 
     stock_display.short_description = "Stock"
@@ -221,7 +223,7 @@ class ProductAdmin(ShopModuleAdmin):
         """Asignar tenant del producto a los inlines (Inventory, ProductImage)"""
         instances = formset.save(commit=False)
         for instance in instances:
-            if hasattr(instance, 'tenant_id') and not instance.tenant_id:
+            if hasattr(instance, "tenant_id") and not instance.tenant_id:
                 instance.tenant = form.instance.tenant
             instance.save()
         formset.save_m2m()

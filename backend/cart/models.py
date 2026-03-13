@@ -1,11 +1,13 @@
 # backend/cart/models.py
 
-from django.db import models
-from django.core.validators import MinValueValidator
+from decimal import Decimal
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.validators import MinValueValidator
+from django.db import models
+
 from core.models import TenantAwareModel, User
-from decimal import Decimal
 
 
 class Cart(TenantAwareModel):
@@ -61,7 +63,8 @@ class Cart(TenantAwareModel):
         """Monto del IVA"""
         try:
             from django.conf import settings
-            tax_rate = getattr(settings, 'TAX_RATE', 0.21)
+
+            tax_rate = getattr(settings, "TAX_RATE", 0.21)
             subtotal_after_discount = self.subtotal - self.discount_amount
             return subtotal_after_discount * Decimal(str(tax_rate))
         except Exception:

@@ -1,6 +1,7 @@
 # backend/core/widgets.py
 
 import json
+
 from django import forms
 from django.utils.safestring import mark_safe
 from unfold.widgets import UnfoldAdminSelectWidget
@@ -19,9 +20,10 @@ class SimpleFileWidget(forms.ClearableFileInput):
     def render(self, name, value, attrs=None, renderer=None):
         html_parts = []
 
-        if value and hasattr(value, 'name') and value.name:
+        if value and hasattr(value, "name") and value.name:
             # Extraer solo el nombre del archivo de la ruta
             import os
+
             filename = os.path.basename(value.name)
             # Obtener la carpeta padre para contexto
             parent = os.path.basename(os.path.dirname(value.name))
@@ -31,32 +33,32 @@ class SimpleFileWidget(forms.ClearableFileInput):
                 f'<div style="margin-bottom: 10px;">'
                 f'<span style="color: #374151; font-size: 14px;">Actual: </span>'
                 f'<a href="{value.url}" target="_blank" style="color: #2563eb; text-decoration: none;">'
-                f'{display_path}'
-                f'</a>'
-                f'</div>'
+                f"{display_path}"
+                f"</a>"
+                f"</div>"
             )
 
             # Checkbox para limpiar
-            checkbox_name = f'{name}-clear'
-            checkbox_id = f'{name}-clear_id'
+            checkbox_name = f"{name}-clear"
+            checkbox_id = f"{name}-clear_id"
             html_parts.append(
                 f'<div style="margin-bottom: 10px;">'
                 f'<label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">'
                 f'<input type="checkbox" name="{checkbox_name}" id="{checkbox_id}">'
                 f'<span style="color: #6b7280; font-size: 13px;">Eliminar</span>'
-                f'</label>'
-                f'</div>'
+                f"</label>"
+                f"</div>"
             )
 
         # Input para nuevo archivo
         if attrs is None:
             attrs = {}
-        attrs['style'] = 'font-size: 14px;'
+        attrs["style"] = "font-size: 14px;"
 
         file_input = forms.FileInput().render(name, None, attrs)
         html_parts.append(file_input)
 
-        return mark_safe(''.join(html_parts))
+        return mark_safe("".join(html_parts))
 
 
 class ImagePreviewWidget(forms.ClearableFileInput):
@@ -68,7 +70,7 @@ class ImagePreviewWidget(forms.ClearableFileInput):
     """
 
     def __init__(self, attrs=None):
-        default_attrs = {'accept': 'image/*'}
+        default_attrs = {"accept": "image/*"}
         if attrs:
             default_attrs.update(attrs)
         super().__init__(attrs=default_attrs)
@@ -78,30 +80,30 @@ class ImagePreviewWidget(forms.ClearableFileInput):
         html = []
 
         # ID único para este widget (reemplazar puntos por guiones)
-        widget_id = f'image-widget-{name}'.replace('.', '-').replace('_', '-')
-        func_name = f'deleteImage_{name}'.replace('.', '_').replace('-', '_')
-        preview_func = f'previewImage_{name}'.replace('.', '_').replace('-', '_')
-        input_id = f'{name}_id'.replace('.', '_').replace('-', '_')
+        widget_id = f"image-widget-{name}".replace(".", "-").replace("_", "-")
+        func_name = f"deleteImage_{name}".replace(".", "_").replace("-", "_")
+        preview_func = f"previewImage_{name}".replace(".", "_").replace("-", "_")
+        input_id = f"{name}_id".replace(".", "_").replace("-", "_")
 
         # Si hay imagen actual, mostrar preview con botones en línea
-        if value and hasattr(value, 'url'):
+        if value and hasattr(value, "url"):
             html.append(
                 f'<div id="{widget_id}" style="margin-bottom: 15px;">'
                 f'<div id="{widget_id}-container" style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 8px;">'
                 f'<img src="{value.url}" id="{widget_id}-img" style="max-width: 200px; max-height: 200px; '
                 f'border-radius: 8px; border: 1px solid #e5e7eb; object-fit: cover; cursor: pointer;" '
-                f'onclick="window.open(\'{value.url}\', \'_blank\')" title="Clic para ver imagen completa" />'
+                f"onclick=\"window.open('{value.url}', '_blank')\" title=\"Clic para ver imagen completa\" />"
                 # Fila de botones
                 f'<div style="display: flex; align-items: center; gap: 8px;">'
             )
 
             # Estilos CSS para tooltips instantáneos
-            html.append(f'''
+            html.append("""
                 <style>
-                .img-btn-tooltip {{
+                .img-btn-tooltip {
                     position: relative;
-                }}
-                .img-btn-tooltip::after {{
+                }
+                .img-btn-tooltip::after {
                     content: attr(data-tooltip);
                     position: absolute;
                     bottom: 100%;
@@ -119,13 +121,13 @@ class ImagePreviewWidget(forms.ClearableFileInput):
                     margin-bottom: 6px;
                     pointer-events: none;
                     z-index: 100;
-                }}
-                .img-btn-tooltip:hover::after {{
+                }
+                .img-btn-tooltip:hover::after {
                     opacity: 1;
                     visibility: visible;
-                }}
+                }
                 </style>
-            ''')
+            """)
 
             # Botón para eliminar (solo icono)
             html.append(
@@ -134,16 +136,16 @@ class ImagePreviewWidget(forms.ClearableFileInput):
                 f'data-tooltip="Eliminar imagen" '
                 f'onclick="{func_name}()" '
                 f'style="display: inline-flex; align-items: center; justify-content: center; '
-                f'cursor: pointer; padding: 6px 10px; background: #dc2626; '
-                f'border: none; border-radius: 6px; color: white; '
+                f"cursor: pointer; padding: 6px 10px; background: #dc2626; "
+                f"border: none; border-radius: 6px; color: white; "
                 f'transition: background 0.2s;"'
-                f'onmouseover="this.style.background=\'#b91c1c\'" '
-                f'onmouseout="this.style.background=\'#dc2626\'">'
+                f"onmouseover=\"this.style.background='#b91c1c'\" "
+                f"onmouseout=\"this.style.background='#dc2626'\">"
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
                 f'<polyline points="3 6 5 6 21 6"></polyline>'
                 f'<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>'
-                f'</svg>'
-                f'</button>'
+                f"</svg>"
+                f"</button>"
             )
 
             # Botón para cambiar imagen (en la misma línea)
@@ -152,35 +154,35 @@ class ImagePreviewWidget(forms.ClearableFileInput):
                 f'class="img-btn-tooltip" '
                 f'data-tooltip="Cambiar imagen" '
                 f'style="display: inline-flex; align-items: center; justify-content: center; '
-                f'cursor: pointer; padding: 6px 10px; background: #6b7280; '
-                f'border: none; border-radius: 6px; color: white; '
+                f"cursor: pointer; padding: 6px 10px; background: #6b7280; "
+                f"border: none; border-radius: 6px; color: white; "
                 f'transition: background 0.2s;"'
-                f'onmouseover="this.style.background=\'#4b5563\'" '
-                f'onmouseout="this.style.background=\'#6b7280\'">'
+                f"onmouseover=\"this.style.background='#4b5563'\" "
+                f"onmouseout=\"this.style.background='#6b7280'\">"
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
                 f'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>'
                 f'<polyline points="17 8 12 3 7 8"></polyline>'
                 f'<line x1="12" y1="3" x2="12" y2="15"></line>'
-                f'</svg>'
-                f'</label>'
+                f"</svg>"
+                f"</label>"
             )
 
-            html.append('</div>')  # Cierra fila de botones
-            html.append('</div>')  # Cierra container
+            html.append("</div>")  # Cierra fila de botones
+            html.append("</div>")  # Cierra container
 
             # Mensaje de éxito (oculto inicialmente)
             html.append(
                 f'<div id="{widget_id}-success" style="display: none; padding: 10px; '
-                f'background: #d1fae5; border: 1px solid #6ee7b7; border-radius: 6px; '
+                f"background: #d1fae5; border: 1px solid #6ee7b7; border-radius: 6px; "
                 f'color: #065f46; margin-top: 10px;">'
-                f'Imagen eliminada correctamente'
-                f'</div>'
+                f"Imagen eliminada correctamente"
+                f"</div>"
             )
 
-            html.append('</div>')
+            html.append("</div>")
 
             # JavaScript para eliminar la imagen
-            html.append(f'''
+            html.append(f"""
 <script>
 function {func_name}() {{
     if (!confirm('¿Estás seguro de que deseas eliminar esta imagen? Esta acción no se puede deshacer.')) {{
@@ -254,14 +256,14 @@ function getObjectIdFor{func_name}() {{
     return '';
 }}
 </script>
-''')
+""")
 
             # Input file oculto (dentro del contenedor para que el label funcione)
             if attrs is None:
                 attrs = {}
-            attrs['id'] = input_id
-            attrs['style'] = 'display: none;'
-            attrs['onchange'] = f'{preview_func}(this)'
+            attrs["id"] = input_id
+            attrs["style"] = "display: none;"
+            attrs["onchange"] = f"{preview_func}(this)"
             file_input = forms.FileInput().render(name, None, attrs)
             html.append(file_input)
 
@@ -274,31 +276,31 @@ function getObjectIdFor{func_name}() {{
                 f'<button type="button" onclick="clearNewImage{preview_func}()" '
                 f'title="Cancelar" '
                 f'style="display: inline-flex; align-items: center; justify-content: center; '
-                f'cursor: pointer; padding: 4px 8px; background: #6b7280; '
-                f'border: none; border-radius: 4px; color: white; font-size: 11px; '
+                f"cursor: pointer; padding: 4px 8px; background: #6b7280; "
+                f"border: none; border-radius: 4px; color: white; font-size: 11px; "
                 f'transition: background 0.2s;" '
-                f'onmouseover="this.style.background=\'#4b5563\'" '
-                f'onmouseout="this.style.background=\'#6b7280\'">'
+                f"onmouseover=\"this.style.background='#4b5563'\" "
+                f"onmouseout=\"this.style.background='#6b7280'\">"
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">'
                 f'<line x1="18" y1="6" x2="6" y2="18"></line>'
                 f'<line x1="6" y1="6" x2="18" y2="18"></line>'
-                f'</svg>'
-                f'Cancelar'
-                f'</button>'
-                f'</div>'
-                f'</div>'
+                f"</svg>"
+                f"Cancelar"
+                f"</button>"
+                f"</div>"
+                f"</div>"
             )
 
         else:
             # Sin imagen existente: solo mostrar botón de seleccionar
-            html.append('<div>')
+            html.append("<div>")
 
             # Input file oculto
             if attrs is None:
                 attrs = {}
-            attrs['id'] = input_id
-            attrs['style'] = 'display: none;'
-            attrs['onchange'] = f'{preview_func}(this)'
+            attrs["id"] = input_id
+            attrs["style"] = "display: none;"
+            attrs["onchange"] = f"{preview_func}(this)"
             file_input = forms.FileInput().render(name, None, attrs)
 
             # Preview de nueva imagen (oculto inicialmente)
@@ -310,43 +312,43 @@ function getObjectIdFor{func_name}() {{
                 f'<button type="button" onclick="clearNewImage{preview_func}()" '
                 f'title="Cancelar" '
                 f'style="display: inline-flex; align-items: center; justify-content: center; '
-                f'cursor: pointer; padding: 4px 8px; background: #6b7280; '
-                f'border: none; border-radius: 4px; color: white; font-size: 11px; '
+                f"cursor: pointer; padding: 4px 8px; background: #6b7280; "
+                f"border: none; border-radius: 4px; color: white; font-size: 11px; "
                 f'transition: background 0.2s;" '
-                f'onmouseover="this.style.background=\'#4b5563\'" '
-                f'onmouseout="this.style.background=\'#6b7280\'">'
+                f"onmouseover=\"this.style.background='#4b5563'\" "
+                f"onmouseout=\"this.style.background='#6b7280'\">"
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">'
                 f'<line x1="18" y1="6" x2="6" y2="18"></line>'
                 f'<line x1="6" y1="6" x2="18" y2="18"></line>'
-                f'</svg>'
-                f'Cancelar'
-                f'</button>'
-                f'</div>'
-                f'</div>'
+                f"</svg>"
+                f"Cancelar"
+                f"</button>"
+                f"</div>"
+                f"</div>"
             )
 
             # Área de seleccionar imagen
             html.append(f'<div id="{widget_id}-input-container">')
             html.append(
                 f'<label for="{input_id}" style="display: inline-flex; align-items: center; gap: 8px; '
-                f'padding: 10px 16px; border: 1px dashed #d1d5db; border-radius: 8px; '
+                f"padding: 10px 16px; border: 1px dashed #d1d5db; border-radius: 8px; "
                 f'cursor: pointer; background: #f9fafb; transition: all 0.2s; font-size: 13px; color: #6b7280;" '
-                f'onmouseover="this.style.borderColor=\'#9ca3af\'; this.style.background=\'#f3f4f6\';" '
-                f'onmouseout="this.style.borderColor=\'#d1d5db\'; this.style.background=\'#f9fafb\';">'
+                f"onmouseover=\"this.style.borderColor='#9ca3af'; this.style.background='#f3f4f6';\" "
+                f"onmouseout=\"this.style.borderColor='#d1d5db'; this.style.background='#f9fafb';\">"
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
                 f'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>'
                 f'<polyline points="17 8 12 3 7 8"></polyline>'
                 f'<line x1="12" y1="3" x2="12" y2="15"></line>'
-                f'</svg>'
-                f'Seleccionar imagen'
-                f'</label>'
+                f"</svg>"
+                f"Seleccionar imagen"
+                f"</label>"
             )
             html.append(file_input)
-            html.append('</div>')
-            html.append('</div>')
+            html.append("</div>")
+            html.append("</div>")
 
         # JavaScript para preview de nueva imagen
-        html.append(f'''
+        html.append(f"""
 <script>
 function {preview_func}(input) {{
     var previewContainer = document.getElementById('{widget_id}-new-preview');
@@ -395,9 +397,9 @@ function clearNewImage{preview_func}() {{
     if (inputContainer) inputContainer.style.display = 'block';
 }}
 </script>
-''')
+""")
 
-        return mark_safe(''.join(html))
+        return mark_safe("".join(html))
 
 
 class GeographyCascadeWidget(UnfoldAdminSelectWidget):
@@ -409,7 +411,7 @@ class GeographyCascadeWidget(UnfoldAdminSelectWidget):
     que los otros campos Select del admin (timezone, currency, etc.)
     """
 
-    def __init__(self, attrs=None, choices=(), field_type='country'):
+    def __init__(self, attrs=None, choices=(), field_type="country"):
         """
         field_type: 'country', 'state', o 'city'
         """
@@ -421,11 +423,11 @@ class GeographyCascadeWidget(UnfoldAdminSelectWidget):
         html = super().render(name, value, attrs, renderer)
 
         # Solo agregar el script una vez (en el campo country)
-        if self.field_type == 'country':
+        if self.field_type == "country":
             # Convertir datos geográficos a JSON
             geography_json = json.dumps(GEOGRAPHY_DATA, ensure_ascii=False)
 
-            cascade_script = f'''
+            cascade_script = f"""
 <script>
 (function() {{
     // Datos geográficos
@@ -573,7 +575,7 @@ class GeographyCascadeWidget(UnfoldAdminSelectWidget):
     initWhenReady();
 }})();
 </script>
-'''
+"""
             html = mark_safe(str(html) + cascade_script)
 
         return html

@@ -1,15 +1,23 @@
 # backend/config/urls.py
 
-from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.urls import include, path
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from orders.webhooks import stripe_webhook
 
 # Importar el admin site personalizado de NERBIS
 from core.admin_site import nerbis_admin_site
-from core.views import subscription_expired_view, TenantRegisterView, CheckBusinessNameView, CheckTenantEmailView, PlatformLoginView, PlatformForgotPasswordView, PlatformVerifyResetOTPView
+from core.views import (
+    CheckBusinessNameView,
+    CheckTenantEmailView,
+    PlatformForgotPasswordView,
+    PlatformLoginView,
+    PlatformVerifyResetOTPView,
+    TenantRegisterView,
+    subscription_expired_view,
+)
+from orders.webhooks import stripe_webhook
 
 urlpatterns = [
     # Redirigir la raíz a la documentación de la API
@@ -42,7 +50,9 @@ urlpatterns = [
     path("api/public/check-tenant-email/", CheckTenantEmailView.as_view(), name="check-tenant-email"),
     path("api/public/platform-login/", PlatformLoginView.as_view(), name="platform-login"),
     path("api/public/platform-forgot-password/", PlatformForgotPasswordView.as_view(), name="platform-forgot-password"),
-    path("api/public/platform-verify-reset-otp/", PlatformVerifyResetOTPView.as_view(), name="platform-verify-reset-otp"),
+    path(
+        "api/public/platform-verify-reset-otp/", PlatformVerifyResetOTPView.as_view(), name="platform-verify-reset-otp"
+    ),
     # Webhooks (sin middleware de tenant)
     path("api/webhooks/stripe/", stripe_webhook, name="stripe-webhook"),
     # Documentación

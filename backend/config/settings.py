@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-import dj_database_url
 
+import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +21,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-solo-desarroll
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 if not DEBUG and SECRET_KEY == "django-insecure-default-key-solo-desarrollo":
-    raise ValueError(
-        "SECRET_KEY no está configurada. "
-        "Configura la variable de entorno SECRET_KEY en producción."
-    )
+    raise ValueError("SECRET_KEY no está configurada. Configura la variable de entorno SECRET_KEY en producción.")
 
 # Desarrollo: localhost
 # Producción: agrega tus dominios via variable de entorno
@@ -324,10 +321,10 @@ REST_FRAMEWORK = {
         "THROTTLED_CACHE": "throttle",
     },
     "DEFAULT_THROTTLE_RATES": {
-        "login": "5/min",           # Login: 5 intentos por minuto por IP
-        "register": "3/min",        # Registro: 3 por minuto por IP
-        "otp_request": "3/min",     # Solicitar OTP: 3 por minuto por IP
-        "otp_verify": "5/min",      # Verificar OTP: 5 por minuto por IP
+        "login": "5/min",  # Login: 5 intentos por minuto por IP
+        "register": "3/min",  # Registro: 3 por minuto por IP
+        "otp_request": "3/min",  # Solicitar OTP: 3 por minuto por IP
+        "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
     },
 }
@@ -458,7 +455,7 @@ TWILIO_ENABLED = os.getenv("TWILIO_ENABLED", "False") == "True"
 # ===================================
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
-ANTHROPIC_PRICE_INPUT = os.getenv("ANTHROPIC_PRICE_INPUT", "0.25")   # USD por 1M tokens
+ANTHROPIC_PRICE_INPUT = os.getenv("ANTHROPIC_PRICE_INPUT", "0.25")  # USD por 1M tokens
 ANTHROPIC_PRICE_OUTPUT = os.getenv("ANTHROPIC_PRICE_OUTPUT", "1.25")  # USD por 1M tokens
 
 # ===================================

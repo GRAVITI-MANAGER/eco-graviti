@@ -61,7 +61,7 @@ export default function PricingPage() {
               </div>
             ) : services.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {services.map((service: any) => (
+                {services.map((service: { id: string; name: string; description?: string; price?: number; duration?: number; is_featured?: boolean }) => (
                   <Card key={service.id} className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">

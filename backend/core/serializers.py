@@ -1,8 +1,9 @@
 # backend/core/serializers.py
 
-from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from .models import Tenant, User, Banner
+from rest_framework import serializers
+
+from .models import Banner, Tenant, User
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -18,7 +19,7 @@ class TenantSerializer(serializers.ModelSerializer):
     website_status = serializers.SerializerMethodField()
 
     def get_website_status(self, obj):
-        config = getattr(obj, 'website_config', None)
+        config = getattr(obj, "website_config", None)
         return config.status if config else None
 
     class Meta:
@@ -62,7 +63,6 @@ class TenantSerializer(serializers.ModelSerializer):
             "website_status",
         ]
         read_only_fields = ["id", "slug"]
-
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -178,9 +178,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Validar email único por tenant (case-insensitive)
         email = attrs.get("email", "").lower()
         if User.objects.filter(tenant=tenant, email__iexact=email).exists():
-            raise serializers.ValidationError({
-                "email": "Ya existe un usuario con este email en este centro. Por favor inicia sesión."
-            })
+            raise serializers.ValidationError(
+                {"email": "Ya existe un usuario con este email en este centro. Por favor inicia sesión."}
+            )
 
         return attrs
 
@@ -328,9 +328,7 @@ class TenantRegisterSerializer(serializers.Serializer):
         # Verificar que no exista un tenant con este email
         email = attrs.get("email", "").lower()
         if Tenant.objects.filter(email__iexact=email).exists():
-            raise serializers.ValidationError({
-                "email": "Ya existe un negocio registrado con este email"
-            })
+            raise serializers.ValidationError({"email": "Ya existe un negocio registrado con este email"})
 
         return attrs
 

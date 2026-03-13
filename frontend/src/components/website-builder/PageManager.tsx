@@ -137,7 +137,8 @@ export default function PageManager({
 
   // Reset collapsed state when active section changes
   useEffect(() => {
-    setEditorCollapsed(false);
+    const t = setTimeout(() => setEditorCollapsed(false), 0);
+    return () => clearTimeout(t);
   }, [activeSection]);
 
   const global = pagesData?.global || { sections: [], content: {} };

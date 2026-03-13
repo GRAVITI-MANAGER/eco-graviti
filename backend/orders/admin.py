@@ -1,12 +1,14 @@
 # backend/orders/admin.py
 
 from django.contrib import admin
-from django.utils.html import format_html
 from django.utils import timezone
-from unfold.admin import TabularInline, StackedInline
-from .models import Order, OrderItem, OrderServiceItem, Payment
-from core.admin_site import nerbis_admin_site
+from django.utils.html import format_html
+from unfold.admin import StackedInline, TabularInline
+
 from core.admin import ShopModuleAdmin
+from core.admin_site import nerbis_admin_site
+
+from .models import Order, OrderItem, OrderServiceItem, Payment
 
 
 class OrderItemInline(TabularInline):

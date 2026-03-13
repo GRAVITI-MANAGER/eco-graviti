@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 # TEMPLATES
 # ===================================
 
+
 class WebsiteTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para listar y obtener templates de sitios web.
@@ -62,7 +63,7 @@ class WebsiteTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WebsiteTemplate.objects.filter(is_active=True)
 
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action == "retrieve":
             return WebsiteTemplateDetailSerializer
         return WebsiteTemplateListSerializer
 
@@ -70,21 +71,22 @@ class WebsiteTemplateViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
 
         # Filtrar por industria si se especifica
-        industry = self.request.query_params.get('industry')
+        industry = self.request.query_params.get("industry")
         if industry:
             queryset = queryset.filter(industry=industry)
 
         # Filtrar premium si se especifica
-        premium = self.request.query_params.get('premium')
+        premium = self.request.query_params.get("premium")
         if premium is not None:
-            queryset = queryset.filter(is_premium=premium.lower() == 'true')
+            queryset = queryset.filter(is_premium=premium.lower() == "true")
 
-        return queryset.order_by('sort_order', 'name')
+        return queryset.order_by("sort_order", "name")
 
 
 # ===================================
 # WEBSITE CONFIG (Sitio del usuario)
 # ===================================
+
 
 class WebsiteConfigViewSet(viewsets.ModelViewSet):
     """
@@ -101,7 +103,7 @@ class WebsiteConfigViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return WebsiteConfig.objects.all()
-        if hasattr(user, 'tenant') and user.tenant:
+        if hasattr(user, "tenant") and user.tenant:
             return WebsiteConfig.objects.filter(tenant=user.tenant)
         return WebsiteConfig.objects.none()
 
@@ -110,31 +112,28 @@ class WebsiteConfigViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Si se pasa un ID y es superuser, usar ese ID
-        if 'pk' in self.kwargs and user.is_superuser:
-            return get_object_or_404(WebsiteConfig, pk=self.kwargs['pk'])
+        if "pk" in self.kwargs and user.is_superuser:
+            return get_object_or_404(WebsiteConfig, pk=self.kwargs["pk"])
 
         # Para usuarios normales, obtener su sitio
-        if hasattr(user, 'tenant') and user.tenant:
+        if hasattr(user, "tenant") and user.tenant:
             return get_object_or_404(WebsiteConfig, tenant=user.tenant)
 
-        return Response(
-            {"error": "No tienes un sitio web configurado"},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
     def perform_update(self, serializer):
         """Keep onboarding logo_upload in sync when logo changes from editor."""
-        old_logo = (serializer.instance.media_data or {}).get('logo_url', '')
+        old_logo = (serializer.instance.media_data or {}).get("logo_url", "")
         instance = serializer.save()
-        new_logo = (instance.media_data or {}).get('logo_url', '')
+        new_logo = (instance.media_data or {}).get("logo_url", "")
         # Sync when logo changed (including removal)
         if new_logo != old_logo:
             OnboardingResponse.objects.filter(
                 website_config=instance,
-                question__question_key='logo_upload',
-            ).update(response_value=new_logo or '')
+                question__question_key="logo_upload",
+            ).update(response_value=new_logo or "")
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def my_site(self, request):
         """
         GET /api/websites/config/my_site/
@@ -143,26 +142,26 @@ class WebsiteConfigViewSet(viewsets.ModelViewSet):
         Si no existe, retorna información para crearlo.
         """
         user = request.user
-        if not hasattr(user, 'tenant') or not user.tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if not hasattr(user, "tenant") or not user.tenant:
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=user.tenant)
             return Response(WebsiteConfigSerializer(config).data)
         except WebsiteConfig.DoesNotExist:
-            return Response({
-                "exists": False,
-                "message": "No tienes un sitio web. Selecciona un template para comenzar.",
-                "templates_url": "/api/websites/templates/"
-            })
+            return Response(
+                {
+                    "exists": False,
+                    "message": "No tienes un sitio web. Selecciona un template para comenzar.",
+                    "templates_url": "/api/websites/templates/",
+                }
+            )
 
 
 # ===================================
 # ONBOARDING
 # ===================================
+
 
 class OnboardingView(APIView):
     """
@@ -173,7 +172,7 @@ class OnboardingView(APIView):
 
     def _get_tenant(self, request):
         """Obtiene el tenant del usuario."""
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -189,44 +188,41 @@ class StartOnboardingView(OnboardingView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = WebsiteConfigCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        template_id = serializer.validated_data['template_id']
+        template_id = serializer.validated_data["template_id"]
         template = WebsiteTemplate.objects.get(id=template_id)
 
         # Crear o actualizar WebsiteConfig
         config, created = WebsiteConfig.objects.update_or_create(
             tenant=tenant,
             defaults={
-                'template': template,
-                'status': 'onboarding',
-                'subdomain': tenant.slug,  # Usar slug del tenant como subdominio inicial
-            }
+                "template": template,
+                "status": "onboarding",
+                "subdomain": tenant.slug,  # Usar slug del tenant como subdominio inicial
+            },
         )
 
         # Obtener preguntas del template
         questions = self._get_questions_for_template(template)
 
-        return Response({
-            "config_id": config.id,
-            "template": WebsiteTemplateListSerializer(template).data,
-            "questions": OnboardingQuestionSerializer(questions, many=True).data,
-            "status": config.status,
-            "created": created
-        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        return Response(
+            {
+                "config_id": config.id,
+                "template": WebsiteTemplateListSerializer(template).data,
+                "questions": OnboardingQuestionSerializer(questions, many=True).data,
+                "status": config.status,
+                "created": created,
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     def _get_questions_for_template(self, template):
         """Obtiene preguntas genéricas + específicas del template."""
-        generic = OnboardingQuestion.objects.filter(
-            template__isnull=True,
-            is_active=True
-        )
+        generic = OnboardingQuestion.objects.filter(template__isnull=True, is_active=True)
         specific = template.questions.filter(is_active=True)
 
         # Combinar y ordenar
@@ -246,53 +242,40 @@ class SaveOnboardingResponsesView(OnboardingView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar que existe un sitio en onboarding
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "Primero debes seleccionar un template"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Primero debes seleccionar un template"}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = BulkOnboardingResponseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        responses_data = serializer.validated_data['responses']
+        responses_data = serializer.validated_data["responses"]
 
         # Guardar respuestas
         saved_count = 0
         with transaction.atomic():
             for question_key, response_value in responses_data.items():
-                question = OnboardingQuestion.objects.get(
-                    question_key=question_key,
-                    is_active=True
-                )
+                question = OnboardingQuestion.objects.get(question_key=question_key, is_active=True)
 
                 OnboardingResponse.objects.update_or_create(
-                    website_config=config,
-                    question=question,
-                    defaults={'response_value': response_value}
+                    website_config=config, question=question, defaults={"response_value": response_value}
                 )
                 saved_count += 1
 
                 # Sync logo changes to media_data immediately
-                if question_key == 'logo_upload' and response_value:
+                if question_key == "logo_upload" and response_value:
                     media = dict(config.media_data or {})
-                    media['logo_url'] = response_value
+                    media["logo_url"] = response_value
                     config.media_data = media
-                    config.save(update_fields=['media_data'])
+                    config.save(update_fields=["media_data"])
 
-        return Response({
-            "saved": saved_count,
-            "message": f"Se guardaron {saved_count} respuestas",
-            "config_status": config.status
-        })
+        return Response(
+            {"saved": saved_count, "message": f"Se guardaron {saved_count} respuestas", "config_status": config.status}
+        )
 
 
 class OnboardingStatusView(OnboardingView):
@@ -305,58 +288,46 @@ class OnboardingStatusView(OnboardingView):
     def get(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response({
-                "status": "not_started",
-                "message": "No has iniciado el proceso. Selecciona un template."
-            })
+            return Response({"status": "not_started", "message": "No has iniciado el proceso. Selecciona un template."})
 
         # Obtener respuestas guardadas
-        responses = OnboardingResponse.objects.filter(
-            website_config=config
-        ).select_related('question')
+        responses = OnboardingResponse.objects.filter(website_config=config).select_related("question")
 
-        responses_dict = {
-            r.question.question_key: r.response_value
-            for r in responses
-        }
+        responses_dict = {r.question.question_key: r.response_value for r in responses}
 
         # Obtener preguntas requeridas
-        required_questions = OnboardingQuestion.objects.filter(
-            is_required=True,
-            is_active=True
-        ).filter(
-            models.Q(template__isnull=True) | models.Q(template=config.template)
-        ).values_list('question_key', flat=True)
+        required_questions = (
+            OnboardingQuestion.objects.filter(is_required=True, is_active=True)
+            .filter(models.Q(template__isnull=True) | models.Q(template=config.template))
+            .values_list("question_key", flat=True)
+        )
 
         # Verificar completitud
-        answered_required = [
-            key for key in required_questions
-            if key in responses_dict and responses_dict[key]
-        ]
+        answered_required = [key for key in required_questions if key in responses_dict and responses_dict[key]]
 
-        return Response({
-            "status": config.status,
-            "template": WebsiteTemplateListSerializer(config.template).data,
-            "responses": responses_dict,
-            "progress": {
-                "total_required": len(required_questions),
-                "answered_required": len(answered_required),
-                "is_complete": len(answered_required) == len(required_questions)
+        return Response(
+            {
+                "status": config.status,
+                "template": WebsiteTemplateListSerializer(config.template).data,
+                "responses": responses_dict,
+                "progress": {
+                    "total_required": len(required_questions),
+                    "answered_required": len(answered_required),
+                    "is_complete": len(answered_required) == len(required_questions),
+                },
             }
-        })
+        )
 
 
 # ===================================
 # GENERACIÓN DE CONTENIDO
 # ===================================
+
 
 class GenerateContentView(APIView):
     """
@@ -371,18 +342,12 @@ class GenerateContentView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "Primero debes completar el onboarding"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Primero debes completar el onboarding"}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = GenerateContentRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -392,52 +357,52 @@ class GenerateContentView(APIView):
         can_generate, used, limit = ai_service.check_usage_limit(tenant)
 
         if not can_generate:
-            return Response({
-                "error": "Has alcanzado el límite de generaciones este mes",
-                "used": used,
-                "limit": limit,
-                "upgrade_url": "/planes/"
-            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+            return Response(
+                {
+                    "error": "Has alcanzado el límite de generaciones este mes",
+                    "used": used,
+                    "limit": limit,
+                    "upgrade_url": "/planes/",
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
 
         # Obtener respuestas del onboarding
-        responses = OnboardingResponse.objects.filter(
-            website_config=config
-        ).select_related('question')
+        responses = OnboardingResponse.objects.filter(website_config=config).select_related("question")
 
-        responses_dict = {
-            r.question.question_key: r.response_value
-            for r in responses
-        }
+        responses_dict = {r.question.question_key: r.response_value for r in responses}
 
         # Actualizar estado
-        config.status = 'generating'
-        config.save(update_fields=['status'])
+        config.status = "generating"
+        config.save(update_fields=["status"])
 
         try:
             # Generar contenido
-            regenerate_section = serializer.validated_data.get('regenerate_section')
-            additional_instructions = serializer.validated_data.get('additional_instructions', '')
+            regenerate_section = serializer.validated_data.get("regenerate_section")
+            additional_instructions = serializer.validated_data.get("additional_instructions", "")
 
             if regenerate_section:
-                generation_type = 'regenerate_section'
+                generation_type = "regenerate_section"
             else:
-                generation_type = 'initial'
+                generation_type = "initial"
 
-            content_data, seo_data, tokens_in, tokens_out, full_prompt, raw_response = ai_service.generate_initial_content(
-                template=config.template,
-                onboarding_responses=responses_dict,
-                additional_instructions=additional_instructions
+            content_data, seo_data, tokens_in, tokens_out, full_prompt, raw_response = (
+                ai_service.generate_initial_content(
+                    template=config.template,
+                    onboarding_responses=responses_dict,
+                    additional_instructions=additional_instructions,
+                )
             )
 
             # ── Enriquecer con imágenes de Unsplash ──
             try:
                 unsplash = UnsplashService()
-                section_ids = [k for k in content_data.keys() if not k.startswith('_')]
+                section_ids = [k for k in content_data.keys() if not k.startswith("_")]
                 images = unsplash.get_images_for_generation(
                     sections=section_ids,
                     onboarding_responses=responses_dict,
-                    tenant_industry=tenant.industry if tenant else '',
-                    template_industry=config.template.industry or 'generic',
+                    tenant_industry=tenant.industry if tenant else "",
+                    template_industry=config.template.industry or "generic",
                 )
                 self._inject_images_and_variants(content_data, images)
             except Exception as e:
@@ -445,44 +410,43 @@ class GenerateContentView(APIView):
 
             # ── Aplicar branding del onboarding al theme_data ──
             theme_data = dict(config.template.default_theme or {})
-            if responses_dict.get('primary_color'):
-                theme_data['primary_color'] = responses_dict['primary_color']
-            if responses_dict.get('secondary_color'):
-                theme_data['secondary_color'] = responses_dict['secondary_color']
+            if responses_dict.get("primary_color"):
+                theme_data["primary_color"] = responses_dict["primary_color"]
+            if responses_dict.get("secondary_color"):
+                theme_data["secondary_color"] = responses_dict["secondary_color"]
 
             # ── Logo y media ──
             media_data = dict(config.media_data or {})
-            if responses_dict.get('logo_upload'):
-                media_data['logo_url'] = responses_dict['logo_upload']
+            if responses_dict.get("logo_upload"):
+                media_data["logo_url"] = responses_dict["logo_upload"]
 
             # ── Asegurar que header y footer existan en content_data ──
-            if 'header' not in content_data:
-                content_data['header'] = {
-                    'logo_text': tenant.name,
-                    'cta_text': '',
-                    'cta_link': '#contact',
+            if "header" not in content_data:
+                content_data["header"] = {
+                    "logo_text": tenant.name,
+                    "cta_text": "",
+                    "cta_link": "#contact",
                 }
-            if 'footer' not in content_data:
-                content_data['footer'] = {}
+            if "footer" not in content_data:
+                content_data["footer"] = {}
 
             # ── Agregar _section_order al content ──
-            section_keys = [k for k in content_data.keys() if not k.startswith('_') and k not in ('header', 'footer')]
+            section_keys = [k for k in content_data.keys() if not k.startswith("_") and k not in ("header", "footer")]
             ordered = []
-            if 'hero' in section_keys:
-                ordered.append('hero')
-                section_keys.remove('hero')
-            contact_at_end = 'contact' in section_keys
+            if "hero" in section_keys:
+                ordered.append("hero")
+                section_keys.remove("hero")
+            contact_at_end = "contact" in section_keys
             if contact_at_end:
-                section_keys.remove('contact')
+                section_keys.remove("contact")
             ordered.extend(section_keys)
             if contact_at_end:
-                ordered.append('contact')
-            content_data['_section_order'] = ordered
+                ordered.append("contact")
+            content_data["_section_order"] = ordered
 
             # Derivar páginas habilitadas de las secciones generadas
             config.enabled_pages = [
-                k for k in content_data.keys()
-                if not k.startswith('_') and k not in ('hero', 'header', 'footer')
+                k for k in content_data.keys() if not k.startswith("_") and k not in ("hero", "header", "footer")
             ]
 
             # Guardar contenido generado + branding
@@ -490,18 +454,24 @@ class GenerateContentView(APIView):
             config.seo_data = seo_data
             config.theme_data = theme_data
             config.media_data = media_data
-            config.status = 'review'
-            config.save(update_fields=[
-                'content_data', 'seo_data', 'theme_data', 'media_data',
-                'status', 'enabled_pages',
-            ])
+            config.status = "review"
+            config.save(
+                update_fields=[
+                    "content_data",
+                    "seo_data",
+                    "theme_data",
+                    "media_data",
+                    "status",
+                    "enabled_pages",
+                ]
+            )
 
             # Registrar uso con prompt y respuesta completos
             ai_service.log_generation(
                 generation_type=generation_type,
                 tokens_input=tokens_in,
                 tokens_output=tokens_out,
-                section_id=regenerate_section or '',
+                section_id=regenerate_section or "",
                 is_successful=True,
                 full_prompt=full_prompt,
                 raw_response=raw_response,
@@ -511,31 +481,28 @@ class GenerateContentView(APIView):
             # Calcular restantes
             _, new_used, new_limit = ai_service.check_usage_limit(tenant)
 
-            return Response({
-                "content_data": content_data,
-                "seo_data": seo_data,
-                "tokens_used": tokens_in + tokens_out,
-                "remaining_generations": max(0, new_limit - new_used),
-                "is_billable": new_used > new_limit,
-                "status": config.status
-            })
+            return Response(
+                {
+                    "content_data": content_data,
+                    "seo_data": seo_data,
+                    "tokens_used": tokens_in + tokens_out,
+                    "remaining_generations": max(0, new_limit - new_used),
+                    "is_billable": new_used > new_limit,
+                    "status": config.status,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error generando contenido: {e}")
-            config.status = 'onboarding'
-            config.save(update_fields=['status'])
+            config.status = "onboarding"
+            config.save(update_fields=["status"])
 
             ai_service.log_generation(
-                generation_type='initial',
-                tokens_input=0,
-                tokens_output=0,
-                is_successful=False,
-                error_message=str(e)
+                generation_type="initial", tokens_input=0, tokens_output=0, is_successful=False, error_message=str(e)
             )
 
             return Response(
-                {"error": "Error generando contenido. Intenta de nuevo."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Error generando contenido. Intenta de nuevo."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def _inject_images_and_variants(self, content, images):
@@ -543,56 +510,58 @@ class GenerateContentView(APIView):
         unsplash = UnsplashService()
 
         # Hero — variantes que necesitan imagen vs las que no
-        if 'hero' in content:
-            hero_imgs = images.get('hero', [])
+        if "hero" in content:
+            hero_imgs = images.get("hero", [])
             if hero_imgs:
-                content['hero']['_image'] = hero_imgs[0]
-                content['hero']['_image_alternatives'] = hero_imgs[1:]
-                unsplash.trigger_download(hero_imgs[0].get('download_location', ''))
-                variant = random.choice(['split-image', 'fullwidth-image', 'diagonal-split'])
+                content["hero"]["_image"] = hero_imgs[0]
+                content["hero"]["_image_alternatives"] = hero_imgs[1:]
+                unsplash.trigger_download(hero_imgs[0].get("download_location", ""))
+                variant = random.choice(["split-image", "fullwidth-image", "diagonal-split"])
             else:
-                variant = random.choice(['centered', 'bold-typography', 'glassmorphism'])
-            content['hero']['_variant'] = variant
-            content['hero']['_variant_ai_recommended'] = variant
+                variant = random.choice(["centered", "bold-typography", "glassmorphism"])
+            content["hero"]["_variant"] = variant
+            content["hero"]["_variant_ai_recommended"] = variant
 
         # About — la mayoría no necesita imagen
-        if 'about' in content:
-            about_imgs = images.get('about', [])
+        if "about" in content:
+            about_imgs = images.get("about", [])
             if about_imgs:
-                content['about']['_image'] = about_imgs[0]
-                content['about']['_image_alternatives'] = about_imgs[1:]
-                unsplash.trigger_download(about_imgs[0].get('download_location', ''))
-                variant = random.choice(['split-image', 'stats-banner', 'fullwidth-banner'])
+                content["about"]["_image"] = about_imgs[0]
+                content["about"]["_image_alternatives"] = about_imgs[1:]
+                unsplash.trigger_download(about_imgs[0].get("download_location", ""))
+                variant = random.choice(["split-image", "stats-banner", "fullwidth-banner"])
             else:
-                variant = random.choice(['text-only', 'stats-banner', 'timeline', 'overlapping-cards', 'fullwidth-banner'])
-            content['about']['_variant'] = variant
-            content['about']['_variant_ai_recommended'] = variant
+                variant = random.choice(
+                    ["text-only", "stats-banner", "timeline", "overlapping-cards", "fullwidth-banner"]
+                )
+            content["about"]["_variant"] = variant
+            content["about"]["_variant_ai_recommended"] = variant
 
         # Services — imágenes en items individuales
-        if 'services' in content:
-            section_imgs = images.get('services', [])
-            items = content['services'].get('items', [])
+        if "services" in content:
+            section_imgs = images.get("services", [])
+            items = content["services"].get("items", [])
             has_images = False
             for i, item in enumerate(items):
                 if i < len(section_imgs):
-                    item['_image'] = section_imgs[i]
-                    unsplash.trigger_download(section_imgs[i].get('download_location', ''))
+                    item["_image"] = section_imgs[i]
+                    unsplash.trigger_download(section_imgs[i].get("download_location", ""))
                     has_images = True
             if has_images:
-                variant = random.choice(['grid-cards-image', 'featured-highlight'])
+                variant = random.choice(["grid-cards-image", "featured-highlight"])
             else:
-                variant = random.choice(['grid-cards', 'list-detailed', 'horizontal-scroll', 'icon-minimal'])
-            content['services']['_variant'] = variant
-            content['services']['_variant_ai_recommended'] = variant
+                variant = random.choice(["grid-cards", "list-detailed", "horizontal-scroll", "icon-minimal"])
+            content["services"]["_variant"] = variant
+            content["services"]["_variant_ai_recommended"] = variant
 
         # Products — sin imágenes stock (el usuario sube las suyas)
-        if 'products' in content:
-            variant = random.choice(['grid-cards', 'price-table'])
-            content['products']['_variant'] = variant
-            content['products']['_variant_ai_recommended'] = variant
+        if "products" in content:
+            variant = random.choice(["grid-cards", "price-table"])
+            content["products"]["_variant"] = variant
+            content["products"]["_variant_ai_recommended"] = variant
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -600,6 +569,7 @@ class GenerateContentView(APIView):
 # ===================================
 # CHAT CON IA
 # ===================================
+
 
 class ChatView(APIView):
     """
@@ -613,134 +583,110 @@ class ChatView(APIView):
         """Envía un mensaje al chat para editar el contenido."""
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if config.status not in ['review', 'published']:
-            return Response(
-                {"error": "Primero debes generar el contenido inicial"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if config.status not in ["review", "published"]:
+            return Response({"error": "Primero debes generar el contenido inicial"}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ChatRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        message = serializer.validated_data['message']
-        section_id = serializer.validated_data.get('section_id')
+        message = serializer.validated_data["message"]
+        section_id = serializer.validated_data.get("section_id")
 
         # Verificar límite de uso
         ai_service = AIService(tenant=tenant, website_config=config)
         can_generate, used, limit = ai_service.check_usage_limit(tenant)
 
         if not can_generate:
-            return Response({
-                "error": "Has alcanzado el límite de generaciones este mes",
-                "used": used,
-                "limit": limit
-            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+            return Response(
+                {"error": "Has alcanzado el límite de generaciones este mes", "used": used, "limit": limit},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
 
         # Obtener historial del chat
         chat_history = list(
-            ChatMessage.objects.filter(
-                website_config=config
-            ).order_by('-created_at')[:20].values('role', 'content')
+            ChatMessage.objects.filter(website_config=config).order_by("-created_at")[:20].values("role", "content")
         )
         chat_history.reverse()
 
         # Guardar mensaje del usuario
-        ChatMessage.objects.create(
-            website_config=config,
-            role='user',
-            content=message,
-            section_id=section_id or ''
-        )
+        ChatMessage.objects.create(website_config=config, role="user", content=message, section_id=section_id or "")
 
         try:
             # Procesar con IA
-            response_message, updated_content, affected_section, tokens_in, tokens_out = (
-                ai_service.chat_edit(
-                    message=message,
-                    current_content=config.content_data,
-                    chat_history=chat_history,
-                    section_id=section_id
-                )
+            response_message, updated_content, affected_section, tokens_in, tokens_out = ai_service.chat_edit(
+                message=message, current_content=config.content_data, chat_history=chat_history, section_id=section_id
             )
 
             # Guardar mensaje del asistente
             ChatMessage.objects.create(
                 website_config=config,
-                role='assistant',
+                role="assistant",
                 content=response_message,
-                section_id=affected_section or '',
-                changes_made={'updated_content': updated_content} if updated_content else {},
-                tokens_used=tokens_in + tokens_out
+                section_id=affected_section or "",
+                changes_made={"updated_content": updated_content} if updated_content else {},
+                tokens_used=tokens_in + tokens_out,
             )
 
             # Actualizar contenido si hay cambios
             if updated_content and affected_section:
                 config.content_data[affected_section] = updated_content
-                config.save(update_fields=['content_data'])
+                config.save(update_fields=["content_data"])
 
             # Registrar uso
             ai_service.log_generation(
-                generation_type='edit_content',
+                generation_type="edit_content",
                 tokens_input=tokens_in,
                 tokens_output=tokens_out,
-                section_id=affected_section or '',
-                is_successful=True
+                section_id=affected_section or "",
+                is_successful=True,
             )
 
             _, new_used, new_limit = ai_service.check_usage_limit(tenant)
 
-            return Response({
-                "message": response_message,
-                "updated_content": updated_content,
-                "section_id": affected_section,
-                "tokens_used": tokens_in + tokens_out,
-                "remaining_generations": max(0, new_limit - new_used)
-            })
+            return Response(
+                {
+                    "message": response_message,
+                    "updated_content": updated_content,
+                    "section_id": affected_section,
+                    "tokens_used": tokens_in + tokens_out,
+                    "remaining_generations": max(0, new_limit - new_used),
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error en chat: {e}")
             return Response(
-                {"error": "Error procesando mensaje. Intenta de nuevo."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Error procesando mensaje. Intenta de nuevo."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def get(self, request):
         """Obtiene el historial del chat."""
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
             return Response({"messages": []})
 
-        messages = ChatMessage.objects.filter(
-            website_config=config
-        ).order_by('created_at').values(
-            'id', 'role', 'content', 'section_id', 'created_at'
+        messages = (
+            ChatMessage.objects.filter(website_config=config)
+            .order_by("created_at")
+            .values("id", "role", "content", "section_id", "created_at")
         )
 
         return Response({"messages": list(messages)})
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -748,6 +694,7 @@ class ChatView(APIView):
 # ===================================
 # SEO AI SUGGESTIONS
 # ===================================
+
 
 class SuggestSeoView(APIView):
     """
@@ -762,28 +709,22 @@ class SuggestSeoView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_400_BAD_REQUEST)
 
-        keywords = request.data.get('keywords', [])
-        business_name = request.data.get('business_name', '')
-        current_title = request.data.get('current_title', '')
-        current_description = request.data.get('current_description', '')
+        keywords = request.data.get("keywords", [])
+        business_name = request.data.get("business_name", "")
+        current_title = request.data.get("current_title", "")
+        current_description = request.data.get("current_description", "")
 
         if not keywords and not business_name:
             return Response(
                 {"error": "Agrega al menos una palabra clave o el nombre de tu negocio"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Check usage limit
@@ -791,11 +732,14 @@ class SuggestSeoView(APIView):
         can_generate, used, limit = ai_service.check_usage_limit(tenant)
 
         if not can_generate:
-            return Response({
-                "error": "Has alcanzado el límite de generaciones con IA este mes",
-                "used": used,
-                "limit": limit,
-            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+            return Response(
+                {
+                    "error": "Has alcanzado el límite de generaciones con IA este mes",
+                    "used": used,
+                    "limit": limit,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
 
         # Generate suggestions
         suggestions, tokens_in, tokens_out = ai_service.suggest_seo(
@@ -807,20 +751,22 @@ class SuggestSeoView(APIView):
 
         # Log generation
         ai_service.log_generation(
-            generation_type='seo_suggest',
+            generation_type="seo_suggest",
             tokens_input=tokens_in,
             tokens_output=tokens_out,
             is_successful=True,
         )
 
-        return Response({
-            "title": suggestions.get('title', ''),
-            "description": suggestions.get('description', ''),
-            "extra_keywords": suggestions.get('extra_keywords', []),
-        })
+        return Response(
+            {
+                "title": suggestions.get("title", ""),
+                "description": suggestions.get("description", ""),
+                "extra_keywords": suggestions.get("extra_keywords", []),
+            }
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -842,19 +788,24 @@ class UploadWebsiteMediaView(APIView):
 
     MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
     ALLOWED_IMAGE_TYPES = {
-        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-        'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon',
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/svg+xml",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
     }
 
-    ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.ico'}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".ico"}
     # Magic bytes for image format detection
     _MAGIC_BYTES = {
-        b'\xff\xd8\xff': '.jpg',
-        b'\x89PNG': '.png',
-        b'RIFF': '.webp',  # WebP starts with RIFF....WEBP
-        b'GIF8': '.gif',
-        b'\x00\x00\x01\x00': '.ico',
-        b'\x00\x00\x02\x00': '.ico',
+        b"\xff\xd8\xff": ".jpg",
+        b"\x89PNG": ".png",
+        b"RIFF": ".webp",  # WebP starts with RIFF....WEBP
+        b"GIF8": ".gif",
+        b"\x00\x00\x01\x00": ".ico",
+        b"\x00\x00\x02\x00": ".ico",
     }
 
     def _detect_image_type(self, uploaded_file):
@@ -864,13 +815,13 @@ class UploadWebsiteMediaView(APIView):
         uploaded_file.seek(0)
 
         # Check SVG (text-based)
-        if header.lstrip(b'\xef\xbb\xbf').lstrip()[:5] in (b'<?xml', b'<svg '):
-            return '.svg'
+        if header.lstrip(b"\xef\xbb\xbf").lstrip()[:5] in (b"<?xml", b"<svg "):
+            return ".svg"
         # WebP: RIFF....WEBP
-        if header[:4] == b'RIFF' and header[8:12] == b'WEBP':
-            return '.webp'
+        if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+            return ".webp"
         for magic, ext in self._MAGIC_BYTES.items():
-            if magic != b'RIFF' and header[:len(magic)] == magic:
+            if magic != b"RIFF" and header[: len(magic)] == magic:
                 return ext
         return None
 
@@ -881,36 +832,26 @@ class UploadWebsiteMediaView(APIView):
 
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
-        uploaded_file = request.FILES.get('file')
+        uploaded_file = request.FILES.get("file")
         if not uploaded_file:
-            return Response(
-                {"error": "No se envió ningún archivo"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No se envió ningún archivo"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar tamaño
         if uploaded_file.size > self.MAX_FILE_SIZE:
-            return Response(
-                {"error": "La imagen es muy grande. El máximo es 5MB."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "La imagen es muy grande. El máximo es 5MB."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar tipo real del archivo (magic bytes, no content_type del cliente)
         detected_ext = self._detect_image_type(uploaded_file)
         if not detected_ext or detected_ext not in self.ALLOWED_EXTENSIONS:
             return Response(
-                {"error": "Formato no soportado. Usa JPG, PNG, WebP, GIF o SVG."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Formato no soportado. Usa JPG, PNG, WebP, GIF o SVG."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        purpose = request.data.get('purpose', 'general')
-        if purpose not in ('og_image', 'favicon', 'general'):
-            purpose = 'general'
+        purpose = request.data.get("purpose", "general")
+        if purpose not in ("og_image", "favicon", "general"):
+            purpose = "general"
 
         # Generar nombre seguro con extensión detectada (no la del cliente)
         ext = detected_ext
@@ -921,13 +862,16 @@ class UploadWebsiteMediaView(APIView):
         saved_path = default_storage.save(path, uploaded_file)
         file_url = request.build_absolute_uri(f"/media/{saved_path}")
 
-        return Response({
-            "url": file_url,
-            "path": saved_path,
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "url": file_url,
+                "path": saved_path,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -935,6 +879,7 @@ class UploadWebsiteMediaView(APIView):
 # ===================================
 # PUBLICACIÓN
 # ===================================
+
 
 class PublishWebsiteView(APIView):
     """
@@ -948,59 +893,51 @@ class PublishWebsiteView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if config.status not in ["review", "published"]:
             return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "El sitio debe estar en revisión para publicar"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        if config.status not in ['review', 'published']:
-            return Response(
-                {"error": "El sitio debe estar en revisión para publicar"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        serializer = PublishWebsiteSerializer(
-            data=request.data,
-            context={'tenant': tenant}
-        )
+        serializer = PublishWebsiteSerializer(data=request.data, context={"tenant": tenant})
         serializer.is_valid(raise_exception=True)
 
         # Actualizar subdominio si se proporciona
-        new_subdomain = serializer.validated_data.get('subdomain')
+        new_subdomain = serializer.validated_data.get("subdomain")
         if new_subdomain:
             config.subdomain = new_subdomain
 
         # Crear snapshot de datos publicados
         config.published_data = {
-            'content_data': config.content_data or {},
-            'theme_data': config.theme_data or {},
-            'pages_data': config.pages_data or {},
-            'seo_data': config.seo_data or {},
-            'media_data': config.media_data or {},
+            "content_data": config.content_data or {},
+            "theme_data": config.theme_data or {},
+            "pages_data": config.pages_data or {},
+            "seo_data": config.seo_data or {},
+            "media_data": config.media_data or {},
         }
 
         # Publicar
-        config.status = 'published'
+        config.status = "published"
         config.published_at = timezone.now()
-        config.save(update_fields=['published_data', 'status', 'published_at', 'subdomain'])
+        config.save(update_fields=["published_data", "status", "published_at", "subdomain"])
 
-        return Response({
-            "message": "Sitio publicado exitosamente",
-            "public_url": config.public_url,
-            "status": config.status,
-            "published_at": config.published_at
-        })
+        return Response(
+            {
+                "message": "Sitio publicado exitosamente",
+                "public_url": config.public_url,
+                "status": config.status,
+                "published_at": config.published_at,
+            }
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -1008,6 +945,7 @@ class PublishWebsiteView(APIView):
 # ===================================
 # PREVIEW
 # ===================================
+
 
 class PreviewWebsiteView(APIView):
     """
@@ -1021,41 +959,34 @@ class PreviewWebsiteView(APIView):
     def get(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
         # Combinar theme del template con personalizaciones
-        theme_data = {
-            **config.template.default_theme,
-            **config.theme_data
-        }
+        theme_data = {**config.template.default_theme, **config.theme_data}
 
-        return Response({
-            "template": {
-                "slug": config.template.slug,
-                "industry": config.template.industry,
-                "structure": config.template.structure_schema
-            },
-            "content": config.content_data,
-            "theme": theme_data,
-            "seo": config.seo_data,
-            "media": config.media_data,
-            "status": config.status,
-            "public_url": config.public_url if config.is_published else None
-        })
+        return Response(
+            {
+                "template": {
+                    "slug": config.template.slug,
+                    "industry": config.template.industry,
+                    "structure": config.template.structure_schema,
+                },
+                "content": config.content_data,
+                "theme": theme_data,
+                "seo": config.seo_data,
+                "media": config.media_data,
+                "status": config.status,
+                "public_url": config.public_url if config.is_published else None,
+            }
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -1063,6 +994,7 @@ class PreviewWebsiteView(APIView):
 # ===================================
 # PREVIEW RENDER (HTML para iframe)
 # ===================================
+
 
 class PreviewRenderView(APIView):
     """
@@ -1079,18 +1011,12 @@ class PreviewRenderView(APIView):
     def get(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
         theme = {**config.template.default_theme, **config.theme_data}
         seo = config.seo_data or {}
@@ -1098,23 +1024,23 @@ class PreviewRenderView(APIView):
         pages_data = config.pages_data or {}
 
         # ── Multi-page: resolver página solicitada ──────────────────────
-        page_id = request.query_params.get('page', 'home')
+        page_id = request.query_params.get("page", "home")
         page_slugs = {}  # { page_id: slug } para nav links
 
-        if pages_data.get('pages'):
+        if pages_data.get("pages"):
             # Nueva arquitectura: extraer contenido de la página solicitada
-            global_block = pages_data.get('global', {})
-            global_sections = global_block.get('sections', [])
-            global_content = global_block.get('content', {})
+            global_block = pages_data.get("global", {})
+            global_sections = global_block.get("sections", [])
+            global_content = global_block.get("content", {})
 
             # Encontrar la página pedida (o usar la primera si no existe)
-            all_pages = pages_data['pages']
-            page_slugs = {p['id']: p.get('slug', '/') for p in all_pages}
-            page_obj = next((p for p in all_pages if p['id'] == page_id), all_pages[0] if all_pages else {})
+            all_pages = pages_data["pages"]
+            page_slugs = {p["id"]: p.get("slug", "/") for p in all_pages}
+            page_obj = next((p for p in all_pages if p["id"] == page_id), all_pages[0] if all_pages else {})
 
-            page_sections = page_obj.get('sections', [])
-            page_content = page_obj.get('content', {})
-            page_seo = page_obj.get('seo', {})
+            page_sections = page_obj.get("sections", [])
+            page_content = page_obj.get("content", {})
+            page_seo = page_obj.get("seo", {})
 
             # SEO de página sobreescribe el global
             if page_seo:
@@ -1126,160 +1052,202 @@ class PreviewRenderView(APIView):
             # Secciones en orden: globales delanteras + página + globales traseras
             # Header va primero, Footer va al final (se manejan en _render_footer)
             active_sections = (
-                [s for s in global_sections if s == 'header']
+                [s for s in global_sections if s == "header"]
                 + page_sections
-                + [s for s in global_sections if s == 'footer']
+                + [s for s in global_sections if s == "footer"]
             )
             # Filtrar solo las que tienen contenido real
-            active_sections = [s for s in active_sections if s in content or s in ('header', 'footer')]
+            active_sections = [s for s in active_sections if s in content or s in ("header", "footer")]
 
         else:
             # Arquitectura antigua: fallback compatible
             content = config.content_data or {}
-            custom_order = content.get('_section_order', [])
+            custom_order = content.get("_section_order", [])
             if custom_order:
                 section_order = custom_order
             else:
-                section_order = [s['id'] for s in structure.get('sections', [])]
-            active_sections = [sid for sid in section_order if sid in content and sid != '_section_order']
+                section_order = [s["id"] for s in structure.get("sections", [])]
+            active_sections = [sid for sid in section_order if sid in content and sid != "_section_order"]
 
         industry = config.template.industry
         tenant_name = tenant.name
 
         media = dict(config.media_data or {})
-        current_logo = media.get('logo_url', '')
+        current_logo = media.get("logo_url", "")
         # Sync from onboarding if missing or stale data URL
-        if not current_logo or current_logo.startswith('data:'):
-            logo_resp = OnboardingResponse.objects.filter(
-                website_config=config, question__question_key='logo_upload',
-            ).values_list('response_value', flat=True).first()
+        if not current_logo or current_logo.startswith("data:"):
+            logo_resp = (
+                OnboardingResponse.objects.filter(
+                    website_config=config,
+                    question__question_key="logo_upload",
+                )
+                .values_list("response_value", flat=True)
+                .first()
+            )
             if logo_resp and current_logo != logo_resp:
-                media['logo_url'] = logo_resp
+                media["logo_url"] = logo_resp
                 config.media_data = media
-                config.save(update_fields=['media_data'])
-        base_url = config.public_url or ''
+                config.save(update_fields=["media_data"])
+        base_url = config.public_url or ""
 
         tenant_modules = {
-            'has_shop': tenant.has_shop,
-            'has_bookings': tenant.has_bookings,
-            'has_services': tenant.has_services,
+            "has_shop": tenant.has_shop,
+            "has_bookings": tenant.has_bookings,
+            "has_services": tenant.has_services,
         }
 
         tenant_info = {
-            'name': tenant.name,
-            'email': tenant.email or '',
-            'phone': tenant.phone or '',
-            'address': tenant.address or '',
-            'city': tenant.city or '',
-            'state': getattr(tenant, 'state', '') or '',
-            'country': tenant.country or 'Colombia',
+            "name": tenant.name,
+            "email": tenant.email or "",
+            "phone": tenant.phone or "",
+            "address": tenant.address or "",
+            "city": tenant.city or "",
+            "state": getattr(tenant, "state", "") or "",
+            "country": tenant.country or "Colombia",
         }
 
         # Badge: visible siempre en trial; suscriptos pueden ocultarlo desde Ajustes
         show_badge = True
         try:
-            if tenant.subscription.status != 'trial':
-                show_badge = seo.get('show_nerbis_badge', True)
+            if tenant.subscription.status != "trial":
+                show_badge = seo.get("show_nerbis_badge", True)
         except Exception:
             pass
 
         # Badge logo URL (static file, cacheable por el browser)
         from django.templatetags.static import static as _static
-        badge_logo_url = request.build_absolute_uri(_static('images/nerbis-badge.png'))
+
+        badge_logo_url = request.build_absolute_uri(_static("images/nerbis-badge.png"))
 
         html = self._render_html(
-            theme, content, seo, active_sections,
-            tenant_name, industry, structure, media, base_url,
-            tenant_modules, is_preview=True, tenant_info=tenant_info,
+            theme,
+            content,
+            seo,
+            active_sections,
+            tenant_name,
+            industry,
+            structure,
+            media,
+            base_url,
+            tenant_modules,
+            is_preview=True,
+            tenant_info=tenant_info,
             page_slugs=page_slugs,
-            show_badge=show_badge, badge_logo_url=badge_logo_url,
+            show_badge=show_badge,
+            badge_logo_url=badge_logo_url,
         )
 
         from django.http import HttpResponse
-        return HttpResponse(html, content_type='text/html; charset=utf-8')
 
-    def _render_html(self, theme, content, seo, sections, tenant_name, industry='generic', structure=None, media=None, base_url='', tenant_modules=None, is_preview=False, tenant_info=None, show_badge=True, badge_logo_url=None, page_slugs=None):
+        return HttpResponse(html, content_type="text/html; charset=utf-8")
+
+    def _render_html(
+        self,
+        theme,
+        content,
+        seo,
+        sections,
+        tenant_name,
+        industry="generic",
+        structure=None,
+        media=None,
+        base_url="",
+        tenant_modules=None,
+        is_preview=False,
+        tenant_info=None,
+        show_badge=True,
+        badge_logo_url=None,
+        page_slugs=None,
+    ):
         media = media or {}
         page_slugs = page_slugs or {}
         self._base_url = base_url  # URL pública del tenant para CTAs
         self._tenant_modules = tenant_modules or {}
         self._page_slugs = page_slugs  # { page_id: slug } para nav multi-página
-        primary = theme.get('primary_color', '#3b82f6')
-        secondary = theme.get('secondary_color', '#10b981')
-        font_heading = theme.get('font_heading', 'Poppins')
-        font_body = theme.get('font_body', 'Inter')
-        style = theme.get('style', 'modern')
-        color_mode = theme.get('color_mode', 'light')
-        is_dark = color_mode == 'dark'
+        primary = theme.get("primary_color", "#3b82f6")
+        secondary = theme.get("secondary_color", "#10b981")
+        font_heading = theme.get("font_heading", "Poppins")
+        font_body = theme.get("font_body", "Inter")
+        style = theme.get("style", "modern")
+        color_mode = theme.get("color_mode", "light")
+        is_dark = color_mode == "dark"
 
-        meta_title = seo.get('meta_title', tenant_name)
-        meta_description = seo.get('meta_description', '')
-        keywords = seo.get('keywords', [])
-        og_image_url = seo.get('og_image_url', '') or media.get('og_image_url', '')
-        favicon_url = media.get('favicon_url', '')
-        ga_id = seo.get('google_analytics_id', '')
-        social_links = seo.get('social_links', {})
+        meta_title = seo.get("meta_title", tenant_name)
+        meta_description = seo.get("meta_description", "")
+        keywords = seo.get("keywords", [])
+        og_image_url = seo.get("og_image_url", "") or media.get("og_image_url", "")
+        favicon_url = media.get("favicon_url", "")
+        ga_id = seo.get("google_analytics_id", "")
+        social_links = seo.get("social_links", {})
 
         # ─── New settings (Phase 4) ───────────────────────
-        og_inherit_seo = seo.get('og_inherit_seo', True)
-        og_title = seo.get('og_title', '') if not og_inherit_seo else ''
-        og_description = seo.get('og_description', '') if not og_inherit_seo else ''
-        gtm_id = seo.get('gtm_id', '')
-        fb_pixel_id = seo.get('facebook_pixel_id', '')
-        hotjar_id = seo.get('hotjar_id', '')
-        custom_head_code = seo.get('custom_head_code', '')
-        custom_body_code = seo.get('custom_body_code', '')
-        cookie_enabled = seo.get('cookie_banner_enabled', False)
-        cookie_position = seo.get('cookie_banner_position', 'bottom-bar')
-        cookie_text = seo.get('cookie_banner_text', 'Usamos cookies para mejorar tu experiencia.')
-        cookie_accept = seo.get('cookie_accept_label', 'Aceptar')
-        cookie_decline = seo.get('cookie_decline_label', 'Rechazar')
+        og_inherit_seo = seo.get("og_inherit_seo", True)
+        og_title = seo.get("og_title", "") if not og_inherit_seo else ""
+        og_description = seo.get("og_description", "") if not og_inherit_seo else ""
+        gtm_id = seo.get("gtm_id", "")
+        fb_pixel_id = seo.get("facebook_pixel_id", "")
+        hotjar_id = seo.get("hotjar_id", "")
+        custom_head_code = seo.get("custom_head_code", "")
+        custom_body_code = seo.get("custom_body_code", "")
+        cookie_enabled = seo.get("cookie_banner_enabled", False)
+        cookie_position = seo.get("cookie_banner_position", "bottom-bar")
+        cookie_text = seo.get("cookie_banner_text", "Usamos cookies para mejorar tu experiencia.")
+        cookie_accept = seo.get("cookie_accept_label", "Aceptar")
+        cookie_decline = seo.get("cookie_decline_label", "Rechazar")
 
         # ─── New features ─────────────────────────────────
-        hide_from_search = seo.get('hide_from_search', False)
-        google_site_verification = seo.get('google_site_verification', '')
-        bing_site_verification = seo.get('bing_site_verification', '')
-        whatsapp_float_enabled = seo.get('whatsapp_float_enabled', False)
-        whatsapp_float_number = seo.get('whatsapp_float_number', '')
-        whatsapp_float_message = seo.get('whatsapp_float_message', '')
-        whatsapp_float_position = seo.get('whatsapp_float_position', 'bottom-right')
-        schema_enabled = seo.get('schema_enabled', False)
-        schema_business_type = seo.get('schema_business_type', 'LocalBusiness')
+        hide_from_search = seo.get("hide_from_search", False)
+        google_site_verification = seo.get("google_site_verification", "")
+        bing_site_verification = seo.get("bing_site_verification", "")
+        whatsapp_float_enabled = seo.get("whatsapp_float_enabled", False)
+        whatsapp_float_number = seo.get("whatsapp_float_number", "")
+        whatsapp_float_message = seo.get("whatsapp_float_message", "")
+        whatsapp_float_position = seo.get("whatsapp_float_position", "bottom-right")
+        schema_enabled = seo.get("schema_enabled", False)
+        schema_business_type = seo.get("schema_business_type", "LocalBusiness")
         # Site access mode — stored but not rendered (public serving not yet implemented)
         # TODO: implement access control when public serving is added
 
         # Header config
-        header_data = content.get('header', {})
-        logo_text = header_data.get('logo_text', '') or tenant_name
-        logo_url = media.get('logo_url', '')
-        header_cta_text = header_data.get('cta_text', '')
-        header_cta_link = header_data.get('cta_link', '#contact')
+        header_data = content.get("header", {})
+        logo_text = header_data.get("logo_text", "") or tenant_name
+        logo_url = media.get("logo_url", "")
+        header_cta_text = header_data.get("cta_text", "")
+        header_cta_link = header_data.get("cta_link", "#contact")
 
         # Build nav items from active sections (skip hero and header)
-        nav_sections = [s for s in sections if s not in ('hero', 'header', '_section_order')]
+        nav_sections = [s for s in sections if s not in ("hero", "header", "_section_order")]
 
         # Contact data for info bar
-        contact_data = content.get('contact', {})
+        contact_data = content.get("contact", {})
 
         # Build header HTML
-        header_nav_items = header_data.get('nav_items', None)
+        header_nav_items = header_data.get("nav_items", None)
         header_html = self._render_header(
-            logo_text, nav_sections, header_cta_text, header_cta_link, primary, secondary, logo_url,
-            custom_nav_items=header_nav_items, header_data=header_data, industry=industry
+            logo_text,
+            nav_sections,
+            header_cta_text,
+            header_cta_link,
+            primary,
+            secondary,
+            logo_url,
+            custom_nav_items=header_nav_items,
+            header_data=header_data,
+            industry=industry,
         )
 
         # Info bar (above everything)
         info_bar_html = self._render_info_bar(header_data, contact_data, social_links, industry)
 
         # Promo bar (above header)
-        promo_html = ''
-        if header_data.get('promo_bar_enabled'):
-            _promo_text = self._esc(header_data.get('promo_bar_text', ''))
-            _promo_bg = header_data.get('promo_bar_bg', '#1C3B57')
-            _promo_tc = header_data.get('promo_bar_text_color', '#FFFFFF')
-            _promo_lt = header_data.get('promo_bar_link_text', '')
-            _promo_lk = header_data.get('promo_bar_link', '')
-            _promo_link_html = ''
+        promo_html = ""
+        if header_data.get("promo_bar_enabled"):
+            _promo_text = self._esc(header_data.get("promo_bar_text", ""))
+            _promo_bg = header_data.get("promo_bar_bg", "#1C3B57")
+            _promo_tc = header_data.get("promo_bar_text_color", "#FFFFFF")
+            _promo_lt = header_data.get("promo_bar_link_text", "")
+            _promo_lk = header_data.get("promo_bar_link", "")
+            _promo_link_html = ""
             if _promo_lt and _promo_lk:
                 _promo_link_html = f' <a href="{self._esc(_promo_lk)}" style="color:{_promo_tc};text-decoration:underline;font-weight:600;margin-left:8px;">{self._esc(_promo_lt)}</a>'
             promo_html = f'<div class="promo-bar" style="background:{_promo_bg};color:{_promo_tc};text-align:center;padding:10px 24px;font-size:.85rem;font-family:var(--font-body);letter-spacing:.01em;">{_promo_text}{_promo_link_html}</div>'
@@ -1288,16 +1256,16 @@ class PreviewRenderView(APIView):
         _divider_html = '<div class="section-divider" aria-hidden="true"><svg viewBox="0 0 1200 48" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 24C200 44 400 4 600 24C800 44 1000 4 1200 24V48H0Z" fill="currentColor" opacity="0.04"/></svg><span></span></div>'
 
         # Build sections HTML
-        sections_html = ''
+        sections_html = ""
         alt_counter = 0
         non_hero_count = 0
         for section_id in sections:
-            if section_id in ('header', 'footer'):
+            if section_id in ("header", "footer"):
                 continue  # header and footer are rendered separately
             data = content.get(section_id, {})
             # For duplicated sections (e.g. services_2), use _type to find the renderer
-            render_key = data.get('_type', section_id) if isinstance(data, dict) else section_id
-            renderer = getattr(self, f'_render_{render_key}', None)
+            render_key = data.get("_type", section_id) if isinstance(data, dict) else section_id
+            renderer = getattr(self, f"_render_{render_key}", None)
             if renderer:
                 html = renderer(data, primary, secondary)
             else:
@@ -1305,20 +1273,17 @@ class PreviewRenderView(APIView):
             # Inject id for anchor navigation (nav links use #about, #services, etc.)
             html = html.replace(f'data-section="{section_id}"', f'id="{section_id}" data-section="{section_id}"', 1)
             # Add alternating bg + scroll reveal to non-hero sections
-            if section_id != 'hero':
-                extra = ' reveal'
+            if section_id != "hero":
+                extra = " reveal"
                 if alt_counter % 2 == 1:
-                    extra += ' section-alt'
+                    extra += " section-alt"
                 if 'class="section"' in html:
                     html = html.replace('class="section"', f'class="section{extra}"', 1)
                 else:
                     # Non-standard sections (about-banner, hero--*, etc.) — add reveal to existing class
                     import re as _re
-                    html = _re.sub(
-                        r'(<section\s+)class="([^"]*)"',
-                        rf'\1class="\2{extra}"',
-                        html, count=1
-                    )
+
+                    html = _re.sub(r'(<section\s+)class="([^"]*)"', rf'\1class="\2{extra}"', html, count=1)
                 alt_counter += 1
                 # Section divider between non-hero sections
                 if non_hero_count > 0:
@@ -1327,14 +1292,23 @@ class PreviewRenderView(APIView):
             sections_html += html
 
         # Build footer HTML (now with social links)
-        contact_data = content.get('contact', {})
-        footer_data = content.get('footer', {})
-        footer_html = self._render_footer(logo_text, contact_data, nav_sections, primary, social_links, show_badge=show_badge, badge_logo_url=badge_logo_url, footer_data=footer_data)
+        contact_data = content.get("contact", {})
+        footer_data = content.get("footer", {})
+        footer_html = self._render_footer(
+            logo_text,
+            contact_data,
+            nav_sections,
+            primary,
+            social_links,
+            show_badge=show_badge,
+            badge_logo_url=badge_logo_url,
+            footer_data=footer_data,
+        )
 
-        border_radius = '12px' if style in ('modern', 'clean') else '4px' if style == 'elegant' else '8px'
+        border_radius = "12px" if style in ("modern", "clean") else "4px" if style == "elegant" else "8px"
 
         # Build additional head tags
-        head_extra = ''
+        head_extra = ""
         if meta_description:
             head_extra += f'    <meta name="description" content="{self._esc(meta_description)}">\n'
         if keywords:
@@ -1362,19 +1336,23 @@ class PreviewRenderView(APIView):
             head_extra += '    <meta name="robots" content="noindex, nofollow">\n'
         # Search engine verification
         if google_site_verification:
-            head_extra += f'    <meta name="google-site-verification" content="{self._esc(google_site_verification)}">\n'
+            head_extra += (
+                f'    <meta name="google-site-verification" content="{self._esc(google_site_verification)}">\n'
+            )
         if bing_site_verification:
             head_extra += f'    <meta name="msvalidate.01" content="{self._esc(bing_site_verification)}">\n'
         # Schema.org JSON-LD
         if schema_enabled:
-            head_extra += self._render_schema_jsonld(schema_business_type, meta_title, meta_description, content, media, base_url)
+            head_extra += self._render_schema_jsonld(
+                schema_business_type, meta_title, meta_description, content, media, base_url
+            )
 
         # ─── Analytics & Tracking Scripts ─────────────────
         has_analytics = bool(ga_id or gtm_id or fb_pixel_id or hotjar_id)
         consent_gated = cookie_enabled and has_analytics
 
-        analytics_head = ''
-        analytics_body_start = ''
+        analytics_head = ""
+        analytics_body_start = ""
 
         if consent_gated:
             # Cookie banner activo: envolver analytics en función que solo
@@ -1418,13 +1396,15 @@ class PreviewRenderView(APIView):
                     f"a.appendChild(r)}})(window,document,"
                     f"'https://static.hotjar.com/c/hotjar-','.js?sv=');"
                 )
-            analytics_fn_body = '\n'.join(analytics_js_parts)
+            analytics_fn_body = "\n".join(analytics_js_parts)
             analytics_head = f"""<script>function __loadAnalytics(){{if(window.__analyticsLoaded)return;window.__analyticsLoaded=true;{analytics_fn_body}}}</script>\n"""
             # GTM noscript no se renderiza si depende de consentimiento
         else:
             # Sin banner de cookies o sin analytics: cargar directamente
             if ga_id:
-                analytics_head += f'<script async src="https://www.googletagmanager.com/gtag/js?id={self._esc(ga_id)}"></script>\n'
+                analytics_head += (
+                    f'<script async src="https://www.googletagmanager.com/gtag/js?id={self._esc(ga_id)}"></script>\n'
+                )
                 analytics_head += f'<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag("js",new Date());gtag("config","{self._esc(ga_id)}");</script>\n'
             if gtm_id:
                 analytics_head += f"""<script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{"gtm.start":new Date().getTime(),event:"gtm.js"}});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src="https://www.googletagmanager.com/gtm.js?id="+i+dl;f.parentNode.insertBefore(j,f)}})(window,document,"script","dataLayer","{self._esc(gtm_id)}");</script>\n"""
@@ -1436,7 +1416,7 @@ class PreviewRenderView(APIView):
 
         # Custom head code siempre se carga (responsabilidad del tenant)
         if custom_head_code:
-            analytics_head += custom_head_code + '\n'
+            analytics_head += custom_head_code + "\n"
         ga_script = analytics_head
 
         return f"""<!DOCTYPE html>
@@ -1447,7 +1427,7 @@ class PreviewRenderView(APIView):
     <meta name="generator" content="NERBIS — nerbis.co">
     <title>{self._esc(meta_title)}</title>
 {head_extra}    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family={font_heading.replace(' ', '+')}:wght@400;600;700&family={font_body.replace(' ', '+')}:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family={font_heading.replace(" ", "+")}:wght@400;600;700&family={font_body.replace(" ", "+")}:wght@300;400;500;600&display=swap" rel="stylesheet">
 {ga_script}
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -1457,20 +1437,20 @@ class PreviewRenderView(APIView):
             --font-heading: '{font_heading}', sans-serif;
             --font-body: '{font_body}', sans-serif;
             --radius: {border_radius};
-            --shadow-sm: {'0 1px 3px rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.15)' if is_dark else '0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.06)'};
-            --shadow-md: {'0 4px 16px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.15)' if is_dark else '0 4px 16px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)'};
-            --shadow-lg: {'0 12px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.2)' if is_dark else '0 12px 40px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.04)'};
-            --shadow-xl: {'0 20px 60px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.25)' if is_dark else '0 20px 60px rgba(0,0,0,.1), 0 8px 20px rgba(0,0,0,.06)'};
+            --shadow-sm: {"0 1px 3px rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.15)" if is_dark else "0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.06)"};
+            --shadow-md: {"0 4px 16px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.15)" if is_dark else "0 4px 16px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)"};
+            --shadow-lg: {"0 12px 40px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.2)" if is_dark else "0 12px 40px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.04)"};
+            --shadow-xl: {"0 20px 60px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.25)" if is_dark else "0 20px 60px rgba(0,0,0,.1), 0 8px 20px rgba(0,0,0,.06)"};
             --glow-primary: 0 0 30px color-mix(in srgb, var(--primary), transparent 60%);
             --glow-sm: 0 0 16px color-mix(in srgb, var(--primary), transparent 70%);
         }}
         body {{
             font-family: var(--font-body);
-            color: {'#e2e8f0' if is_dark else '#1f2937'};
+            color: {"#e2e8f0" if is_dark else "#1f2937"};
             line-height: 1.7;
-            background: {'#0f172a' if is_dark else '#ffffff'};
+            background: {"#0f172a" if is_dark else "#ffffff"};
             -webkit-font-smoothing: antialiased;
-            {'-moz-osx-font-smoothing: grayscale;' if is_dark else ''}
+            {"-moz-osx-font-smoothing: grayscale;" if is_dark else ""}
         }}
         h1, h2, h3, h4 {{ font-family: var(--font-heading); line-height: 1.15; }}
 
@@ -2652,8 +2632,8 @@ class PreviewRenderView(APIView):
         [data-section] {{ position: relative; cursor: pointer; transition: outline .15s; }}
         [data-section]:hover {{ outline: 2px dashed var(--secondary); outline-offset: -2px; }}
 
-        {'/* ─── Dark Mode Premium ────────────── */' if is_dark else ''}
-        {self._dark_mode_css() if is_dark else ''}
+        {"/* ─── Dark Mode Premium ────────────── */" if is_dark else ""}
+        {self._dark_mode_css() if is_dark else ""}
     </style>
 </head>
 <body class="pw-style-{style}" data-color-mode="{color_mode}">
@@ -2819,46 +2799,46 @@ class PreviewRenderView(APIView):
     }})();
 </script>
 {self._render_privacy_modal(tenant_info or {}, seo)}
-{self._render_cookie_banner(cookie_enabled, cookie_position, cookie_text, cookie_accept, cookie_decline, primary, is_preview=is_preview) if cookie_enabled else ''}
-{self._render_whatsapp_button(whatsapp_float_enabled, whatsapp_float_number, whatsapp_float_message, whatsapp_float_position) if whatsapp_float_enabled else ''}
-{self._render_header_whatsapp_float(header_data, contact_data) if (not whatsapp_float_enabled and header_data.get('whatsapp_float_enabled')) else ''}
-{custom_body_code if custom_body_code else ''}
+{self._render_cookie_banner(cookie_enabled, cookie_position, cookie_text, cookie_accept, cookie_decline, primary, is_preview=is_preview) if cookie_enabled else ""}
+{self._render_whatsapp_button(whatsapp_float_enabled, whatsapp_float_number, whatsapp_float_message, whatsapp_float_position) if whatsapp_float_enabled else ""}
+{self._render_header_whatsapp_float(header_data, contact_data) if (not whatsapp_float_enabled and header_data.get("whatsapp_float_enabled")) else ""}
+{custom_body_code if custom_body_code else ""}
 </body>
 </html>"""
 
     # ─── Industry header defaults ────────────────────────
     INDUSTRY_HEADER_DEFAULTS = {
-        'retail': {
-            'action_login_enabled': True,
-            'action_cart_enabled': True,
-            'action_wishlist_enabled': True,
+        "retail": {
+            "action_login_enabled": True,
+            "action_cart_enabled": True,
+            "action_wishlist_enabled": True,
         },
-        'beauty': {
-            'action_login_enabled': True,
-            'action_booking_enabled': True,
-            'action_booking_text': 'Reservar cita',
+        "beauty": {
+            "action_login_enabled": True,
+            "action_booking_enabled": True,
+            "action_booking_text": "Reservar cita",
         },
-        'health': {
-            'action_login_enabled': True,
-            'action_booking_enabled': True,
-            'action_booking_text': 'Agendar cita',
+        "health": {
+            "action_login_enabled": True,
+            "action_booking_enabled": True,
+            "action_booking_text": "Agendar cita",
         },
-        'fitness': {
-            'action_login_enabled': True,
-            'action_booking_enabled': True,
-            'action_booking_text': 'Reservar clase',
+        "fitness": {
+            "action_login_enabled": True,
+            "action_booking_enabled": True,
+            "action_booking_text": "Reservar clase",
         },
-        'restaurant': {
-            'action_booking_enabled': True,
-            'action_booking_text': 'Reservar mesa',
+        "restaurant": {
+            "action_booking_enabled": True,
+            "action_booking_text": "Reservar mesa",
         },
-        'events': {
-            'action_booking_enabled': True,
-            'action_booking_text': 'Reservar',
+        "events": {
+            "action_booking_enabled": True,
+            "action_booking_text": "Reservar",
         },
     }
 
-    def _header_field(self, header_data, field, industry='generic', default=None):
+    def _header_field(self, header_data, field, industry="generic", default=None):
         """Get header field with industry-aware defaults."""
         if field in header_data:
             return header_data[field]
@@ -2869,16 +2849,16 @@ class PreviewRenderView(APIView):
 
     # ─── Nav labels ─────────────────────────────────────
     SECTION_NAV_LABELS = {
-        'about': 'Nosotros',
-        'services': 'Servicios',
-        'products': 'Productos',
-        'testimonials': 'Testimonios',
-        'gallery': 'Galería',
-        'pricing': 'Precios',
-        'faq': 'FAQ',
-        'contact': 'Contacto',
-        'team': 'Equipo',
-        'blog': 'Blog',
+        "about": "Nosotros",
+        "services": "Servicios",
+        "products": "Productos",
+        "testimonials": "Testimonios",
+        "gallery": "Galería",
+        "pricing": "Precios",
+        "faq": "FAQ",
+        "contact": "Contacto",
+        "team": "Equipo",
+        "blog": "Blog",
     }
 
     def _dark_mode_css(self):
@@ -2999,134 +2979,148 @@ class PreviewRenderView(APIView):
     # ─── Privacy Policy Modal ────────────────────────────────────
     def _render_privacy_modal(self, tenant_info, seo):
         from django.utils.timezone import now as _now
-        name     = self._esc(tenant_info.get('name', ''))
-        email    = self._esc(tenant_info.get('email', ''))
-        phone    = self._esc(tenant_info.get('phone', ''))
-        address  = self._esc(tenant_info.get('address', ''))
-        city     = self._esc(tenant_info.get('city', ''))
-        country  = tenant_info.get('country', 'Colombia')
-        year     = _now().year
 
-        is_eu = country in ('España', 'Francia', 'Alemania', 'Italia', 'Portugal', 'Reino Unido')
-        co_law = '<li>Ley 1581 de 2012 y Decreto 1377 de 2013 (Colombia)</li>' if not is_eu else ''
-        eu_law = ('<li>Reglamento General de Proteccion de Datos - RGPD/GDPR (UE 2016/679)</li>'
-                  '<li>Ley Organica 3/2018, LOPDGDD (Espana)</li>') if is_eu else ''
+        name = self._esc(tenant_info.get("name", ""))
+        email = self._esc(tenant_info.get("email", ""))
+        phone = self._esc(tenant_info.get("phone", ""))
+        address = self._esc(tenant_info.get("address", ""))
+        city = self._esc(tenant_info.get("city", ""))
+        country = tenant_info.get("country", "Colombia")
+        year = _now().year
+
+        is_eu = country in ("España", "Francia", "Alemania", "Italia", "Portugal", "Reino Unido")
+        co_law = "<li>Ley 1581 de 2012 y Decreto 1377 de 2013 (Colombia)</li>" if not is_eu else ""
+        eu_law = (
+            (
+                "<li>Reglamento General de Proteccion de Datos - RGPD/GDPR (UE 2016/679)</li>"
+                "<li>Ley Organica 3/2018, LOPDGDD (Espana)</li>"
+            )
+            if is_eu
+            else ""
+        )
         authority = (
-            'Agencia Espanola de Proteccion de Datos (AEPD) - www.aepd.es'
-            if is_eu else
-            'Superintendencia de Industria y Comercio (SIC) - www.sic.gov.co'
+            "Agencia Espanola de Proteccion de Datos (AEPD) - www.aepd.es"
+            if is_eu
+            else "Superintendencia de Industria y Comercio (SIC) - www.sic.gov.co"
         )
         rights_items = (
-            '<li><strong>Acceso</strong>: conocer que datos tenemos sobre ti.</li>'
-            '<li><strong>Rectificacion</strong>: corregir datos inexactos.</li>'
-            '<li><strong>Supresion</strong>: solicitar la eliminacion de tus datos.</li>'
-            '<li><strong>Portabilidad</strong>: recibir tus datos en formato digital.</li>'
-            '<li><strong>Oposicion / Limitacion</strong>: oponerte a ciertos usos de tus datos.</li>'
+            "<li><strong>Acceso</strong>: conocer que datos tenemos sobre ti.</li>"
+            "<li><strong>Rectificacion</strong>: corregir datos inexactos.</li>"
+            "<li><strong>Supresion</strong>: solicitar la eliminacion de tus datos.</li>"
+            "<li><strong>Portabilidad</strong>: recibir tus datos en formato digital.</li>"
+            "<li><strong>Oposicion / Limitacion</strong>: oponerte a ciertos usos de tus datos.</li>"
         )
 
         contact_parts = []
         if name:
-            contact_parts.append('<strong>' + name + '</strong>')
+            contact_parts.append("<strong>" + name + "</strong>")
         if address:
             contact_parts.append(address)
         if city:
             contact_parts.append(city)
         if email:
-            contact_parts.append('<a href="mailto:' + email + '" style="color:var(--primary)">' + email + '</a>')
+            contact_parts.append('<a href="mailto:' + email + '" style="color:var(--primary)">' + email + "</a>")
         if phone:
             contact_parts.append(phone)
-        contact_html = ' &middot; '.join(contact_parts) if contact_parts else '(informacion de contacto no disponible)'
+        contact_html = " &middot; ".join(contact_parts) if contact_parts else "(informacion de contacto no disponible)"
 
         html_parts = [
-            '<!-- Privacy Policy Modal -->',
+            "<!-- Privacy Policy Modal -->",
             '<div id="privacy-modal" style="display:none;position:fixed;inset:0;z-index:10000;'
-            'background:rgba(0,0,0,.5);backdrop-filter:blur(4px);padding:16px;overflow-y:auto;'
+            "background:rgba(0,0,0,.5);backdrop-filter:blur(4px);padding:16px;overflow-y:auto;"
             'font-family:var(--font-body);">',
             '  <div style="max-width:680px;margin:32px auto;background:#fff;border-radius:20px;'
             'box-shadow:0 20px 60px rgba(0,0,0,.2);overflow:hidden;">',
             # Header
             '    <div style="display:flex;align-items:center;justify-content:space-between;'
-            'padding:20px 24px;border-bottom:1px solid #f3f4f6;'
+            "padding:20px 24px;border-bottom:1px solid #f3f4f6;"
             'background:color-mix(in srgb, var(--primary), #fff 94%);">',
             '      <div style="display:flex;align-items:center;gap:10px;">',
             '        <div style="width:32px;height:32px;border-radius:50%;'
-            'background:color-mix(in srgb, var(--primary), transparent 80%);'
+            "background:color-mix(in srgb, var(--primary), transparent 80%);"
             'display:flex;align-items:center;justify-content:center;">',
             '          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
             'stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
             '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6'
-            'a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0'
+            "a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0"
             'C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>',
-            '        </div>',
+            "        </div>",
             '        <span style="font-weight:700;font-size:1rem;color:#1f2937;">Politica de Privacidad</span>',
-            '      </div>',
+            "      </div>",
             '      <button onclick="closePrivacyPolicy()" style="width:32px;height:32px;border-radius:50%;'
-            'border:1px solid #e5e7eb;background:#fff;cursor:pointer;display:flex;align-items:center;'
+            "border:1px solid #e5e7eb;background:#fff;cursor:pointer;display:flex;align-items:center;"
             'justify-content:center;font-size:1.1rem;color:#6b7280;line-height:1;" '
             'aria-label="Cerrar">&times;</button>',
-            '    </div>',
+            "    </div>",
             # Body
             '    <div style="padding:24px;font-size:.85rem;line-height:1.7;color:#374151;'
             'overflow-y:auto;max-height:70vh;">',
             '      <p style="color:#6b7280;font-size:.78rem;margin:0 0 20px;">Ultima actualizacion: '
-            + str(year) + ' &nbsp;&middot;&nbsp; ' + self._esc(country) + '</p>',
+            + str(year)
+            + " &nbsp;&middot;&nbsp; "
+            + self._esc(country)
+            + "</p>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">1. Quien es el responsable?</h3>',
-            '      <p style="margin:0 0 16px;">' + contact_html + '</p>',
+            '      <p style="margin:0 0 16px;">' + contact_html + "</p>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">2. Marco legal aplicable</h3>',
-            '      <ul style="margin:0 0 16px;padding-left:20px;">' + co_law + eu_law + '</ul>',
+            '      <ul style="margin:0 0 16px;padding-left:20px;">' + co_law + eu_law + "</ul>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">3. Datos que recopilamos</h3>',
             '      <ul style="margin:0 0 16px;padding-left:20px;">',
-            '        <li><strong>Datos de contacto:</strong> nombre, correo y telefono cuando te registras o nos contactas.</li>',
-            '        <li><strong>Datos de navegacion:</strong> paginas visitadas y dispositivo (solo si aceptas las cookies de analisis).</li>',
-            '        <li><strong>Datos de transaccion:</strong> pedidos, citas y pagos cuando usas nuestros servicios.</li>',
-            '      </ul>',
+            "        <li><strong>Datos de contacto:</strong> nombre, correo y telefono cuando te registras o nos contactas.</li>",
+            "        <li><strong>Datos de navegacion:</strong> paginas visitadas y dispositivo (solo si aceptas las cookies de analisis).</li>",
+            "        <li><strong>Datos de transaccion:</strong> pedidos, citas y pagos cuando usas nuestros servicios.</li>",
+            "      </ul>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">4. Para que usamos tus datos?</h3>',
             '      <ul style="margin:0 0 16px;padding-left:20px;">',
-            '        <li>Gestionar tu cuenta, pedidos y citas.</li>',
-            '        <li>Enviarte confirmaciones relacionadas con tu compra.</li>',
-            '        <li>Mejorar nuestros servicios (solo con tu consentimiento).</li>',
-            '        <li>Cumplir con obligaciones legales y fiscales.</li>',
-            '      </ul>',
+            "        <li>Gestionar tu cuenta, pedidos y citas.</li>",
+            "        <li>Enviarte confirmaciones relacionadas con tu compra.</li>",
+            "        <li>Mejorar nuestros servicios (solo con tu consentimiento).</li>",
+            "        <li>Cumplir con obligaciones legales y fiscales.</li>",
+            "      </ul>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">5. Cookies</h3>',
             '      <ul style="margin:0 0 16px;padding-left:20px;">',
-            '        <li><strong>Esenciales:</strong> imprescindibles para el funcionamiento del sitio. No requieren consentimiento.</li>',
-            '        <li><strong>Analisis:</strong> miden el trafico y mejoran la experiencia. Solo se activan si las aceptas.</li>',
-            '      </ul>',
+            "        <li><strong>Esenciales:</strong> imprescindibles para el funcionamiento del sitio. No requieren consentimiento.</li>",
+            "        <li><strong>Analisis:</strong> miden el trafico y mejoran la experiencia. Solo se activan si las aceptas.</li>",
+            "      </ul>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">6. Tus derechos</h3>',
             '      <p style="margin:0 0 8px;">Puedes ejercer en cualquier momento:</p>',
-            '      <ul style="margin:0 0 8px;padding-left:20px;">' + rights_items + '</ul>',
-            '      <p style="margin:0 0 8px;">Escribenos a <a href="mailto:' + email + '" style="color:var(--primary)">' + email + '</a>. Respondemos en un maximo de 15 dias habiles.</p>',
-            '      <p style="margin:0 0 16px;">Autoridad competente: ' + authority + '</p>',
+            '      <ul style="margin:0 0 8px;padding-left:20px;">' + rights_items + "</ul>",
+            '      <p style="margin:0 0 8px;">Escribenos a <a href="mailto:'
+            + email
+            + '" style="color:var(--primary)">'
+            + email
+            + "</a>. Respondemos en un maximo de 15 dias habiles.</p>",
+            '      <p style="margin:0 0 16px;">Autoridad competente: ' + authority + "</p>",
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">7. Conservacion de datos</h3>',
             '      <p style="margin:0 0 16px;">Conservamos tus datos mientras mantengas una relacion activa o durante el tiempo que exija la ley.</p>',
             '      <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:0 0 8px;">8. Cambios en esta politica</h3>',
             '      <p style="margin:0 0 16px;">Podemos actualizar esta politica ocasionalmente. Te notificaremos de cambios significativos.</p>',
             '      <div style="margin-top:20px;padding:14px 16px;border-radius:10px;background:#f9fafb;border:1px solid #f3f4f6;">',
             '        <p style="margin:0;font-size:.75rem;color:#9ca3af;line-height:1.5;">',
-            '          Esta politica es una base de referencia. Te recomendamos revisarla con un profesional legal si tu negocio maneja datos de forma especial.',
-            '        </p>',
-            '      </div>',
-            '    </div>',
+            "          Esta politica es una base de referencia. Te recomendamos revisarla con un profesional legal si tu negocio maneja datos de forma especial.",
+            "        </p>",
+            "      </div>",
+            "    </div>",
             # Footer
             '    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">',
             '      <button onclick="closePrivacyPolicy()" style="padding:10px 28px;border-radius:10px;'
-            'border:none;background:var(--primary);color:#fff;font-weight:600;font-size:.85rem;'
+            "border:none;background:var(--primary);color:#fff;font-weight:600;font-size:.85rem;"
             'cursor:pointer;font-family:inherit;">Entendido</button>',
-            '    </div>',
-            '  </div>',
-            '</div>',
-            '<script>',
+            "    </div>",
+            "  </div>",
+            "</div>",
+            "<script>",
             'function openPrivacyPolicy(){var m=document.getElementById("privacy-modal");if(m){m.style.display="block";document.body.style.overflow="hidden";}}',
             'function closePrivacyPolicy(){var m=document.getElementById("privacy-modal");if(m){m.style.display="none";document.body.style.overflow="";}}',
             '(function(){var m=document.getElementById("privacy-modal");if(m)m.addEventListener("click",function(e){if(e.target===this)closePrivacyPolicy();});})();',
-            '</script>',
+            "</script>",
         ]
-        return '\n'.join(html_parts)
+        return "\n".join(html_parts)
 
     # ─── Cookie Consent Banner ──────────────────────────────────
     def _render_cookie_banner(self, enabled, position, text, accept_label, decline_label, primary, is_preview=False):
         if not enabled:
-            return ''
+            return ""
 
         # Link que abre el modal de política de privacidad (siempre disponible)
         privacy_link = ' <a href="#" onclick="openPrivacyPolicy();return false;" style="color:var(--primary);text-decoration:none;font-weight:500;">Política de privacidad</a>'
@@ -3134,7 +3128,7 @@ class PreviewRenderView(APIView):
         # Shield icon SVG con color del tenant (usa CSS var para actualizaciones en tiempo real)
         shield_icon = '<div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:color-mix(in srgb, var(--primary), transparent 88%);flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>'
 
-        pos_style = 'top:0;' if position == 'top' else 'bottom:0;'
+        pos_style = "top:0;" if position == "top" else "bottom:0;"
         return f"""<div id="cookie-banner" style="position:fixed;{pos_style}left:0;right:0;z-index:9999;display:none;padding:16px;font-family:var(--font-body);">
     <div style="max-width:460px;margin:0 auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,.12);border:1px solid #e5e7eb;">
         <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -3172,7 +3166,7 @@ class PreviewRenderView(APIView):
 (function(){{
     var banner=document.getElementById('cookie-banner');
     if(!banner)return;
-    var isPreview={'true' if is_preview else 'false'};
+    var isPreview={"true" if is_preview else "false"};
     if(isPreview){{
         banner.style.display='block';
         window.acceptCookies=function(){{banner.style.display='none';}};
@@ -3200,16 +3194,17 @@ class PreviewRenderView(APIView):
     # ─── WhatsApp Floating Button ────────────────────────────────
     def _render_whatsapp_button(self, enabled, number, message, position):
         if not enabled or not number:
-            return ''
-        clean_number = ''.join(c for c in str(number) if c.isdigit() or c == '+')
-        encoded_msg = ''
+            return ""
+        clean_number = "".join(c for c in str(number) if c.isdigit() or c == "+")
+        encoded_msg = ""
         if message:
             import urllib.parse as _urlparse
+
             encoded_msg = _urlparse.quote(message)
-        wa_url = f'https://wa.me/{clean_number}'
+        wa_url = f"https://wa.me/{clean_number}"
         if encoded_msg:
-            wa_url += f'?text={encoded_msg}'
-        pos_css = 'right:24px;' if position == 'bottom-right' else 'left:24px;'
+            wa_url += f"?text={encoded_msg}"
+        pos_css = "right:24px;" if position == "bottom-right" else "left:24px;"
 
         return f"""<div id="wa-float" style="position:fixed;bottom:24px;{pos_css}z-index:9998;">
     <a href="{self._esc(wa_url)}" target="_blank" rel="noopener noreferrer"
@@ -3224,9 +3219,10 @@ class PreviewRenderView(APIView):
     # ─── Schema.org JSON-LD ──────────────────────────────────────
     def _render_schema_jsonld(self, business_type, name, description, content, media, base_url):
         import json as _json
-        contact = content.get('contact', {})
-        logo_url = media.get('logo_url', '')
-        url = base_url or ''
+
+        contact = content.get("contact", {})
+        logo_url = media.get("logo_url", "")
+        url = base_url or ""
 
         schema = {
             "@context": "https://schema.org",
@@ -3237,27 +3233,24 @@ class PreviewRenderView(APIView):
         }
         if logo_url:
             schema["image"] = logo_url
-        if contact.get('phone'):
-            schema["telephone"] = contact['phone']
-        if contact.get('email'):
-            schema["email"] = contact['email']
-        if contact.get('address'):
-            schema["address"] = {
-                "@type": "PostalAddress",
-                "streetAddress": contact['address']
-            }
+        if contact.get("phone"):
+            schema["telephone"] = contact["phone"]
+        if contact.get("email"):
+            schema["email"] = contact["email"]
+        if contact.get("address"):
+            schema["address"] = {"@type": "PostalAddress", "streetAddress": contact["address"]}
 
         json_str = _json.dumps(schema, ensure_ascii=False, indent=2)
         return f'    <script type="application/ld+json">\n{json_str}\n    </script>\n'
 
     def _esc(self, text):
         if not text:
-            return ''
-        return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+            return ""
+        return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
     def _tenant_url(self, path: str) -> str:
         """Construye URL absoluta del tenant. Ej: https://tenant.nerbis.com/products"""
-        base = getattr(self, '_base_url', '') or ''
+        base = getattr(self, "_base_url", "") or ""
         if base:
             return f"{base.rstrip('/')}/{path.lstrip('/')}"
         return f"/{path.lstrip('/')}"
@@ -3266,22 +3259,22 @@ class PreviewRenderView(APIView):
         """Inyecta un botón CTA antes del cierre de </section>."""
         url = self._tenant_url(path)
         cta = f'        <div style="text-align:center;margin-top:2.5rem;"><a href="{url}" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;">{text} &#8594;</a></div>\n'
-        marker = '    </div>\n</section>'
+        marker = "    </div>\n</section>"
         idx = html.rfind(marker)
         if idx >= 0:
-            return html[:idx] + cta + marker + '\n'
+            return html[:idx] + cta + marker + "\n"
         return html
 
     # Secciones que enlazan a páginas reales en vez de anchors
     SECTION_PAGE_MAP = {
-        'about': '/about',
-        'services': '/services',
-        'products': '/products',
-        'testimonials': '/testimonials',
-        'faq': '/faq',
-        'gallery': '/gallery',
-        'pricing': '/pricing',
-        'contact': '/contact',
+        "about": "/about",
+        "services": "/services",
+        "products": "/products",
+        "testimonials": "/testimonials",
+        "faq": "/faq",
+        "gallery": "/gallery",
+        "pricing": "/pricing",
+        "contact": "/contact",
     }
 
     # ─── SVG icons for header ──────────────────────────
@@ -3293,22 +3286,22 @@ class PreviewRenderView(APIView):
     _SVG_HEART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>'
     _SVG_CALENDAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>'
 
-    def _render_info_bar(self, header_data, contact_data, social_links, industry='generic'):
+    def _render_info_bar(self, header_data, contact_data, social_links, industry="generic"):
         """Render the info bar above the header nav."""
-        if not self._header_field(header_data, 'info_bar_enabled', industry, False):
-            return ''
+        if not self._header_field(header_data, "info_bar_enabled", industry, False):
+            return ""
 
-        bg = header_data.get('info_bar_bg', '#1C3B57')
-        tc = header_data.get('info_bar_text_color', '#FFFFFF')
+        bg = header_data.get("info_bar_bg", "#1C3B57")
+        tc = header_data.get("info_bar_text_color", "#FFFFFF")
 
-        items_html = ''
-        show_phone = header_data.get('info_bar_show_phone', True)
-        show_email = header_data.get('info_bar_show_email', True)
-        show_hours = header_data.get('info_bar_show_hours', True)
+        items_html = ""
+        show_phone = header_data.get("info_bar_show_phone", True)
+        show_email = header_data.get("info_bar_show_email", True)
+        show_hours = header_data.get("info_bar_show_hours", True)
 
-        phone = contact_data.get('phone', '')
-        email = contact_data.get('email', '')
-        hours = contact_data.get('hours', '')
+        phone = contact_data.get("phone", "")
+        email = contact_data.get("email", "")
+        hours = contact_data.get("hours", "")
 
         info_parts = []
         if show_phone and phone:
@@ -3321,123 +3314,141 @@ class PreviewRenderView(APIView):
         if info_parts:
             items_html = f'<div class="info-bar-left">{" ".join(info_parts)}</div>'
 
-        social_html = ''
-        show_social = header_data.get('info_bar_show_social', True)
+        social_html = ""
+        show_social = header_data.get("info_bar_show_social", True)
         if show_social and social_links:
             social_icons_map = {
-                'facebook': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>',
-                'instagram': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>',
-                'twitter': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
-                'linkedin': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>',
-                'youtube': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg>',
-                'tiktok': '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.19a8.16 8.16 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.62z"/></svg>',
+                "facebook": '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>',
+                "instagram": '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>',
+                "twitter": '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+                "linkedin": '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>',
+                "youtube": '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zM9 16V8l8 4-8 4z"/></svg>',
+                "tiktok": '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.88-2.88 2.89 2.89 0 012.88-2.88c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V9.19a8.16 8.16 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.62z"/></svg>',
             }
             social_parts = []
             for network, url in social_links.items():
                 if url and network in social_icons_map:
-                    social_parts.append(f'<a href="{self._esc(url)}" target="_blank" rel="noopener noreferrer" class="info-bar-social-link" title="{network.title()}">{social_icons_map[network]}</a>')
+                    social_parts.append(
+                        f'<a href="{self._esc(url)}" target="_blank" rel="noopener noreferrer" class="info-bar-social-link" title="{network.title()}">{social_icons_map[network]}</a>'
+                    )
             if social_parts:
                 social_html = f'<div class="info-bar-social">{" ".join(social_parts)}</div>'
 
         if not items_html and not social_html:
-            return ''
+            return ""
 
-        return f'''<div class="info-bar" style="background:{bg};color:{tc};">
+        return f"""<div class="info-bar" style="background:{bg};color:{tc};">
     <div class="container" style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         {items_html}
         {social_html}
     </div>
-</div>'''
+</div>"""
 
-    def _render_header(self, logo_text, nav_sections, cta_text, cta_link, primary, secondary, logo_url='', custom_nav_items=None, header_data=None, industry='generic'):
-        nav_html = ''
-        page_slugs = getattr(self, '_page_slugs', {})
+    def _render_header(
+        self,
+        logo_text,
+        nav_sections,
+        cta_text,
+        cta_link,
+        primary,
+        secondary,
+        logo_url="",
+        custom_nav_items=None,
+        header_data=None,
+        industry="generic",
+    ):
+        nav_html = ""
+        page_slugs = getattr(self, "_page_slugs", {})
 
         def _safe_slug_href(sid):
             """Get href from page_slugs with sanitization, or fallback to SECTION_PAGE_MAP."""
             if page_slugs and sid in page_slugs:
                 slug = page_slugs[sid]
                 # Only allow relative paths and anchors — block javascript: and data:
-                if slug and not slug.lstrip().lower().startswith(('javascript:', 'data:')):
+                if slug and not slug.lstrip().lower().startswith(("javascript:", "data:")):
                     return self._esc(slug)
             page = self.SECTION_PAGE_MAP.get(sid)
-            return self._tenant_url(page) if page else f'#{self._esc(sid)}'
+            return self._tenant_url(page) if page else f"#{self._esc(sid)}"
 
         if custom_nav_items:
             # Navegación personalizada desde content_data['header']['nav_items']
             for item in custom_nav_items:
-                if not item.get('visible', True):
+                if not item.get("visible", True):
                     continue
-                sid = item.get('id', '')
-                label = item.get('label', self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title()))
+                sid = item.get("id", "")
+                label = item.get("label", self.SECTION_NAV_LABELS.get(sid, sid.replace("_", " ").title()))
                 href = _safe_slug_href(sid)
                 nav_html += f'<a href="{href}">{self._esc(label)}</a>\n'
         else:
             # Fallback: auto-generar desde secciones activas
             for sid in nav_sections:
-                label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
+                label = self.SECTION_NAV_LABELS.get(sid, sid.replace("_", " ").title())
                 href = _safe_slug_href(sid)
                 nav_html += f'<a href="{href}">{self._esc(label)}</a>\n'
 
-        cta_html = ''
+        cta_html = ""
         if cta_text:
             cta_html = f'<a href="{self._esc(cta_link)}" class="header-cta">{self._esc(cta_text)}</a>'
 
         # Logo: mode-aware rendering
         header_data = header_data or {}
-        logo_mode = header_data.get('logo_mode', 'image' if logo_url else 'text')
+        logo_mode = header_data.get("logo_mode", "image" if logo_url else "text")
         try:
-            logo_scale = int(header_data.get('logo_scale', 100))
+            logo_scale = int(header_data.get("logo_scale", 100))
         except (ValueError, TypeError):
             logo_scale = 100
         try:
-            logo_padding = int(header_data.get('logo_padding', 0))
+            logo_padding = int(header_data.get("logo_padding", 0))
         except (ValueError, TypeError):
             logo_padding = 0
         logo_height = round(36 * logo_scale / 100)
-        padding_style = f'padding:{logo_padding}px;' if logo_padding > 0 else ''
+        padding_style = f"padding:{logo_padding}px;" if logo_padding > 0 else ""
         font_scale = round(1.25 * logo_scale / 100, 2)
 
-        if logo_mode == 'image' and logo_url:
+        if logo_mode == "image" and logo_url:
             logo_inner = f'<img src="{self._esc(logo_url)}" alt="{self._esc(logo_text)}" style="max-height:{logo_height}px;width:auto;display:block;{padding_style}">'
-        elif logo_mode == 'image_text' and logo_url:
+        elif logo_mode == "image_text" and logo_url:
             logo_inner = (
                 f'<span style="display:inline-flex;align-items:center;gap:8px;{padding_style}">'
                 f'<img src="{self._esc(logo_url)}" alt="{self._esc(logo_text)}" style="max-height:{logo_height}px;width:auto;display:block;">'
                 f'<span style="font-size:{font_scale}rem;">{self._esc(logo_text)}</span>'
-                f'</span>'
+                f"</span>"
             )
         else:
             logo_inner = f'<span style="font-size:{font_scale}rem;{padding_style}">{self._esc(logo_text)}</span>'
 
         # User action icons
-        actions_html = ''
+        actions_html = ""
 
-        if self._header_field(header_data, 'action_login_enabled', industry, False):
-            _login_text = self._esc(header_data.get('action_login_text', 'Mi cuenta'))
-            _login_link = self._esc(header_data.get('action_login_link', '/login'))
+        if self._header_field(header_data, "action_login_enabled", industry, False):
+            _login_text = self._esc(header_data.get("action_login_text", "Mi cuenta"))
+            _login_link = self._esc(header_data.get("action_login_link", "/login"))
             actions_html += f'<a href="{_login_link}" class="header-action" title="{_login_text}">{self._SVG_USER} <span>{_login_text}</span></a>'
 
-        if self._header_field(header_data, 'action_wishlist_enabled', industry, False):
-            _wish_link = self._esc(header_data.get('action_wishlist_link', '/favoritos'))
+        if self._header_field(header_data, "action_wishlist_enabled", industry, False):
+            _wish_link = self._esc(header_data.get("action_wishlist_link", "/favoritos"))
             actions_html += f'<a href="{_wish_link}" class="header-action" title="Favoritos">{self._SVG_HEART}</a>'
 
-        if self._header_field(header_data, 'action_cart_enabled', industry, False):
-            _cart_link = self._esc(header_data.get('action_cart_link', '/carrito'))
+        if self._header_field(header_data, "action_cart_enabled", industry, False):
+            _cart_link = self._esc(header_data.get("action_cart_link", "/carrito"))
             actions_html += f'<a href="{_cart_link}" class="header-action" title="Carrito">{self._SVG_CART}</a>'
 
-        if self._header_field(header_data, 'action_booking_enabled', industry, False):
-            _book_text = self._esc(header_data.get('action_booking_text',
-                         self.INDUSTRY_HEADER_DEFAULTS.get(industry, {}).get('action_booking_text', 'Reservar cita')))
-            _use_system = header_data.get('action_booking_use_system', True)
+        if self._header_field(header_data, "action_booking_enabled", industry, False):
+            _book_text = self._esc(
+                header_data.get(
+                    "action_booking_text",
+                    self.INDUSTRY_HEADER_DEFAULTS.get(industry, {}).get("action_booking_text", "Reservar cita"),
+                )
+            )
+            _use_system = header_data.get("action_booking_use_system", True)
             if _use_system:
-                _base = getattr(self, '_base_url', '')
-                _book_link = f'{_base}/booking' if _base else '#booking'
+                _base = getattr(self, "_base_url", "")
+                _book_link = f"{_base}/booking" if _base else "#booking"
             else:
-                _book_link = self._esc(header_data.get('action_booking_link', '#'))
+                _book_link = self._esc(header_data.get("action_booking_link", "#"))
             actions_html += f'<a href="{_book_link}" class="header-action header-action-booking">{self._SVG_CALENDAR} <span>{_book_text}</span></a>'
 
-        actions_wrapper = f'<div class="header-actions">{actions_html}</div>' if actions_html else ''
+        actions_wrapper = f'<div class="header-actions">{actions_html}</div>' if actions_html else ""
 
         return f"""<header class="site-header" data-section="header">
     <div class="container">
@@ -3451,67 +3462,80 @@ class PreviewRenderView(APIView):
 </header>
 """
 
-    def _render_footer(self, logo_text, contact_data, nav_sections, primary, social_links=None, show_badge=True, badge_logo_url=None, footer_data=None):
+    def _render_footer(
+        self,
+        logo_text,
+        contact_data,
+        nav_sections,
+        primary,
+        social_links=None,
+        show_badge=True,
+        badge_logo_url=None,
+        footer_data=None,
+    ):
         social_links = social_links or {}
         footer_data = footer_data or {}
 
         # Nav links — usa slugs de página si está disponible (multi-page)
-        nav_links = ''
-        page_slugs = getattr(self, '_page_slugs', {})
+        nav_links = ""
+        page_slugs = getattr(self, "_page_slugs", {})
         for sid in nav_sections[:6]:
-            label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
+            label = self.SECTION_NAV_LABELS.get(sid, sid.replace("_", " ").title())
             if page_slugs and sid in page_slugs:
                 # Multi-page: link a la URL real de la página
                 href = page_slugs[sid]
             else:
                 # Single-page legado: anchor o tenant URL
                 page = self.SECTION_PAGE_MAP.get(sid)
-                href = self._tenant_url(page) if page else f'#{sid}'
+                href = self._tenant_url(page) if page else f"#{sid}"
             nav_links += f'<li><a href="{href}">{self._esc(label)}</a></li>\n'
 
         # Contact info
-        contact_items = ''
-        for key in ('phone', 'email', 'address', 'whatsapp', 'hours'):
-            val = contact_data.get(key, '')
+        contact_items = ""
+        for key in ("phone", "email", "address", "whatsapp", "hours"):
+            val = contact_data.get(key, "")
             if val:
                 label = self._CONTACT_LABELS.get(key, key.title())
                 contact_items += f'<li><a href="#">{label}: {self._esc(val)}</a></li>\n'
 
         # Social links
         social_icons = {
-            'whatsapp': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>',
-            'instagram': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.38 3.86 3.9 2.31 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1018.16 12 6.16 6.16 0 0012 5.84zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>',
-            'facebook': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07c0 6.02 4.39 11.01 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.23 2.68.23v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.33l-.53 3.49h-2.8v8.44C19.61 23.08 24 18.09 24 12.07z"/></svg>',
-            'tiktok': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52V6.8a4.84 4.84 0 01-1-.11z"/></svg>',
-            'youtube': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 00.5 6.19 31.6 31.6 0 000 12a31.6 31.6 0 00.5 5.81 3.02 3.02 0 002.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 002.12-2.14A31.6 31.6 0 0024 12a31.6 31.6 0 00-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>',
-            'linkedin': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05a3.74 3.74 0 013.37-1.85c3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 11-.01-4.13 2.06 2.06 0 01.01 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>',
-            'twitter': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
-            'pinterest': '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>',
+            "whatsapp": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>',
+            "instagram": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.38 3.86 3.9 2.31 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1018.16 12 6.16 6.16 0 0012 5.84zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>',
+            "facebook": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07c0 6.02 4.39 11.01 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.23 2.68.23v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.33l-.53 3.49h-2.8v8.44C19.61 23.08 24 18.09 24 12.07z"/></svg>',
+            "tiktok": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52V6.8a4.84 4.84 0 01-1-.11z"/></svg>',
+            "youtube": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 00.5 6.19 31.6 31.6 0 000 12a31.6 31.6 0 00.5 5.81 3.02 3.02 0 002.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 002.12-2.14A31.6 31.6 0 0024 12a31.6 31.6 0 00-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>',
+            "linkedin": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05a3.74 3.74 0 013.37-1.85c3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 11-.01-4.13 2.06 2.06 0 01.01 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>',
+            "twitter": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+            "pinterest": '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 01.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>',
         }
 
-        social_html = ''
+        social_html = ""
         for network, url in social_links.items():
             if url and network in social_icons:
                 social_html += f'<a href="{self._esc(url)}" target="_blank" rel="noopener noreferrer" class="footer-social-link" title="{network.title()}">{social_icons[network]}</a>\n'
 
-        social_section = ''
+        social_section = ""
         if social_html:
             social_section = f'<div class="footer-social">{social_html}</div>'
 
         esc_name = self._esc(logo_text)
 
         # Footer editable fields (con defaults para backward compat)
-        footer_desc = footer_data.get('description', 'Visítanos y descubre todo lo que tenemos para ofrecerte.')
+        footer_desc = footer_data.get("description", "Visítanos y descubre todo lo que tenemos para ofrecerte.")
         from datetime import date
-        footer_copyright = footer_data.get('copyright_text', f'{date.today().year} {logo_text}. Todos los derechos reservados.')
-        footer_privacy = footer_data.get('privacy_label', 'Política de privacidad')
+
+        footer_copyright = footer_data.get(
+            "copyright_text", f"{date.today().year} {logo_text}. Todos los derechos reservados."
+        )
+        footer_privacy = footer_data.get("privacy_label", "Política de privacidad")
 
         # Newsletter form (visual only)
-        newsletter_html = ''
-        if footer_data.get('newsletter_enabled'):
-            _nl_title = self._esc(footer_data.get('newsletter_title', 'Suscríbete a nuestro boletín'))
-            _nl_placeholder = self._esc(footer_data.get('newsletter_placeholder', 'Tu correo electrónico'))
-            _nl_btn = self._esc(footer_data.get('newsletter_button_text', 'Suscribirse'))
+        newsletter_html = ""
+        if footer_data.get("newsletter_enabled"):
+            _nl_title = self._esc(footer_data.get("newsletter_title", "Suscríbete a nuestro boletín"))
+            _nl_placeholder = self._esc(footer_data.get("newsletter_placeholder", "Tu correo electrónico"))
+            _nl_btn = self._esc(footer_data.get("newsletter_button_text", "Suscribirse"))
             newsletter_html = f'''<div class="footer-newsletter" style="grid-column:1/-1;padding:32px 0 24px;border-top:1px solid rgba(255,255,255,.08);margin-top:16px;">
             <h4 style="margin-bottom:12px;font-size:.95rem;">{_nl_title}</h4>
             <form onsubmit="return false" style="display:flex;gap:8px;max-width:420px;">
@@ -3521,18 +3545,18 @@ class PreviewRenderView(APIView):
         </div>'''
 
         # Badge "Hecho con NERBIS" — isotipo embebido como data URI + animación pendulo
-        _b64 = 'iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAKMWlDQ1BJQ0MgUHJvZmlsZQAAeJydlndUU9kWh8+9N71QkhCKlNBraFICSA29SJEuKjEJEErAkAAiNkRUcERRkaYIMijggKNDkbEiioUBUbHrBBlE1HFwFBuWSWStGd+8ee/Nm98f935rn73P3Wfvfda6AJD8gwXCTFgJgAyhWBTh58WIjYtnYAcBDPAAA2wA4HCzs0IW+EYCmQJ82IxsmRP4F726DiD5+yrTP4zBAP+flLlZIjEAUJiM5/L42VwZF8k4PVecJbdPyZi2NE3OMErOIlmCMlaTc/IsW3z2mWUPOfMyhDwZy3PO4mXw5Nwn4405Er6MkWAZF+cI+LkyviZjg3RJhkDGb+SxGXxONgAoktwu5nNTZGwtY5IoMoIt43kA4EjJX/DSL1jMzxPLD8XOzFouEiSniBkmXFOGjZMTi+HPz03ni8XMMA43jSPiMdiZGVkc4XIAZs/8WRR5bRmyIjvYODk4MG0tbb4o1H9d/JuS93aWXoR/7hlEH/jD9ld+mQ0AsKZltdn6h21pFQBd6wFQu/2HzWAvAIqyvnUOfXEeunxeUsTiLGcrq9zcXEsBn2spL+jv+p8Of0NffM9Svt3v5WF485M4knQxQ143bmZ6pkTEyM7icPkM5p+H+B8H/nUeFhH8JL6IL5RFRMumTCBMlrVbyBOIBZlChkD4n5r4D8P+pNm5lona+BHQllgCpSEaQH4eACgqESAJe2Qr0O99C8ZHA/nNi9GZmJ37z4L+fVe4TP7IFiR/jmNHRDK4ElHO7Jr8WgI0IABFQAPqQBvoAxPABLbAEbgAD+ADAkEoiARxYDHgghSQAUQgFxSAtaAYlIKtYCeoBnWgETSDNnAYdIFj4DQ4By6By2AE3AFSMA6egCnwCsxAEISFyBAVUod0IEPIHLKFWJAb5AMFQxFQHJQIJUNCSAIVQOugUqgcqobqoWboW+godBq6AA1Dt6BRaBL6FXoHIzAJpsFasBFsBbNgTzgIjoQXwcnwMjgfLoK3wJVwA3wQ7oRPw5fgEVgKP4GnEYAQETqiizARFsJGQpF4JAkRIauQEqQCaUDakB6kH7mKSJGnyFsUBkVFMVBMlAvKHxWF4qKWoVahNqOqUQdQnag+1FXUKGoK9RFNRmuizdHO6AB0LDoZnYsuRlegm9Ad6LPoEfQ4+hUGg6FjjDGOGH9MHCYVswKzGbMb0445hRnGjGGmsVisOtYc64oNxXKwYmwxtgp7EHsSewU7jn2DI+J0cLY4X1w8TogrxFXgWnAncFdwE7gZvBLeEO+MD8Xz8MvxZfhGfA9+CD+OnyEoE4wJroRIQiphLaGS0EY4S7hLeEEkEvWITsRwooC4hlhJPEQ8TxwlviVRSGYkNimBJCFtIe0nnSLdIr0gk8lGZA9yPFlM3kJuJp8h3ye/UaAqWCoEKPAUVivUKHQqXFF4pohXNFT0VFysmK9YoXhEcUjxqRJeyUiJrcRRWqVUo3RU6YbStDJV2UY5VDlDebNyi/IF5UcULMWI4kPhUYoo+yhnKGNUhKpPZVO51HXURupZ6jgNQzOmBdBSaaW0b2iDtCkVioqdSrRKnkqNynEVKR2hG9ED6On0Mvph+nX6O1UtVU9Vvuom1TbVK6qv1eaoeajx1UrU2tVG1N6pM9R91NPUt6l3qd/TQGmYaYRr5Grs0Tir8XQObY7LHO6ckjmH59zWhDXNNCM0V2ju0xzQnNbS1vLTytKq0jqj9VSbru2hnaq9Q/uE9qQOVcdNR6CzQ+ekzmOGCsOTkc6oZPQxpnQ1df11Jbr1uoO6M3rGelF6hXrtevf0Cfos/ST9Hfq9+lMGOgYhBgUGrQa3DfGGLMMUw12G/YavjYyNYow2GHUZPTJWMw4wzjduNb5rQjZxN1lm0mByzRRjyjJNM91tetkMNrM3SzGrMRsyh80dzAXmu82HLdAWThZCiwaLG0wS05OZw2xljlrSLYMtCy27LJ9ZGVjFW22z6rf6aG1vnW7daH3HhmITaFNo02Pzq62ZLde2xvbaXPJc37mr53bPfW5nbse322N3055qH2K/wb7X/oODo4PIoc1h0tHAMdGx1vEGi8YKY21mnXdCO3k5rXY65vTW2cFZ7HzY+RcXpkuaS4vLo3nG8/jzGueNueq5clzrXaVuDLdEt71uUnddd457g/sDD30PnkeTx4SnqWeq50HPZ17WXiKvDq/XbGf2SvYpb8Tbz7vEe9CH4hPlU+1z31fPN9m31XfKz95vhd8pf7R/kP82/xsBWgHcgOaAqUDHwJWBfUGkoAVB1UEPgs2CRcE9IXBIYMj2kLvzDecL53eFgtCA0O2h98KMw5aFfR+OCQ8Lrwl/GGETURDRv4C6YMmClgWvIr0iyyLvRJlESaJ6oxWjE6Kbo1/HeMeUx0hjrWJXxl6K04gTxHXHY+Oj45vipxf6LNy5cDzBPqE44foi40V5iy4s1licvvj4EsUlnCVHEtGJMYktie85oZwGzvTSgKW1S6e4bO4u7hOeB28Hb5Lvyi/nTyS5JpUnPUp2Td6ePJninlKR8lTAFlQLnqf6p9alvk4LTduf9ik9Jr09A5eRmHFUSBGmCfsytTPzMoezzLOKs6TLnJftXDYlChI1ZUPZi7K7xTTZz9SAxESyXjKa45ZTk/MmNzr3SJ5ynjBvYLnZ8k3LJ/J9879egVrBXdFboFuwtmB0pefK+lXQqqWrelfrry5aPb7Gb82BtYS1aWt/KLQuLC98uS5mXU+RVtGaorH1futbixWKRcU3NrhsqNuI2ijYOLhp7qaqTR9LeCUXS61LK0rfb+ZuvviVzVeVX33akrRlsMyhbM9WzFbh1uvb3LcdKFcuzy8f2x6yvXMHY0fJjpc7l+y8UGFXUbeLsEuyS1oZXNldZVC1tep9dUr1SI1XTXutZu2m2te7ebuv7PHY01anVVda926vYO/Ner/6zgajhop9mH05+x42Rjf2f836urlJo6m06cN+4X7pgYgDfc2Ozc0tmi1lrXCrpHXyYMLBy994f9Pdxmyrb6e3lx4ChySHHn+b+O31w0GHe4+wjrR9Z/hdbQe1o6QT6lzeOdWV0iXtjusePhp4tLfHpafje8vv9x/TPVZzXOV42QnCiaITn07mn5w+lXXq6enk02O9S3rvnIk9c60vvG/wbNDZ8+d8z53p9+w/ed71/LELzheOXmRd7LrkcKlzwH6g4wf7HzoGHQY7hxyHui87Xe4Znjd84or7ldNXva+euxZw7dLI/JHh61HXb95IuCG9ybv56Fb6ree3c27P3FlzF3235J7SvYr7mvcbfjT9sV3qID0+6j068GDBgztj3LEnP2X/9H686CH5YcWEzkTzI9tHxyZ9Jy8/Xvh4/EnWk5mnxT8r/1z7zOTZd794/DIwFTs1/lz0/NOvm1+ov9j/0u5l73TY9P1XGa9mXpe8UX9z4C3rbf+7mHcTM7nvse8rP5h+6PkY9PHup4xPn34D94Tz+6TMXDkAAAjtSURBVHjazZdtjFTVGcf//3PuvXNnZnd2F1egLCAhSAXfuyAGkdk1VRsbW6IOqKVJtRZK2jS10UYbm939UIT6Eutb60vSmia13Q1t6heJjd0Zo4simwoVQSwICqxalmF3h3m795ynH2a27MsgoqTpSe6Xe0/u/d/f8zz/8zzEGVoiKd3fv0+1ttZJf3+Ora11Mn7HVCF7DP4XSwQ8U/ucMyBGkbAHD15xfWKKc/FQNgyhAIFYGAgVwrp6F8NDwV6y7wURkISc7H2nUkwkk7rmk7Y2K51dAgD79ycbnEh4YNo0L1EsWlCNEWwB1yWy2SB0lZzT3Nw3AIAk7OchJMhkwppPMhmgM+mQmfDA4eD2hkY38dFHpeJJ3hk2Nrn+saPBj0jc09ub1EDGng4hAsC0i1bHytHS3QA8Vc0BEiKOp5Up9/97S0/PS9uvji1oPv6OH9WzikUrJFSNsIrrEsbYYzDBuS0tbx4FgFqhq00omdTIZMIgUrxdR+o6JCwDZEWlAEo5iLrFFSRk3/7CrU1T3NlHjwZGKdYMLwkGgQ2nTHGbBrP4Polf9ErSASbT58nozLw85ectdkGpFoi1ECgAhtrR1pR7j23ddM2fulPekqWH3orH9Xn5vBGS6lPCb12XDMr2Y9/D/ObmvlwtSqomHUCOC1bT9c6BtQTggXAAcUE4dXE8KAAuXXJ4RWOjsyCfN/YUYgBAlUrWNk5xpxfLcltFyOSCUZPoZDIGC1MeBD+FNQIKq+lt6LhKwuC1D/6+6W+pVEq7Wu4ypnYJi4idHDqykLci4J3vv5/0gYyZ6E2qFp0pdXKzcr15YowFxv+5H5UNJGT9xo++mqh3FudyoZCTcyca1apGLqlCwdimJneOdsu3kJB0ejwlNaGULZJJR4B7JtNxlDXBtkd+oF4EAM81dytVfVpjFQv2dyKwtRK8VLIi4N0iSSedHl/+agwdB4BtKk69Ubnegsl0yIhnN6xc2WN2vXfl0mhMXzUyYux4OmJiMS0C2T5zxow7QHkrFtcCiBkTNpXPG9vY6C44OFBe0dUF29ubdCYLyrRZpFKakHthRcZYo6F2lITlHd9YfeAFAIj65q6Ir1jx4XF+A8clofAA2WMgfMjRpMgkSghDEWt5jwjY1naCUkVQKqWBLnvWAV5P7V0sJrQgTvy5Ih2XG59Z2x/s2rv8Qt/n9cNDoQB0xiZxNKbVsWywe9a0UrdISs+aUewZOhbujka1Gh8+6lwulETCaf1wYNm1JKxISp8Q1LNQANDC/qzynydOImqtbFDeteorI5sEQMw3d8bjjiMiZqIbRyKKADaS/QEw4pD9AYgHfV9RZDynUf+x1t5bubNQKoKSSQfosk1LVn1NOe5iCcfQEQqUpqfxwOOPbS7teHfZXM/lzUMVOnqMGBuNanUsG+wrtSSeFwE7OzcHIiCM+UM2Gx6YSImkHhkJbV1cLz9waOmVZJcVSWmFTJsFAIq5b4KRWDqOlrC8d/nl/KMAqI/ZdfG48qyVEiBGREIRCQEp+76iIh6Yz82ldDqpu7pg00jq2bNfLxB4JBabnHMAxHEJCO4FgJ6e6jHRtPiGa5Ub2SxhYFF1XILGUinY0rrs1r889fbbyXlnTzfv1SccmFDAqp1ZC0RjCgOHyx9rFOc+/XR/sbMTQkJGTW9w8LL6Qtnd47qcGgQiE+zGui5ZDtSS2TNeedOp5tgqUAsQWgAKhBhjdaIhWrjtxzf8tevrf2bdoeVTI75++JNPymVHQURoAbFChKADAba0tPTnqw2bjOZJrySd9ubM8AcHlz1Zn3C7Bo+UzNhjRkRsIuE6RwbLtwKoCNKe85wYcxsgCiCUUswN5cJVa1dEL7xs0SqQv5oD9gHSd6oWdWLj1VY9HoYPHXliONuwzvW86UHZymjzQFKN5Iwoi+5qlXWoI68+n4GEr9BxFUETlAJMn9msLlmyAIMfH/3JQ3190e7um/Q2WeOKJJ1aV3d3Stfqb0Zv3bRzV3FfflngqRIASpWOqa/XqliwL82c2beluzulHSTTChlYz/fXl8tmORVYKpVxxdWLlR91DZQ7O2rxrZUre57t6O3lovb28HR67o50WrMd4aP/2LnmcOTmWTOLb4Sa1qmmF8MQoFLrK3Z4oh9SIiJTl93yRhDYRXX1vr1r/VodjUWs9jwGhdIeFfLCNa2tIcmTnl81YkgB0PPhFn8wy93iNc+6yHtK5sVeViVbZxL11EPD5pU5M19LinQosss61XNMkQznXvfdDQMHj2665ptL0XR2A3JDx5WxRRNvSHz5+NDwjZ2dnd2/7e319gOfidKcdNpBW1tpMKtXxxsbZg9lc2afvUqfE30dFEOBC0V3fWX3OxzXMXZ0dKg0oA5tO/zWup9/Z2F9ImrDINQkjRf1VblQ3L7uosWXfp5R6df/3Pau63nnhqW8lKVOLa5/xlzQ/Jo6MhzfNqclvaTSKVWKwRkz1qhMe3t4f/rlXzZPb37u+NAQquHRpXxBHNe95MntW58VYoCVrBQlqhq6SmFRUawdTWYSSixE5jiuM79cLIqiUgoG/ypchfPVNmrK/SRl7BTCifF+EfD273hzp+f7c4NiUUaNUkQklqinUvq06FhjkB8ZEXLUSmFcP6bO5e93Lp+34ZLOTpGuLtrJ7Qcpnem0vo4sEXjY833KmOQlycJILjw+NHRaV35kxIwRAxGB62luz317IwmDtrQ66dQhUukQn0in4+qsut2u684Ig0BqDgOfb+62ru+zXCzubdb7z0+dnwoInjCriR9ildIP29tzFDwaicX43wQ5E3oA8fwIST648oKV5c50WmOCmbLGtMBKZbzaSEb3aK0bTRBa8ItREhHrRiIqLJUHVMDz1rS2FkYhfOrkSlI6enudrvb27BM7tv7m7C+13JfLHoPS+gvRsdYg3tCAwYOHHlm7aFH+cOUbn2lyhYiQAB7btXWKB/d7lY7WElAQsRw7Iiioypk/5p7Yyt5xPQZJRRjHiT92x3kLcgKZROf/cvEUcWcalXZ2T38/v+jH5re2Sjtg8Clk/gOmupdTvrsrkQAAAABJRU5ErkJggg=='
+        _b64 = "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"
         if show_badge:
-            badge_html = '''<div style="text-align:center;padding:4px 24px 8px;">
+            badge_html = """<div style="text-align:center;padding:4px 24px 8px;">
         <a href="https://nerbis.co" target="_blank" rel="noopener nofollow"
            style="display:inline-flex;align-items:center;gap:5px;color:rgba(255,255,255,0.45);text-decoration:none;font-size:.68rem;opacity:.45;transition:all .25s ease;letter-spacing:.01em;"
            onmouseover="this.style.opacity=\'1\';this.style.color=\'rgba(255,255,255,0.9)\';this.style.fontSize=\'.72rem\';this.style.letterSpacing=\'.04em\';"
            onmouseout="this.style.opacity=\'.45\';this.style.color=\'rgba(255,255,255,0.45)\';this.style.fontSize=\'.68rem\';this.style.letterSpacing=\'.01em\';">
             Hecho con NERBIS
         </a>
-    </div>'''
+    </div>"""
         else:
-            badge_html = ''
+            badge_html = ""
 
         return f"""<footer class="site-footer" data-section="footer">
     <div class="container">
@@ -3565,47 +3589,47 @@ class PreviewRenderView(APIView):
 """
 
     def _render_hero(self, data, primary, secondary):
-        variant = data.get('_variant', 'centered')
-        renderer = getattr(self, f'_render_hero_{variant.replace("-", "_")}', self._render_hero_centered)
+        variant = data.get("_variant", "centered")
+        renderer = getattr(self, f"_render_hero_{variant.replace('-', '_')}", self._render_hero_centered)
         return renderer(data, primary, secondary)
 
     def _hero_buttons(self, data, outline=True):
-        cta = self._esc(data.get('cta_text', ''))
-        cta_link = data.get('cta_link', '#contact')
-        cta2 = self._esc(data.get('cta_secondary_text', ''))
-        cta2_link = data.get('cta_secondary_link', '#about')
+        cta = self._esc(data.get("cta_text", ""))
+        cta_link = data.get("cta_link", "#contact")
+        cta2 = self._esc(data.get("cta_secondary_text", ""))
+        cta2_link = data.get("cta_secondary_link", "#about")
 
         # Smart links: reemplazar anchors por páginas reales según módulos activos
-        modules = getattr(self, '_tenant_modules', {})
-        if cta_link.startswith('#'):
-            if modules.get('has_bookings') or modules.get('has_services'):
-                cta_link = self._tenant_url('/services')
-            elif modules.get('has_shop'):
-                cta_link = self._tenant_url('/products')
+        modules = getattr(self, "_tenant_modules", {})
+        if cta_link.startswith("#"):
+            if modules.get("has_bookings") or modules.get("has_services"):
+                cta_link = self._tenant_url("/services")
+            elif modules.get("has_shop"):
+                cta_link = self._tenant_url("/products")
             else:
-                cta_link = '#contact'
+                cta_link = "#contact"
 
         cta_link = self._esc(cta_link)
         cta2_link = self._esc(cta2_link)
-        buttons = ''
+        buttons = ""
         if cta:
             buttons += f'<a href="{cta_link}" class="btn btn-secondary">{cta}</a>'
         if cta2:
-            btn_class = 'btn btn-outline' if outline else 'btn btn-primary'
+            btn_class = "btn btn-outline" if outline else "btn btn-primary"
             buttons += f'<a href="{cta2_link}" class="{btn_class}">{cta2}</a>'
-        return f'<div class="hero-buttons">{buttons}</div>' if buttons else ''
+        return f'<div class="hero-buttons">{buttons}</div>' if buttons else ""
 
-    def _unsplash_attr(self, image, css_class='hero-attribution'):
-        photographer = self._esc(image.get('photographer', ''))
-        photographer_url = self._esc(image.get('photographer_url', ''))
+    def _unsplash_attr(self, image, css_class="hero-attribution"):
+        photographer = self._esc(image.get("photographer", ""))
+        photographer_url = self._esc(image.get("photographer_url", ""))
         if not photographer:
-            return ''
+            return ""
         return f'<span class="{css_class}">Foto: <a href="{photographer_url}?utm_source=nerbis&utm_medium=referral" target="_blank" rel="noopener">{photographer}</a> / <a href="https://unsplash.com?utm_source=nerbis&utm_medium=referral" target="_blank" rel="noopener">Unsplash</a></span>'
 
     def _render_hero_centered(self, data, primary, secondary):
         """Gradiente, texto centrado, CTAs."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
         return f"""<section class="hero hero--centered" data-section="hero">
     <div class="container">
         <h1>{title}</h1>
@@ -3617,20 +3641,20 @@ class PreviewRenderView(APIView):
 
     def _render_hero_split_image(self, data, primary, secondary):
         """Texto izquierda (50%), imagen Unsplash derecha (50%)."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
-        image = data.get('_image', {})
-        image_url = self._esc(image.get('url', ''))
-        image_alt = self._esc(image.get('alt', ''))
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
+        image = data.get("_image", {})
+        image_url = self._esc(image.get("url", ""))
+        image_alt = self._esc(image.get("alt", ""))
 
         if image_url:
             img_html = f'<img src="{image_url}" alt="{image_alt}" loading="eager" class="hero-split-img">'
         else:
             img_html = '<div class="hero-split-placeholder"></div>'
 
-        cta = self._esc(data.get('cta_text', ''))
-        cta_link = self._esc(data.get('cta_link', '#contact'))
-        cta_html = f'<a href="{cta_link}" class="btn btn-primary">{cta}</a>' if cta else ''
+        cta = self._esc(data.get("cta_text", ""))
+        cta_link = self._esc(data.get("cta_link", "#contact"))
+        cta_html = f'<a href="{cta_link}" class="btn btn-primary">{cta}</a>' if cta else ""
 
         return f"""<section class="hero hero--split" data-section="hero">
     <div class="hero-split-inner">
@@ -3649,11 +3673,15 @@ class PreviewRenderView(APIView):
 
     def _render_hero_fullwidth_image(self, data, primary, secondary):
         """Imagen full-width con overlay oscuro, parallax y texto centrado."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
-        image = data.get('_image', {})
-        image_url = self._esc(image.get('url', ''))
-        parallax_div = f'<div class="parallax-bg hero-fullwidth-bg" style="background-image:url({image_url});"></div>' if image_url else ''
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
+        image = data.get("_image", {})
+        image_url = self._esc(image.get("url", ""))
+        parallax_div = (
+            f'<div class="parallax-bg hero-fullwidth-bg" style="background-image:url({image_url});"></div>'
+            if image_url
+            else ""
+        )
 
         return f"""<section class="hero hero--fullwidth" data-section="hero">
     {parallax_div}
@@ -3671,8 +3699,8 @@ class PreviewRenderView(APIView):
 
     def _render_hero_bold_typography(self, data, primary, secondary):
         """Tipografía gigante estilo Apple/Linear, minimal."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
         return f"""<section class="hero hero--bold" data-section="hero">
     <div class="container">
         <h1>{title}</h1>
@@ -3685,17 +3713,17 @@ class PreviewRenderView(APIView):
 
     def _render_hero_diagonal_split(self, data, primary, secondary):
         """Clip-path diagonal, texto izq, imagen der."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
-        image = data.get('_image', {})
-        image_url = self._esc(image.get('url', ''))
-        image_alt = self._esc(image.get('alt', ''))
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
+        image = data.get("_image", {})
+        image_url = self._esc(image.get("url", ""))
+        image_alt = self._esc(image.get("alt", ""))
         if image_url:
             right_html = f'<img src="{image_url}" alt="{image_alt}" loading="eager" style="width:100%;height:100%;object-fit:cover;">'
             attr_html = self._unsplash_attr(image)
         else:
-            right_html = ''
-            attr_html = ''
+            right_html = ""
+            attr_html = ""
         return f"""<section class="hero hero--diagonal" data-section="hero">
     <div class="hero--diagonal-left">
         <div class="hero--diagonal-content">
@@ -3713,8 +3741,8 @@ class PreviewRenderView(APIView):
 
     def _render_hero_glassmorphism(self, data, primary, secondary):
         """Card frosted glass con blobs flotantes."""
-        title = self._esc(data.get('title', ''))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", ""))
+        subtitle = self._esc(data.get("subtitle", ""))
         return f"""<section class="hero hero--glass" data-section="hero">
     <div class="hero--glass-blob hero--glass-blob1"></div>
     <div class="hero--glass-blob hero--glass-blob2"></div>
@@ -3728,26 +3756,26 @@ class PreviewRenderView(APIView):
 """
 
     def _render_about(self, data, primary, secondary):
-        variant = data.get('_variant', 'text-only')
-        renderer = getattr(self, f'_render_about_{variant.replace("-", "_")}', self._render_about_text_only)
+        variant = data.get("_variant", "text-only")
+        renderer = getattr(self, f"_render_about_{variant.replace('-', '_')}", self._render_about_text_only)
         return renderer(data, primary, secondary)
 
     def _about_highlights_html(self, highlights):
         if not highlights:
-            return ''
-        items = ''
+            return ""
+        items = ""
         for h in highlights:
-            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get('text', str(h)))
-            items += f'''<div class="highlight">
+            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get("text", str(h)))
+            items += f"""<div class="highlight">
                 <div class="highlight-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
                 <span>{hl_text}</span>
-            </div>'''
+            </div>"""
         return f'<div class="about-highlights">{items}</div>'
 
     def _render_about_text_only(self, data, primary, secondary):
         """Diseño actual: texto + highlights."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
         return f"""<section class="section" data-section="about">
     <div class="container">
         <div class="section-header">
@@ -3755,18 +3783,18 @@ class PreviewRenderView(APIView):
             <h2 class="section-title">{title}</h2>
         </div>
         <p class="about-content">{text}</p>
-        {self._about_highlights_html(data.get('highlights', []))}
+        {self._about_highlights_html(data.get("highlights", []))}
     </div>
 </section>
 """
 
     def _render_about_split_image(self, data, primary, secondary):
         """Imagen izquierda, texto + highlights derecha."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        image = data.get('_image', {})
-        image_url = self._esc(image.get('url', ''))
-        image_alt = self._esc(image.get('alt', ''))
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        image = data.get("_image", {})
+        image_url = self._esc(image.get("url", ""))
+        image_alt = self._esc(image.get("alt", ""))
 
         if image_url:
             img_html = f'<img src="{image_url}" alt="{image_alt}" loading="lazy" class="about-split-img">'
@@ -3778,13 +3806,13 @@ class PreviewRenderView(APIView):
         <div class="about-split-layout">
             <div class="about-split-media">
                 {img_html}
-                {self._unsplash_attr(image, 'img-attribution')}
+                {self._unsplash_attr(image, "img-attribution")}
             </div>
             <div class="about-split-content">
                 <span class="section-label">Conócenos</span>
                 <h2 class="section-title">{title}</h2>
                 <p class="about-content">{text}</p>
-                {self._about_highlights_html(data.get('highlights', []))}
+                {self._about_highlights_html(data.get("highlights", []))}
             </div>
         </div>
     </div>
@@ -3795,17 +3823,17 @@ class PreviewRenderView(APIView):
 
     def _render_about_stats_banner(self, data, primary, secondary):
         """Estadísticas grandes animadas con counter + texto."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        highlights = data.get('highlights', [])
-        stats = data.get('stats', [])
-        stats_html = ''
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        highlights = data.get("highlights", [])
+        stats = data.get("stats", [])
+        stats_html = ""
 
         if stats:
             # New format: stats list with {value, label}
             for s in stats:
-                val = self._esc(str(s.get('value', '')))
-                label = self._esc(str(s.get('label', '')))
+                val = self._esc(str(s.get("value", "")))
+                label = self._esc(str(s.get("label", "")))
                 stats_html += f'''<div class="stat-item anim-fade-up">
                     <div class="stat-number" data-count-target="{val}">0</div>
                     <div class="stat-label">{label}</div>
@@ -3813,7 +3841,7 @@ class PreviewRenderView(APIView):
         else:
             # Legacy format: highlights list
             for h in highlights:
-                hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get('text', str(h)))
+                hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get("text", str(h)))
                 stats_html += f'''<div class="stat-item anim-fade-up">
                     <span class="stat-number" data-count-target="{hl_text}">{hl_text}</span>
                 </div>\n'''
@@ -3832,13 +3860,13 @@ class PreviewRenderView(APIView):
 
     def _render_about_timeline(self, data, primary, secondary):
         """Timeline vertical con milestones."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        highlights = data.get('highlights', [])
-        items_html = ''
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        highlights = data.get("highlights", [])
+        items_html = ""
         for i, h in enumerate(highlights):
-            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get('text', str(h)))
-            side = 'left' if i % 2 == 0 else 'right'
+            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get("text", str(h)))
+            side = "left" if i % 2 == 0 else "right"
             items_html += f'<div class="timeline-item timeline-item--{side}"><div class="timeline-dot"></div><div class="timeline-content">{hl_text}</div></div>\n'
         return f"""<section class="section" data-section="about">
     <div class="container">
@@ -3854,13 +3882,13 @@ class PreviewRenderView(APIView):
 
     def _render_about_overlapping_cards(self, data, primary, secondary):
         """Cards superpuestas con rotación sutil."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        highlights = data.get('highlights', [])
-        cards_html = ''
-        rotations = ['-2', '0', '2', '-1', '1', '0']
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        highlights = data.get("highlights", [])
+        cards_html = ""
+        rotations = ["-2", "0", "2", "-1", "1", "0"]
         for i, h in enumerate(highlights):
-            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get('text', str(h)))
+            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get("text", str(h)))
             rot = rotations[i % len(rotations)]
             cards_html += f'<div class="overlap-card" style="--rot:{rot}deg"><span>{hl_text}</span></div>\n'
         return f"""<section class="section" data-section="about">
@@ -3877,12 +3905,12 @@ class PreviewRenderView(APIView):
 
     def _render_about_fullwidth_banner(self, data, primary, secondary):
         """Banner oscuro full-width con texto blanco."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        highlights = data.get('highlights', [])
-        checks_html = ''
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        highlights = data.get("highlights", [])
+        checks_html = ""
         for h in highlights:
-            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get('text', str(h)))
+            hl_text = self._esc(h) if isinstance(h, str) else self._esc(h.get("text", str(h)))
             checks_html += f'<div class="banner-check"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg><span>{hl_text}</span></div>\n'
         return f"""<section class="about-banner" data-section="about">
     <div class="container">
@@ -3896,11 +3924,11 @@ class PreviewRenderView(APIView):
 
     def _render_about_asymmetric(self, data, primary, secondary):
         """Grid asimétrico 2/3 + 1/3 con imagen."""
-        title = self._esc(data.get('title', 'Sobre Nosotros'))
-        text = self._esc(data.get('content', ''))
-        image = data.get('_image', {})
-        image_url = self._esc(image.get('url', ''))
-        highlights_html = self._about_highlights_html(data.get('highlights', []))
+        title = self._esc(data.get("title", "Sobre Nosotros"))
+        text = self._esc(data.get("content", ""))
+        image = data.get("_image", {})
+        image_url = self._esc(image.get("url", ""))
+        highlights_html = self._about_highlights_html(data.get("highlights", []))
 
         if image_url:
             media_html = f'''<div class="about-asym-img-wrap">
@@ -3933,27 +3961,31 @@ class PreviewRenderView(APIView):
     _PRODUCT_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>'
 
     def _render_services(self, data, primary, secondary):
-        variant = data.get('_variant', 'grid-cards')
-        renderer = getattr(self, f'_render_services_{variant.replace("-", "_")}', None)
+        variant = data.get("_variant", "grid-cards")
+        renderer = getattr(self, f"_render_services_{variant.replace('-', '_')}", None)
         if renderer:
             html = renderer(data, primary, secondary)
-        elif variant == 'grid-cards-image':
-            html = self._render_services_image(data, primary, secondary, 'services', 'Lo que hacemos', self._SERVICE_ICON)
+        elif variant == "grid-cards-image":
+            html = self._render_services_image(
+                data, primary, secondary, "services", "Lo que hacemos", self._SERVICE_ICON
+            )
         else:
-            html = self._render_services_default(data, primary, secondary, 'services', 'Lo que hacemos', self._SERVICE_ICON)
-        return self._inject_section_cta(html, 'Ver todos los servicios', '/services')
+            html = self._render_services_default(
+                data, primary, secondary, "services", "Lo que hacemos", self._SERVICE_ICON
+            )
+        return self._inject_section_cta(html, "Ver todos los servicios", "/services")
 
     def _render_services_default(self, data, primary, secondary, section_id, label, icon_svg):
         """Cards con icono SVG."""
-        title = self._esc(data.get('title', section_id.title()))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", section_id.title()))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
             cards += f'<div class="card"><div class="card-icon">{icon_svg}</div><h3>{name}</h3><p>{desc}</p>{price_html}</div>\n'
         return f"""<section class="section" data-section="{section_id}">
     <div class="container">
@@ -3969,23 +4001,27 @@ class PreviewRenderView(APIView):
 
     def _render_services_image(self, data, primary, secondary, section_id, label, icon_svg):
         """Cards con imagen Unsplash arriba."""
-        title = self._esc(data.get('title', section_id.title()))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", section_id.title()))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
-            image = item.get('_image', {})
-            image_url = self._esc(image.get('url', ''))
-            image_alt = self._esc(image.get('alt', ''))
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
+            image = item.get("_image", {})
+            image_url = self._esc(image.get("url", ""))
+            image_alt = self._esc(image.get("alt", ""))
             if image_url:
-                attr_html = self._unsplash_attr(image, 'img-attribution')
-                img_html = f'<div class="card-image"><img src="{image_url}" alt="{image_alt}" loading="lazy">{attr_html}</div>'
+                attr_html = self._unsplash_attr(image, "img-attribution")
+                img_html = (
+                    f'<div class="card-image"><img src="{image_url}" alt="{image_alt}" loading="lazy">{attr_html}</div>'
+                )
             else:
-                img_html = f'<div class="card-image card-image--placeholder"><div class="card-icon">{icon_svg}</div></div>'
+                img_html = (
+                    f'<div class="card-image card-image--placeholder"><div class="card-icon">{icon_svg}</div></div>'
+                )
             cards += f'<div class="card card--has-image">{img_html}<div class="card-body"><h3>{name}</h3><p>{desc}</p>{price_html}</div></div>\n'
         return f"""<section class="section" data-section="{section_id}">
     <div class="container">
@@ -4003,15 +4039,15 @@ class PreviewRenderView(APIView):
 
     def _render_services_list_detailed(self, data, primary, secondary):
         """Filas numeradas full-width, estilo Linear."""
-        title = self._esc(data.get('title', 'Servicios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        rows_html = ''
+        title = self._esc(data.get("title", "Servicios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        rows_html = ""
         for i, item in enumerate(items, 1):
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_html = f'<span class="svc-list-price">{price}</span>' if price else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_html = f'<span class="svc-list-price">{price}</span>' if price else ""
             rows_html += f'<div class="svc-list-item"><span class="svc-list-num">{i:02d}</span><div class="svc-list-text"><h3>{name}</h3><p>{desc}</p></div>{price_html}</div>\n'
         return f"""<section class="section" data-section="services">
     <div class="container">
@@ -4027,29 +4063,31 @@ class PreviewRenderView(APIView):
 
     def _render_services_featured_highlight(self, data, primary, secondary):
         """1 card grande + grid de pequeñas, layout asimétrico."""
-        title = self._esc(data.get('title', 'Servicios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
+        title = self._esc(data.get("title", "Servicios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
         if not items:
-            return self._render_services_default(data, primary, secondary, 'services', 'Lo que hacemos', self._SERVICE_ICON)
+            return self._render_services_default(
+                data, primary, secondary, "services", "Lo que hacemos", self._SERVICE_ICON
+            )
         # First item = featured
         feat = items[0]
-        feat_name = self._esc(feat.get('name', ''))
-        feat_desc = self._esc(feat.get('description', ''))
-        feat_image = feat.get('_image', {})
-        feat_url = self._esc(feat_image.get('url', ''))
+        feat_name = self._esc(feat.get("name", ""))
+        feat_desc = self._esc(feat.get("description", ""))
+        feat_image = feat.get("_image", {})
+        feat_url = self._esc(feat_image.get("url", ""))
         if feat_url:
             feat_img = f'<img src="{feat_url}" alt="{feat_name}" loading="lazy" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;">'
-            feat_img += self._unsplash_attr(feat_image, 'img-attribution')
+            feat_img += self._unsplash_attr(feat_image, "img-attribution")
         else:
             feat_img = f'<div class="card-icon" style="margin-bottom:16px;">{self._SERVICE_ICON}</div>'
         # Rest = small grid
-        small_html = ''
+        small_html = ""
         for item in items[1:]:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_h = f'<span class="card-price">{price}</span>' if price else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_h = f'<span class="card-price">{price}</span>' if price else ""
             small_html += f'<div class="svc-featured-small"><div class="card-icon">{self._SERVICE_ICON}</div><h3>{name}</h3><p>{desc}</p>{price_h}</div>\n'
         return f"""<section class="section" data-section="services">
     <div class="container">
@@ -4072,15 +4110,15 @@ class PreviewRenderView(APIView):
 
     def _render_services_horizontal_scroll(self, data, primary, secondary):
         """Cards con scroll horizontal snap, estilo Apple."""
-        title = self._esc(data.get('title', 'Servicios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards_html = ''
+        title = self._esc(data.get("title", "Servicios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
             cards_html += f'<div class="svc-scroll-card"><div class="card-icon">{self._SERVICE_ICON}</div><h3>{name}</h3><p>{desc}</p>{price_html}</div>\n'
         return f"""<section class="section" data-section="services">
     <div class="container">
@@ -4097,15 +4135,15 @@ class PreviewRenderView(APIView):
 
     def _render_services_icon_minimal(self, data, primary, secondary):
         """Grid 2-col con icono grande + texto, estilo Stripe."""
-        title = self._esc(data.get('title', 'Servicios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        grid_html = ''
+        title = self._esc(data.get("title", "Servicios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        grid_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
             grid_html += f'<div class="svc-icon-item"><div class="svc-icon-box">{self._SERVICE_ICON}</div><div class="svc-icon-text"><h3>{name}</h3><p>{desc}</p>{price_html}</div></div>\n'
         return f"""<section class="section" data-section="services">
     <div class="container">
@@ -4119,22 +4157,22 @@ class PreviewRenderView(APIView):
 </section>
 """
 
-    _BENTO_SIZES = ['lg', 'md', 'sm', 'sm', 'md', 'sm', 'sm', 'lg']
+    _BENTO_SIZES = ["lg", "md", "sm", "sm", "md", "sm", "sm", "lg"]
 
     def _render_bento_grid(self, data, primary, secondary, section_id, label, icon_svg):
         """Bento grid layout with mixed card sizes."""
-        title = self._esc(data.get('title', section_id.title()))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", section_id.title()))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for i, item in enumerate(items):
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
             size = self._BENTO_SIZES[i % len(self._BENTO_SIZES)]
-            image = item.get('_image', {})
-            image_url = self._esc(image.get('url', ''))
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
+            image = item.get("_image", {})
+            image_url = self._esc(image.get("url", ""))
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
 
             if image_url:
                 cards += f'''<div class="bento-item bento-{size} bento-item--has-image">
@@ -4143,10 +4181,10 @@ class PreviewRenderView(APIView):
                     {self._unsplash_attr(image)}
                 </div>\n'''
             else:
-                cards += f'''<div class="bento-item bento-{size}">
+                cards += f"""<div class="bento-item bento-{size}">
                     <div class="card-icon">{icon_svg}</div>
                     <h3>{name}</h3><p>{desc}</p>{price_html}
-                </div>\n'''
+                </div>\n"""
 
         return f"""<section class="section" data-section="{section_id}">
     <div class="container">
@@ -4161,43 +4199,47 @@ class PreviewRenderView(APIView):
 """
 
     def _render_services_bento_grid(self, data, primary, secondary):
-        return self._render_bento_grid(data, primary, secondary, 'services', 'Lo que hacemos', self._SERVICE_ICON)
+        return self._render_bento_grid(data, primary, secondary, "services", "Lo que hacemos", self._SERVICE_ICON)
 
     def _render_products_bento_grid(self, data, primary, secondary):
-        return self._render_bento_grid(data, primary, secondary, 'products', 'Nuestros productos', self._PRODUCT_ICON)
+        return self._render_bento_grid(data, primary, secondary, "products", "Nuestros productos", self._PRODUCT_ICON)
 
     def _render_products(self, data, primary, secondary):
-        variant = data.get('_variant', 'grid-cards')
-        renderer = getattr(self, f'_render_products_{variant.replace("-", "_")}', None)
+        variant = data.get("_variant", "grid-cards")
+        renderer = getattr(self, f"_render_products_{variant.replace('-', '_')}", None)
         if renderer:
             html = renderer(data, primary, secondary)
-        elif variant == 'grid-cards-image':
-            html = self._render_services_image(data, primary, secondary, 'products', 'Nuestros productos', self._PRODUCT_ICON)
+        elif variant == "grid-cards-image":
+            html = self._render_services_image(
+                data, primary, secondary, "products", "Nuestros productos", self._PRODUCT_ICON
+            )
         else:
-            html = self._render_services_default(data, primary, secondary, 'products', 'Nuestros productos', self._PRODUCT_ICON)
-        return self._inject_section_cta(html, 'Ver catálogo completo', '/products')
+            html = self._render_services_default(
+                data, primary, secondary, "products", "Nuestros productos", self._PRODUCT_ICON
+            )
+        return self._inject_section_cta(html, "Ver catálogo completo", "/products")
 
     # ── NEW PRODUCTS VARIANTS ──
 
     def _render_products_showcase_large(self, data, primary, secondary):
         """Vitrina grande 2-col, nombre superpuesto sobre imagen."""
-        title = self._esc(data.get('title', 'Productos'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards_html = ''
+        title = self._esc(data.get("title", "Productos"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            image = item.get('_image', {})
-            image_url = self._esc(image.get('url', ''))
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            image = item.get("_image", {})
+            image_url = self._esc(image.get("url", ""))
             if image_url:
-                bg = f'background-image:url({image_url});'
-                attr = self._unsplash_attr(image, 'img-attribution')
+                bg = f"background-image:url({image_url});"
+                attr = self._unsplash_attr(image, "img-attribution")
             else:
-                bg = 'background:linear-gradient(135deg,var(--primary),var(--secondary));'
-                attr = ''
-            price_html = f'<span class="showcase-price">{price}</span>' if price else ''
+                bg = "background:linear-gradient(135deg,var(--primary),var(--secondary));"
+                attr = ""
+            price_html = f'<span class="showcase-price">{price}</span>' if price else ""
             cards_html += f'<div class="showcase-card" style="{bg}">{price_html}<div class="showcase-overlay"><h3>{name}</h3><p>{desc}</p></div>{attr}</div>\n'
         return f"""<section class="section" data-section="products">
     <div class="container">
@@ -4213,20 +4255,20 @@ class PreviewRenderView(APIView):
 
     def _render_products_catalog_compact(self, data, primary, secondary):
         """Grid 4-col denso, imágenes cuadradas, e-commerce."""
-        title = self._esc(data.get('title', 'Productos'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards_html = ''
+        title = self._esc(data.get("title", "Productos"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            price = self._esc(item.get('price', ''))
-            image = item.get('_image', {})
-            image_url = self._esc(image.get('url', ''))
+            name = self._esc(item.get("name", ""))
+            price = self._esc(item.get("price", ""))
+            image = item.get("_image", {})
+            image_url = self._esc(image.get("url", ""))
             if image_url:
                 img_html = f'<img src="{image_url}" alt="{name}" loading="lazy">'
             else:
                 img_html = f'<div class="catalog-placeholder">{self._PRODUCT_ICON}</div>'
-            price_html = f'<span class="catalog-price">{price}</span>' if price else ''
+            price_html = f'<span class="catalog-price">{price}</span>' if price else ""
             cards_html += f'<div class="catalog-item"><div class="catalog-img">{img_html}</div><h3>{name}</h3>{price_html}</div>\n'
         return f"""<section class="section" data-section="products">
     <div class="container">
@@ -4242,22 +4284,22 @@ class PreviewRenderView(APIView):
 
     def _render_products_masonry_staggered(self, data, primary, secondary):
         """Masonry columns con alturas variadas, estilo Pinterest."""
-        title = self._esc(data.get('title', 'Productos'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards_html = ''
+        title = self._esc(data.get("title", "Productos"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            image = item.get('_image', {})
-            image_url = self._esc(image.get('url', ''))
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            image = item.get("_image", {})
+            image_url = self._esc(image.get("url", ""))
             if image_url:
                 img_html = f'<img src="{image_url}" alt="{name}" loading="lazy" style="width:100%;border-radius:10px;margin-bottom:10px;">'
-                img_html += self._unsplash_attr(image, 'img-attribution')
+                img_html += self._unsplash_attr(image, "img-attribution")
             else:
-                img_html = ''
-            price_html = f'<span class="card-price">{price}</span>' if price else ''
+                img_html = ""
+            price_html = f'<span class="card-price">{price}</span>' if price else ""
             cards_html += f'<div class="masonry-item">{img_html}<h3>{name}</h3><p>{desc}</p>{price_html}</div>\n'
         return f"""<section class="section" data-section="products">
     <div class="container">
@@ -4273,15 +4315,15 @@ class PreviewRenderView(APIView):
 
     def _render_products_price_table(self, data, primary, secondary):
         """Tabla de precios estilo menú, con dotted leaders."""
-        title = self._esc(data.get('title', 'Productos'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        rows_html = ''
+        title = self._esc(data.get("title", "Productos"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        rows_html = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            desc = self._esc(item.get('description', ''))
-            price = self._esc(item.get('price', ''))
-            desc_html = f'<p class="price-table-desc">{desc}</p>' if desc else ''
+            name = self._esc(item.get("name", ""))
+            desc = self._esc(item.get("description", ""))
+            price = self._esc(item.get("price", ""))
+            desc_html = f'<p class="price-table-desc">{desc}</p>' if desc else ""
             rows_html += f'<div class="price-table-row"><span class="price-table-name">{name}</span><span class="price-table-dots"></span><span class="price-table-price">{price}</span></div>{desc_html}\n'
         return f"""<section class="section" data-section="products">
     <div class="container">
@@ -4296,18 +4338,22 @@ class PreviewRenderView(APIView):
 """
 
     def _render_testimonials(self, data, primary, secondary):
-        variant = data.get('_variant', 'cards-grid')
-        renderer = getattr(self, f'_render_testimonials_{variant.replace("-", "_")}', self._render_testimonials_cards_grid)
+        variant = data.get("_variant", "cards-grid")
+        renderer = getattr(
+            self, f"_render_testimonials_{variant.replace('-', '_')}", self._render_testimonials_cards_grid
+        )
         return renderer(data, primary, secondary)
 
-    def _testimonial_card(self, item, extra_class=''):
-        name = self._esc(item.get('name', ''))
-        role = self._esc(item.get('role', ''))
-        text = self._esc(item.get('content', ''))
-        rating = item.get('rating', 5)
-        initials = ''.join(w[0].upper() for w in name.split()[:2]) if name else '?'
-        stars = ''.join(f'<span class="{"star-filled" if i < rating else "star-empty"}">&#9733;</span>' for i in range(5))
-        cls = f' {extra_class}' if extra_class else ''
+    def _testimonial_card(self, item, extra_class=""):
+        name = self._esc(item.get("name", ""))
+        role = self._esc(item.get("role", ""))
+        text = self._esc(item.get("content", ""))
+        rating = item.get("rating", 5)
+        initials = "".join(w[0].upper() for w in name.split()[:2]) if name else "?"
+        stars = "".join(
+            f'<span class="{"star-filled" if i < rating else "star-empty"}">&#9733;</span>' for i in range(5)
+        )
+        cls = f" {extra_class}" if extra_class else ""
         return f"""<div class="testimonial-card{cls}">
     <div class="testimonial-stars">{stars}</div>
     <div class="quote-mark">&ldquo;</div>
@@ -4319,11 +4365,11 @@ class PreviewRenderView(APIView):
 </div>"""
 
     def _render_testimonials_cards_grid(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Testimonios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''.join(self._testimonial_card(item) for item in items)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        title = self._esc(data.get("title", "Testimonios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = "".join(self._testimonial_card(item) for item in items)
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="testimonials">
     <div class="container">
         <div class="section-header center">
@@ -4337,17 +4383,20 @@ class PreviewRenderView(APIView):
 """
 
     def _render_testimonials_carousel(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Testimonios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", "Testimonios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for item in items:
             cards += f'<div class="testimonial-carousel-item">{self._testimonial_card(item, "testimonial-card--large")}</div>\n'
-        dots = ''
+        dots = ""
         if len(items) > 1:
-            dots_inner = ''.join(f'<button class="testimonial-dot{"  active" if i == 0 else ""}" data-index="{i}"></button>' for i in range(len(items)))
+            dots_inner = "".join(
+                f'<button class="testimonial-dot{"  active" if i == 0 else ""}" data-index="{i}"></button>'
+                for i in range(len(items))
+            )
             dots = f'<div class="testimonial-dots">{dots_inner}</div>'
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="testimonials">
     <div class="container">
         <div class="section-header center">
@@ -4364,23 +4413,28 @@ class PreviewRenderView(APIView):
 """
 
     def _render_testimonials_single_highlight(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Testimonios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
+        title = self._esc(data.get("title", "Testimonios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
         if not items:
             return self._render_testimonials_cards_grid(data, primary, secondary)
         first = items[0]
-        name = self._esc(first.get('name', ''))
-        role = self._esc(first.get('role', ''))
-        text = self._esc(first.get('content', ''))
-        rating = first.get('rating', 5)
-        initials = ''.join(w[0].upper() for w in name.split()[:2]) if name else '?'
-        stars = ''.join(f'<span class="{"star-filled" if i < rating else "star-empty"}">&#9733;</span>' for i in range(5))
-        dots = ''
+        name = self._esc(first.get("name", ""))
+        role = self._esc(first.get("role", ""))
+        text = self._esc(first.get("content", ""))
+        rating = first.get("rating", 5)
+        initials = "".join(w[0].upper() for w in name.split()[:2]) if name else "?"
+        stars = "".join(
+            f'<span class="{"star-filled" if i < rating else "star-empty"}">&#9733;</span>' for i in range(5)
+        )
+        dots = ""
         if len(items) > 1:
-            dots_inner = ''.join(f'<button class="testimonial-dot{" active" if i == 0 else ""}" data-index="{i}"></button>' for i in range(len(items)))
+            dots_inner = "".join(
+                f'<button class="testimonial-dot{" active" if i == 0 else ""}" data-index="{i}"></button>'
+                for i in range(len(items))
+            )
             dots = f'<div class="testimonial-dots">{dots_inner}</div>'
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="testimonials">
     <div class="container">
         <div class="section-header center">
@@ -4407,32 +4461,34 @@ class PreviewRenderView(APIView):
     _CHECK_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>'
 
     def _render_pricing(self, data, primary, secondary):
-        variant = data.get('_variant', 'cards')
-        renderer = getattr(self, f'_render_pricing_{variant.replace("-", "_")}', self._render_pricing_cards)
+        variant = data.get("_variant", "cards")
+        renderer = getattr(self, f"_render_pricing_{variant.replace('-', '_')}", self._render_pricing_cards)
         return renderer(data, primary, secondary)
 
     def _render_pricing_cards(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Precios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", "Precios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            price = self._esc(item.get('price', ''))
-            desc = self._esc(item.get('description', ''))
-            period = self._esc(item.get('period', ''))
-            is_rec = item.get('recommended') or item.get('featured') or item.get('popular')
-            features = item.get('features', [])
-            cta_text = self._esc(item.get('cta_text', item.get('button_text', 'Elegir plan')))
-            cta_link = item.get('cta_link', item.get('button_link', '#contact'))
-            rec_cls = ' pricing-card--recommended' if is_rec else ''
-            badge = '<span class="pricing-badge">Recomendado</span>' if is_rec else ''
-            period_html = f'<span class="pricing-period">/{period}</span>' if period else ''
-            feats = ''
+            name = self._esc(item.get("name", ""))
+            price = self._esc(item.get("price", ""))
+            desc = self._esc(item.get("description", ""))
+            period = self._esc(item.get("period", ""))
+            is_rec = item.get("recommended") or item.get("featured") or item.get("popular")
+            features = item.get("features", [])
+            cta_text = self._esc(item.get("cta_text", item.get("button_text", "Elegir plan")))
+            cta_link = item.get("cta_link", item.get("button_link", "#contact"))
+            rec_cls = " pricing-card--recommended" if is_rec else ""
+            badge = '<span class="pricing-badge">Recomendado</span>' if is_rec else ""
+            period_html = f'<span class="pricing-period">/{period}</span>' if period else ""
+            feats = ""
             if features:
-                feats_li = ''.join(f'<li><span class="pricing-check">{self._CHECK_ICON}</span>{self._esc(f)}</li>' for f in features)
+                feats_li = "".join(
+                    f'<li><span class="pricing-check">{self._CHECK_ICON}</span>{self._esc(f)}</li>' for f in features
+                )
                 feats = f'<ul class="pricing-features">{feats_li}</ul>'
-            btn_cls = 'btn-primary' if is_rec else 'btn-outline'
+            btn_cls = "btn-primary" if is_rec else "btn-outline"
             cards += f"""<div class="pricing-card{rec_cls}">
     {badge}<h3>{name}</h3>
     <div class="price">{price}{period_html}</div>
@@ -4441,7 +4497,7 @@ class PreviewRenderView(APIView):
     <a href="{cta_link}" class="btn {btn_cls} pricing-cta">{cta_text}</a>
 </div>
 """
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="pricing">
     <div class="container">
         <div class="section-header center">
@@ -4455,47 +4511,47 @@ class PreviewRenderView(APIView):
 """
 
     def _render_pricing_comparison_table(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Comparar Planes'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
+        title = self._esc(data.get("title", "Comparar Planes"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
         all_features = []
         seen = set()
         for item in items:
-            for f in item.get('features', []):
+            for f in item.get("features", []):
                 if f not in seen:
                     all_features.append(f)
                     seen.add(f)
         # Header
-        th_plans = ''
+        th_plans = ""
         for item in items:
-            is_rec = item.get('recommended') or item.get('featured') or item.get('popular')
-            rec_cls = ' class="pricing-table-recommended"' if is_rec else ''
-            period = self._esc(item.get('period', ''))
-            period_html = f'<span class="pricing-table-period">/{period}</span>' if period else ''
+            is_rec = item.get("recommended") or item.get("featured") or item.get("popular")
+            rec_cls = ' class="pricing-table-recommended"' if is_rec else ""
+            period = self._esc(item.get("period", ""))
+            period_html = f'<span class="pricing-table-period">/{period}</span>' if period else ""
             th_plans += f"""<th{rec_cls}><div class="pricing-table-plan">
     <span class="pricing-table-name">{self._esc(item.get("name", ""))}</span>
     <span class="pricing-table-price">{self._esc(item.get("price", ""))}</span>{period_html}
 </div></th>"""
         # Body rows
-        rows = ''
+        rows = ""
         for feat in all_features:
-            cells = ''
+            cells = ""
             for item in items:
-                has = feat in (item.get('features', []))
+                has = feat in (item.get("features", []))
                 if has:
                     cells += f'<td class="pricing-table-check"><span class="pricing-check pricing-check--yes">{self._CHECK_ICON}</span></td>'
                 else:
                     cells += '<td class="pricing-table-check"><span class="pricing-check--no">&mdash;</span></td>'
-            rows += f'<tr><td>{self._esc(feat)}</td>{cells}</tr>\n'
+            rows += f"<tr><td>{self._esc(feat)}</td>{cells}</tr>\n"
         # Footer CTAs
-        foot_cells = ''
+        foot_cells = ""
         for item in items:
-            is_rec = item.get('recommended') or item.get('featured') or item.get('popular')
-            cta_text = self._esc(item.get('cta_text', item.get('button_text', 'Elegir')))
-            cta_link = item.get('cta_link', item.get('button_link', '#contact'))
-            btn_cls = 'btn-primary' if is_rec else 'btn-outline'
+            is_rec = item.get("recommended") or item.get("featured") or item.get("popular")
+            cta_text = self._esc(item.get("cta_text", item.get("button_text", "Elegir")))
+            cta_link = item.get("cta_link", item.get("button_link", "#contact"))
+            btn_cls = "btn-primary" if is_rec else "btn-outline"
             foot_cells += f'<td><a href="{cta_link}" class="btn {btn_cls} pricing-table-cta">{cta_text}</a></td>'
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="pricing">
     <div class="container">
         <div class="section-header center">
@@ -4515,23 +4571,23 @@ class PreviewRenderView(APIView):
 """
 
     def _render_pricing_minimal_list(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Precios'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        rows = ''
+        title = self._esc(data.get("title", "Precios"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        rows = ""
         for item in items:
-            name = self._esc(item.get('name', ''))
-            price = self._esc(item.get('price', ''))
-            desc = self._esc(item.get('description', ''))
-            period = self._esc(item.get('period', ''))
-            is_rec = item.get('recommended') or item.get('featured') or item.get('popular')
-            features = item.get('features', [])
-            feat_cls = ' pricing-minimal-item--featured' if is_rec else ''
-            period_html = f'<span class="pricing-period">/{period}</span>' if period else ''
-            desc_html = f'<p class="pricing-minimal-desc">{desc}</p>' if desc else ''
-            feats_html = ''
+            name = self._esc(item.get("name", ""))
+            price = self._esc(item.get("price", ""))
+            desc = self._esc(item.get("description", ""))
+            period = self._esc(item.get("period", ""))
+            is_rec = item.get("recommended") or item.get("featured") or item.get("popular")
+            features = item.get("features", [])
+            feat_cls = " pricing-minimal-item--featured" if is_rec else ""
+            period_html = f'<span class="pricing-period">/{period}</span>' if period else ""
+            desc_html = f'<p class="pricing-minimal-desc">{desc}</p>' if desc else ""
+            feats_html = ""
             if features:
-                tags = ''.join(f'<span class="pricing-minimal-tag">{self._esc(f)}</span>' for f in features)
+                tags = "".join(f'<span class="pricing-minimal-tag">{self._esc(f)}</span>' for f in features)
                 feats_html = f'<div class="pricing-minimal-features">{tags}</div>'
             rows += f"""<div class="pricing-minimal-item{feat_cls}">
     <div class="pricing-minimal-header">
@@ -4542,7 +4598,7 @@ class PreviewRenderView(APIView):
     {feats_html}
 </div>
 """
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="pricing">
     <div class="container">
         <div class="section-header center">
@@ -4556,33 +4612,40 @@ class PreviewRenderView(APIView):
 """
 
     def _render_gallery(self, data, primary, secondary):
-        variant = data.get('_variant', 'masonry')
-        renderer = getattr(self, f'_render_gallery_{variant.replace("-", "_")}', self._render_gallery_masonry)
+        variant = data.get("_variant", "masonry")
+        renderer = getattr(self, f"_render_gallery_{variant.replace('-', '_')}", self._render_gallery_masonry)
         return renderer(data, primary, secondary)
 
     def _gallery_images(self, data):
         """Get gallery images from data, return list of items with url/alt."""
-        items = data.get('items', [])
+        items = data.get("items", [])
         result = []
         for item in items:
-            img = item.get('_image', {})
-            url = img.get('url') or item.get('url', '')
-            alt = img.get('alt') or item.get('alt', '')
+            img = item.get("_image", {})
+            url = img.get("url") or item.get("url", "")
+            alt = img.get("alt") or item.get("alt", "")
             if url:
-                result.append({'url': url, 'alt': alt, 'photographer': img.get('photographer', ''), 'photographer_url': img.get('photographer_url', '')})
+                result.append(
+                    {
+                        "url": url,
+                        "alt": alt,
+                        "photographer": img.get("photographer", ""),
+                        "photographer_url": img.get("photographer_url", ""),
+                    }
+                )
         return result
 
     def _gallery_placeholder(self):
-        placeholders = ''.join(f'<div class="ph">Imagen {i + 1}</div>\n' for i in range(6))
+        placeholders = "".join(f'<div class="ph">Imagen {i + 1}</div>\n' for i in range(6))
         return f'<div class="gallery-placeholder anim-fade-up">{placeholders}</div>'
 
     def _render_gallery_masonry(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Galería'))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", "Galería"))
+        subtitle = self._esc(data.get("subtitle", ""))
         images = self._gallery_images(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         if images:
-            items_html = ''
+            items_html = ""
             for img in images:
                 items_html += f'''<div class="gallery-masonry-item">
     <img src="{img["url"]}" alt="{self._esc(img["alt"])}" loading="lazy"/>
@@ -4604,12 +4667,12 @@ class PreviewRenderView(APIView):
 """
 
     def _render_gallery_grid_uniform(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Galería'))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", "Galería"))
+        subtitle = self._esc(data.get("subtitle", ""))
         images = self._gallery_images(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         if images:
-            items_html = ''
+            items_html = ""
             for img in images:
                 items_html += f'''<div class="gallery-item">
     <img src="{img["url"]}" alt="{self._esc(img["alt"])}" loading="lazy"/>
@@ -4631,12 +4694,12 @@ class PreviewRenderView(APIView):
 """
 
     def _render_gallery_slider(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Galería'))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", "Galería"))
+        subtitle = self._esc(data.get("subtitle", ""))
         images = self._gallery_images(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         if images:
-            items_html = ''
+            items_html = ""
             for img in images:
                 items_html += f'<div class="gallery-slider-item"><img src="{img["url"]}" alt="{self._esc(img["alt"])}" loading="lazy"/></div>\n'
             content = f"""<div class="gallery-slider-wrap anim-fade-up">
@@ -4659,26 +4722,26 @@ class PreviewRenderView(APIView):
 """
 
     def _render_faq(self, data, primary, secondary):
-        variant = data.get('_variant', 'classic')
-        renderer = getattr(self, f'_render_faq_{variant.replace("-", "_")}', self._render_faq_classic)
+        variant = data.get("_variant", "classic")
+        renderer = getattr(self, f"_render_faq_{variant.replace('-', '_')}", self._render_faq_classic)
         return renderer(data, primary, secondary)
 
     def _render_faq_classic(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Preguntas Frecuentes'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        faq_html = ''
+        title = self._esc(data.get("title", "Preguntas Frecuentes"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        faq_html = ""
         for i, item in enumerate(items):
-            q = self._esc(item.get('question', ''))
-            a = self._esc(item.get('answer', ''))
-            open_cls = ' faq-item--open' if i == 0 else ''
+            q = self._esc(item.get("question", ""))
+            a = self._esc(item.get("answer", ""))
+            open_cls = " faq-item--open" if i == 0 else ""
             faq_html += f"""<div class="faq-item{open_cls}">
     <button type="button" class="faq-trigger" onclick="this.parentElement.classList.toggle('faq-item--open')">
         <span>{q}</span><span class="faq-icon"></span>
     </button>
     <div class="faq-answer"><div class="answer">{a}</div></div>
 </div>\n"""
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="faq">
     <div class="container">
         <div class="section-header center">
@@ -4692,18 +4755,18 @@ class PreviewRenderView(APIView):
 """
 
     def _render_faq_side_by_side(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Preguntas Frecuentes'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        questions_html = ''
+        title = self._esc(data.get("title", "Preguntas Frecuentes"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        questions_html = ""
         for i, item in enumerate(items):
-            q = self._esc(item.get('question', ''))
-            active_cls = ' faq-side-q--active' if i == 0 else ''
+            q = self._esc(item.get("question", ""))
+            active_cls = " faq-side-q--active" if i == 0 else ""
             questions_html += f'<button type="button" class="faq-side-q{active_cls}" data-index="{i}"><span class="faq-side-num">{str(i + 1).zfill(2)}</span>{q}</button>\n'
         # Show first answer by default
-        first_q = self._esc(items[0].get('question', '')) if items else ''
-        first_a = self._esc(items[0].get('answer', '')) if items else ''
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        first_q = self._esc(items[0].get("question", "")) if items else ""
+        first_a = self._esc(items[0].get("answer", "")) if items else ""
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="faq">
     <div class="container">
         <div class="section-header">
@@ -4722,19 +4785,19 @@ class PreviewRenderView(APIView):
 """
 
     def _render_faq_cards(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Preguntas Frecuentes'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", "Preguntas Frecuentes"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items = data.get("items", [])
+        cards = ""
         for i, item in enumerate(items):
-            q = self._esc(item.get('question', ''))
-            a = self._esc(item.get('answer', ''))
-            open_cls = ' faq-card--open' if i == 0 else ''
+            q = self._esc(item.get("question", ""))
+            a = self._esc(item.get("answer", ""))
+            open_cls = " faq-card--open" if i == 0 else ""
             cards += f"""<div class="faq-card{open_cls}" onclick="this.classList.toggle('faq-card--open')">
     <div class="faq-card-q"><span>{q}</span><span class="faq-icon"></span></div>
     <div class="faq-card-a"><p>{a}</p></div>
 </div>\n"""
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="faq">
     <div class="container">
         <div class="section-header center">
@@ -4748,36 +4811,37 @@ class PreviewRenderView(APIView):
 """
 
     _CONTACT_ICONS = {
-        'phone': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
-        'email': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>',
-        'address': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
-        'whatsapp': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
-        'hours': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+        "phone": '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+        "email": '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>',
+        "address": '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+        "whatsapp": '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+        "hours": '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
     }
     _CONTACT_LABELS = {
-        'phone': 'Teléfono',
-        'email': 'Email',
-        'address': 'Dirección',
-        'whatsapp': 'WhatsApp',
-        'hours': 'Horario',
+        "phone": "Teléfono",
+        "email": "Email",
+        "address": "Dirección",
+        "whatsapp": "WhatsApp",
+        "hours": "Horario",
     }
 
     def _get_wa_link(self, data):
         import re as _re
-        whatsapp_raw = data.get('whatsapp', '') or data.get('phone', '')
+
+        whatsapp_raw = data.get("whatsapp", "") or data.get("phone", "")
         if whatsapp_raw:
-            digits = _re.sub(r'[^\d+]', '', whatsapp_raw)
+            digits = _re.sub(r"[^\d+]", "", whatsapp_raw)
             if digits:
-                return f'https://wa.me/{digits.lstrip("+")}'
+                return f"https://wa.me/{digits.lstrip('+')}"
         return None
 
     def _render_header_whatsapp_float(self, header_data, contact_data):
         """WhatsApp floating button from header toggle (uses contact whatsapp number)."""
-        if not header_data.get('whatsapp_float_enabled'):
-            return ''
+        if not header_data.get("whatsapp_float_enabled"):
+            return ""
         wa_url = self._get_wa_link(contact_data)
         if not wa_url:
-            return ''
+            return ""
         return f'''<a href="{wa_url}" target="_blank" rel="noopener" class="wa-float-btn"
    style="position:fixed;bottom:24px;right:24px;z-index:9990;width:56px;height:56px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.18);transition:transform .2s,box-shadow .2s;text-decoration:none;"
    onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.25)'"
@@ -4788,27 +4852,28 @@ class PreviewRenderView(APIView):
 
     def _render_map_embed(self, data):
         """Google Maps embed iframe if map is enabled in contact section."""
-        if not data.get('map_enabled'):
-            return ''
+        if not data.get("map_enabled"):
+            return ""
         import urllib.parse
-        address = data.get('map_address', '') or data.get('address', '')
+
+        address = data.get("map_address", "") or data.get("address", "")
         if not address:
-            return ''
+            return ""
         encoded = urllib.parse.quote(address)
-        maps_key = getattr(django_settings, 'GOOGLE_MAPS_API_KEY', '')
+        maps_key = getattr(django_settings, "GOOGLE_MAPS_API_KEY", "")
         if not maps_key:
-            return ''
-        return f'''<div class="contact-map" style="margin-top:2.5rem;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
+            return ""
+        return f"""<div class="contact-map" style="margin-top:2.5rem;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);">
     <iframe src="https://www.google.com/maps/embed/v1/place?key={maps_key}&q={encoded}"
         width="100%" height="300" style="border:0;display:block;" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-</div>'''
+</div>"""
 
-    def _contact_items_html(self, data, item_class='contact-item'):
-        items_html = ''
-        for key in ('phone', 'email', 'address', 'whatsapp', 'hours'):
-            val = data.get(key, '')
+    def _contact_items_html(self, data, item_class="contact-item"):
+        items_html = ""
+        for key in ("phone", "email", "address", "whatsapp", "hours"):
+            val = data.get(key, "")
             if val:
-                icon_svg = self._CONTACT_ICONS.get(key, '')
+                icon_svg = self._CONTACT_ICONS.get(key, "")
                 label = self._CONTACT_LABELS.get(key, key.title())
                 items_html += f'''<div class="{item_class}">
     <div class="ci-icon">{icon_svg}</div>
@@ -4821,23 +4886,23 @@ class PreviewRenderView(APIView):
         if wa_url:
             return f'''<div style="text-align:center;margin-top:2rem;">
     <a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta">
-        {self._CONTACT_ICONS['whatsapp']} Escríbenos por WhatsApp
+        {self._CONTACT_ICONS["whatsapp"]} Escríbenos por WhatsApp
     </a>
 </div>'''
-        return ''
+        return ""
 
     def _render_contact(self, data, primary, secondary):
-        variant = data.get('_variant', 'cards-grid')
-        renderer = getattr(self, f'_render_contact_{variant.replace("-", "_")}', self._render_contact_cards_grid)
+        variant = data.get("_variant", "cards-grid")
+        renderer = getattr(self, f"_render_contact_{variant.replace('-', '_')}", self._render_contact_cards_grid)
         return renderer(data, primary, secondary)
 
     def _render_contact_cards_grid(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Contacto'))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", "Contacto"))
+        subtitle = self._esc(data.get("subtitle", ""))
         items_html = self._contact_items_html(data)
         wa_cta = self._whatsapp_cta(data)
         map_html = self._render_map_embed(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="contact">
     <div class="container">
         <div class="section-header center">
@@ -4853,13 +4918,17 @@ class PreviewRenderView(APIView):
 """
 
     def _render_contact_split_form(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Contáctanos'))
-        subtitle = self._esc(data.get('subtitle', ''))
-        items_html = self._contact_items_html(data, 'contact-split-item')
+        title = self._esc(data.get("title", "Contáctanos"))
+        subtitle = self._esc(data.get("subtitle", ""))
+        items_html = self._contact_items_html(data, "contact-split-item")
         wa_url = self._get_wa_link(data)
-        wa_btn = f'<a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta" style="margin-top:16px">{self._CONTACT_ICONS["whatsapp"]} WhatsApp</a>' if wa_url else ''
+        wa_btn = (
+            f'<a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta" style="margin-top:16px">{self._CONTACT_ICONS["whatsapp"]} WhatsApp</a>'
+            if wa_url
+            else ""
+        )
         map_html = self._render_map_embed(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="contact">
     <div class="container">
         <div class="section-header">
@@ -4884,23 +4953,23 @@ class PreviewRenderView(APIView):
 """
 
     def _render_contact_centered_minimal(self, data, primary, secondary):
-        title = self._esc(data.get('title', 'Hablemos'))
-        subtitle = self._esc(data.get('subtitle', ''))
+        title = self._esc(data.get("title", "Hablemos"))
+        subtitle = self._esc(data.get("subtitle", ""))
         wa_url = self._get_wa_link(data)
-        items_html = ''
-        for key in ('phone', 'email', 'address', 'whatsapp', 'hours'):
-            val = data.get(key, '')
+        items_html = ""
+        for key in ("phone", "email", "address", "whatsapp", "hours"):
+            val = data.get(key, "")
             if val:
-                icon_svg = self._CONTACT_ICONS.get(key, '')
-                items_html += f'''<div class="contact-centered-item">
+                icon_svg = self._CONTACT_ICONS.get(key, "")
+                items_html += f"""<div class="contact-centered-item">
     <span class="ci-icon">{icon_svg}</span>
     <span class="ci-value">{self._esc(val)}</span>
-</div>\n'''
-        wa_cta = ''
+</div>\n"""
+        wa_cta = ""
         if wa_url:
             wa_cta = f'<a href="{wa_url}" target="_blank" rel="noopener" class="btn btn-primary whatsapp-cta" style="margin-top:28px">{self._CONTACT_ICONS["whatsapp"]} Escríbenos por WhatsApp</a>'
         map_html = self._render_map_embed(data)
-        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ''
+        sub_html = f'<p class="section-subtitle">{subtitle}</p>' if subtitle else ""
         return f"""<section class="section" data-section="contact">
     <div class="container">
         <div class="contact-centered anim-fade-up">
@@ -4916,19 +4985,19 @@ class PreviewRenderView(APIView):
 """
 
     def _render_generic(self, section_id, data, primary, secondary):
-        title = self._esc(data.get('title', section_id.replace('_', ' ').title()))
-        subtitle = self._esc(data.get('subtitle', ''))
-        text = self._esc(data.get('content', ''))
-        items = data.get('items', [])
-        cards = ''
+        title = self._esc(data.get("title", section_id.replace("_", " ").title()))
+        subtitle = self._esc(data.get("subtitle", ""))
+        text = self._esc(data.get("content", ""))
+        items = data.get("items", [])
+        cards = ""
         if items:
             for item in items:
                 if isinstance(item, dict):
-                    name = self._esc(item.get('name', item.get('title', '')))
-                    desc = self._esc(item.get('description', item.get('content', '')))
+                    name = self._esc(item.get("name", item.get("title", "")))
+                    desc = self._esc(item.get("description", item.get("content", "")))
                     cards += f'<div class="card"><h3>{name}</h3><p>{desc}</p></div>\n'
             cards = f'<div class="grid-3">{cards}</div>'
-        text_html = f'<p class="about-content">{text}</p>' if text else ''
+        text_html = f'<p class="about-content">{text}</p>' if text else ""
         return f"""<section class="section" data-section="{section_id}">
     <div class="container">
         <div class="section-header">
@@ -4942,7 +5011,7 @@ class PreviewRenderView(APIView):
 """
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -4950,6 +5019,7 @@ class PreviewRenderView(APIView):
 # ===================================
 # SECTION MANAGEMENT
 # ===================================
+
 
 class ReorderSectionsView(APIView):
     """
@@ -4964,38 +5034,28 @@ class ReorderSectionsView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
-        new_order = request.data.get('order', [])
+        new_order = request.data.get("order", [])
         if not new_order or not isinstance(new_order, list):
             return Response(
-                {"error": "Se requiere 'order' como lista de IDs de sección"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Se requiere 'order' como lista de IDs de sección"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         content = config.content_data or {}
-        content['_section_order'] = new_order
+        content["_section_order"] = new_order
         config.content_data = content
-        config.save(update_fields=['content_data', 'updated_at'])
+        config.save(update_fields=["content_data", "updated_at"])
 
-        return Response({
-            "message": "Secciones reordenadas",
-            "order": new_order
-        })
+        return Response({"message": "Secciones reordenadas", "order": new_order})
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -5013,83 +5073,70 @@ class AddSectionView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
-        section_id = request.data.get('section_id', '')
+        section_id = request.data.get("section_id", "")
         if not section_id:
-            return Response(
-                {"error": "Se requiere 'section_id'"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Se requiere 'section_id'"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar que la sección exista en el template
         structure = config.template.structure_schema or {}
-        available = {s['id'] for s in structure.get('sections', [])}
+        available = {s["id"] for s in structure.get("sections", [])}
         if section_id not in available:
             return Response(
-                {"error": f"La sección '{section_id}' no existe en este template"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": f"La sección '{section_id}' no existe en este template"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         content = config.content_data or {}
         if section_id in content:
-            return Response(
-                {"error": f"La sección '{section_id}' ya existe"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": f"La sección '{section_id}' ya existe"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Usar contenido inicial del frontend si viene, o defaults
-        initial_content = request.data.get('initial_content')
-        variant = request.data.get('variant')
+        initial_content = request.data.get("initial_content")
+        variant = request.data.get("variant")
 
         if initial_content and isinstance(initial_content, dict):
             content[section_id] = initial_content
         else:
             section_defaults = {
-                'header': {'logo_text': '', 'cta_text': 'Contáctanos', 'cta_link': '#contact'},
-                'hero': {'title': '', 'subtitle': '', 'cta_text': '', 'cta_link': '#'},
-                'about': {'title': 'Sobre Nosotros', 'content': '', 'highlights': []},
-                'services': {'title': 'Servicios', 'subtitle': '', 'items': []},
-                'products': {'title': 'Productos', 'subtitle': '', 'items': []},
-                'testimonials': {'title': 'Testimonios', 'items': []},
-                'gallery': {'title': 'Galería', 'subtitle': '', 'items': []},
-                'pricing': {'title': 'Precios', 'subtitle': '', 'items': []},
-                'faq': {'title': 'Preguntas Frecuentes', 'items': []},
-                'contact': {'title': 'Contacto', 'subtitle': ''},
+                "header": {"logo_text": "", "cta_text": "Contáctanos", "cta_link": "#contact"},
+                "hero": {"title": "", "subtitle": "", "cta_text": "", "cta_link": "#"},
+                "about": {"title": "Sobre Nosotros", "content": "", "highlights": []},
+                "services": {"title": "Servicios", "subtitle": "", "items": []},
+                "products": {"title": "Productos", "subtitle": "", "items": []},
+                "testimonials": {"title": "Testimonios", "items": []},
+                "gallery": {"title": "Galería", "subtitle": "", "items": []},
+                "pricing": {"title": "Precios", "subtitle": "", "items": []},
+                "faq": {"title": "Preguntas Frecuentes", "items": []},
+                "contact": {"title": "Contacto", "subtitle": ""},
             }
-            content[section_id] = section_defaults.get(section_id, {'title': '', 'content': ''})
+            content[section_id] = section_defaults.get(section_id, {"title": "", "content": ""})
 
         # Guardar variante si viene
         if variant:
-            content[section_id]['_variant'] = variant
+            content[section_id]["_variant"] = variant
 
         # Actualizar orden
-        order = content.get('_section_order', [])
+        order = content.get("_section_order", [])
         if order and section_id not in order:
             order.append(section_id)
-            content['_section_order'] = order
+            content["_section_order"] = order
 
         config.content_data = content
-        config.save(update_fields=['content_data', 'updated_at'])
+        config.save(update_fields=["content_data", "updated_at"])
 
-        return Response({
-            "message": f"Sección '{section_id}' agregada",
-            "section": content[section_id]
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {"message": f"Sección '{section_id}' agregada", "section": content[section_id]},
+            status=status.HTTP_201_CREATED,
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -5108,57 +5155,47 @@ class RemoveSectionView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
-        section_id = request.data.get('section_id', '')
+        section_id = request.data.get("section_id", "")
         if not section_id:
-            return Response(
-                {"error": "Se requiere 'section_id'"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Se requiere 'section_id'"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar que no sea requerida
         structure = config.template.structure_schema or {}
-        for s in structure.get('sections', []):
-            if s['id'] == section_id and s.get('required', False):
+        for s in structure.get("sections", []):
+            if s["id"] == section_id and s.get("required", False):
                 return Response(
                     {"error": f"La sección '{section_id}' es requerida y no se puede eliminar"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
         content = config.content_data or {}
         if section_id not in content:
             return Response(
-                {"error": f"La sección '{section_id}' no existe en el contenido"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": f"La sección '{section_id}' no existe en el contenido"}, status=status.HTTP_404_NOT_FOUND
             )
 
         del content[section_id]
 
         # Actualizar orden
-        order = content.get('_section_order', [])
+        order = content.get("_section_order", [])
         if order and section_id in order:
             order.remove(section_id)
-            content['_section_order'] = order
+            content["_section_order"] = order
 
         config.content_data = content
-        config.save(update_fields=['content_data', 'updated_at'])
+        config.save(update_fields=["content_data", "updated_at"])
 
         return Response({"message": f"Sección '{section_id}' eliminada"})
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -5166,6 +5203,7 @@ class RemoveSectionView(APIView):
 # ===================================
 # DUPLICAR SECCIÓN
 # ===================================
+
 
 class DuplicateSectionView(APIView):
     """
@@ -5181,42 +5219,33 @@ class DuplicateSectionView(APIView):
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
-        section_id = request.data.get('section_id', '')
+        section_id = request.data.get("section_id", "")
         if not section_id:
-            return Response(
-                {"error": "Se requiere 'section_id'"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Se requiere 'section_id'"}, status=status.HTTP_400_BAD_REQUEST)
 
         content = config.content_data or {}
         if section_id not in content:
             return Response(
-                {"error": f"La sección '{section_id}' no existe en el contenido"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": f"La sección '{section_id}' no existe en el contenido"}, status=status.HTTP_404_NOT_FOUND
             )
 
         # Generar id único para la copia
         import copy
         import re
+
         # Derive base type: use existing _type, or strip trailing _N suffix
         section_data = content[section_id]
-        if isinstance(section_data, dict) and '_type' in section_data:
-            base_id = section_data['_type']
+        if isinstance(section_data, dict) and "_type" in section_data:
+            base_id = section_data["_type"]
         else:
-            base_id = re.sub(r'_\d+$', '', section_id)
+            base_id = re.sub(r"_\d+$", "", section_id)
         counter = 2
         new_id = f"{base_id}_{counter}"
         while new_id in content:
@@ -5226,28 +5255,31 @@ class DuplicateSectionView(APIView):
         # Copiar contenido de la sección original
         cloned = copy.deepcopy(content[section_id])
         # Preserve the base section type so render dispatch works for duplicated ids
-        if '_type' not in cloned:
-            cloned['_type'] = base_id
+        if "_type" not in cloned:
+            cloned["_type"] = base_id
         content[new_id] = cloned
 
         # Insertar justo después del original en el orden
-        order = content.get('_section_order', [])
+        order = content.get("_section_order", [])
         if order and section_id in order:
             idx = order.index(section_id)
             order.insert(idx + 1, new_id)
-            content['_section_order'] = order
+            content["_section_order"] = order
 
         config.content_data = content
-        config.save(update_fields=['content_data', 'updated_at'])
+        config.save(update_fields=["content_data", "updated_at"])
 
-        return Response({
-            "message": f"Sección '{section_id}' duplicada como '{new_id}'",
-            "new_section_id": new_id,
-            "section": content[new_id],
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "message": f"Sección '{section_id}' duplicada como '{new_id}'",
+                "new_section_id": new_id,
+                "section": content[new_id],
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant
 
@@ -5255,6 +5287,7 @@ class DuplicateSectionView(APIView):
 # ===================================
 # CAMBIAR VARIANTE DE SECCIÓN
 # ===================================
+
 
 class UpdateSectionVariantView(APIView):
     """
@@ -5267,69 +5300,74 @@ class UpdateSectionVariantView(APIView):
     permission_classes = [IsAuthenticated]
 
     VALID_VARIANTS = {
-        'hero': ['centered', 'split-image', 'fullwidth-image', 'bold-typography', 'diagonal-split', 'glassmorphism'],
-        'about': ['text-only', 'split-image', 'stats-banner', 'timeline', 'overlapping-cards', 'fullwidth-banner'],
-        'services': ['grid-cards', 'grid-cards-image', 'list-detailed', 'featured-highlight', 'horizontal-scroll', 'icon-minimal'],
-        'products': ['grid-cards', 'grid-cards-image', 'showcase-large', 'catalog-compact', 'masonry-staggered', 'price-table'],
+        "hero": ["centered", "split-image", "fullwidth-image", "bold-typography", "diagonal-split", "glassmorphism"],
+        "about": ["text-only", "split-image", "stats-banner", "timeline", "overlapping-cards", "fullwidth-banner"],
+        "services": [
+            "grid-cards",
+            "grid-cards-image",
+            "list-detailed",
+            "featured-highlight",
+            "horizontal-scroll",
+            "icon-minimal",
+        ],
+        "products": [
+            "grid-cards",
+            "grid-cards-image",
+            "showcase-large",
+            "catalog-compact",
+            "masonry-staggered",
+            "price-table",
+        ],
     }
 
     def post(self, request):
         tenant = self._get_tenant(request)
         if not tenant:
-            return Response(
-                {"error": "Usuario no asociado a un tenant"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Usuario no asociado a un tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             config = WebsiteConfig.objects.get(tenant=tenant)
         except WebsiteConfig.DoesNotExist:
-            return Response(
-                {"error": "No tienes un sitio web configurado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "No tienes un sitio web configurado"}, status=status.HTTP_404_NOT_FOUND)
 
-        section_id = request.data.get('section_id', '')
-        variant = request.data.get('variant', '')
+        section_id = request.data.get("section_id", "")
+        variant = request.data.get("variant", "")
 
         if not section_id or not variant:
-            return Response(
-                {"error": "Se requieren 'section_id' y 'variant'"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Se requieren 'section_id' y 'variant'"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar variante
         valid = self.VALID_VARIANTS.get(section_id)
         if not valid:
             return Response(
-                {"error": f"La sección '{section_id}' no soporta variantes"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": f"La sección '{section_id}' no soporta variantes"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         if variant not in valid:
             return Response(
                 {"error": f"Variante '{variant}' no válida. Opciones: {', '.join(valid)}"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         content = config.content_data or {}
         if section_id not in content:
             return Response(
-                {"error": f"La sección '{section_id}' no existe en el contenido"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": f"La sección '{section_id}' no existe en el contenido"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        content[section_id]['_variant'] = variant
+        content[section_id]["_variant"] = variant
         config.content_data = content
-        config.save(update_fields=['content_data', 'updated_at'])
+        config.save(update_fields=["content_data", "updated_at"])
 
-        return Response({
-            "message": f"Variante de '{section_id}' cambiada a '{variant}'",
-            "section_id": section_id,
-            "variant": variant
-        })
+        return Response(
+            {
+                "message": f"Variante de '{section_id}' cambiada a '{variant}'",
+                "section_id": section_id,
+                "variant": variant,
+            }
+        )
 
     def _get_tenant(self, request):
-        if not hasattr(request.user, 'tenant') or not request.user.tenant:
+        if not hasattr(request.user, "tenant") or not request.user.tenant:
             return None
         return request.user.tenant

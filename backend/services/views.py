@@ -1,19 +1,21 @@
 # backend/services/views.py
 
-from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
+
 from core.permissions import IsTenantStaffOrAdmin
-from .models import ServiceCategory, Service, StaffMember
+
+from .models import Service, ServiceCategory, StaffMember
 from .serializers import (
     ServiceCategorySerializer,
-    ServiceListSerializer,
-    ServiceDetailSerializer,
     ServiceCreateUpdateSerializer,
-    StaffMemberListSerializer,
+    ServiceDetailSerializer,
+    ServiceListSerializer,
     StaffMemberDetailSerializer,
+    StaffMemberListSerializer,
 )
 
 

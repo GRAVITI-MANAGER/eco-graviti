@@ -1,10 +1,12 @@
 # backend/ecommerce/models.py
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.utils.text import slugify
-from core.models import TenantAwareModel
 from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.utils.text import slugify
+
+from core.models import TenantAwareModel
 
 
 class ProductCategory(TenantAwareModel):
@@ -199,7 +201,7 @@ class Product(TenantAwareModel):
         """Verificar si hay stock"""
         try:
             return self.inventory.stock > 0
-        except:
+        except Exception:
             return False
 
     @property

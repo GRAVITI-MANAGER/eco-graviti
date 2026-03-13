@@ -1,10 +1,12 @@
 # backend/core/models.py
 
-from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.utils.text import slugify
-from .managers import TenantManager, TenantAwareManager, TenantAwareUserManager
 import uuid
+
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils.text import slugify
+
+from .managers import TenantAwareManager, TenantAwareUserManager
 
 
 # ===================================
@@ -387,6 +389,7 @@ class Tenant(models.Model):
         y subscription_ends_at si no existen.
         """
         from datetime import timedelta
+
         from django.utils import timezone
 
         if not self.slug:
@@ -401,7 +404,8 @@ class Tenant(models.Model):
         if not self.pk and self.plan == "trial" and not self.subscription_ends_at:
             try:
                 from billing.models import Module
-                web_module = Module.objects.filter(slug='web', is_active=True).first()
+
+                web_module = Module.objects.filter(slug="web", is_active=True).first()
                 trial_days = web_module.trial_days if web_module else 14
             except Exception:
                 trial_days = 14
@@ -412,6 +416,7 @@ class Tenant(models.Model):
     def get_absolute_url(self):
         """URL del tenant en la plataforma"""
         from django.conf import settings
+
         return f"https://{self.slug}.{settings.PLATFORM_BASE_DOMAIN}"
 
     # ===========================================
@@ -885,8 +890,9 @@ class PasswordSetToken(models.Model):
     def create_for_user(cls, user, hours_valid=24):
         """Crear un nuevo token para un usuario"""
         import secrets
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         # Invalidar tokens anteriores
         cls.objects.filter(user=user, used_at__isnull=True).delete()
@@ -986,8 +992,9 @@ class OTPToken(models.Model):
     def create_for_user(cls, user, purpose, minutes_valid=10):
         """Crear un nuevo OTP para un usuario"""
         import secrets
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         # Invalidar OTPs anteriores del mismo propósito
         cls.objects.filter(user=user, purpose=purpose, used_at__isnull=True).delete()

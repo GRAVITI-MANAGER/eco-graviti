@@ -1,8 +1,10 @@
 # backend/services/serializers.py
 
 from rest_framework import serializers
+
 from core.serializers import UserPublicSerializer
-from .models import ServiceCategory, Service, StaffMember
+
+from .models import Service, ServiceCategory, StaffMember
 
 
 class AbsoluteURLImageField(serializers.ImageField):
@@ -13,7 +15,6 @@ class AbsoluteURLImageField(serializers.ImageField):
             return None
 
         import os
-        from django.conf import settings
 
         # Usar MEDIA_BASE_URL si está configurada (para Docker/producción)
         media_base_url = os.environ.get("MEDIA_BASE_URL", "")

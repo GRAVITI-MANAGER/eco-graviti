@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 
 /**
  * Animation types supported by the scroll-triggered system.
@@ -38,11 +38,10 @@ interface ScrollAnimationOptions {
  *   return <div ref={containerRef}>...</div>
  */
 export function useScrollAnimation<T extends HTMLElement = HTMLDivElement>(
+  externalRef: React.RefObject<T | null>,
   options: ScrollAnimationOptions = {},
   deps: unknown[] = []
 ) {
-  const containerRef = useRef<T>(null);
-
   const {
     threshold = 0.12,
     rootMargin = '0px 0px -40px 0px',
@@ -50,7 +49,7 @@ export function useScrollAnimation<T extends HTMLElement = HTMLDivElement>(
   } = options;
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = externalRef.current;
     if (!container) return;
 
     // Respect prefers-reduced-motion
@@ -98,7 +97,5 @@ export function useScrollAnimation<T extends HTMLElement = HTMLDivElement>(
     elements.forEach((el) => io.observe(el));
     return () => io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threshold, rootMargin, once, ...deps]);
-
-  return containerRef;
+  }, [externalRef, threshold, rootMargin, once, ...deps]);
 }

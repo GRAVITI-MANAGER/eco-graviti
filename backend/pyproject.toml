@@ -4,6 +4,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = [
@@ -18,6 +19,8 @@ ignore = [
   "E501",  # line too long (lo maneja el formatter)
   "B008",  # do not perform function calls in argument defaults (común en Django)
   "B905",  # zip() without strict= (compatible con Python < 3.10)
+  "B904",  # raise from in except (validaciones Django no lo requieren)
+  "E402",  # module-level import not at top (común en Django settings)
 ]
 
 [tool.ruff.lint.isort]

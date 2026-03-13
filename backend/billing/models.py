@@ -16,12 +16,13 @@ Estructura:
 - Invoice: Facturas generadas
 """
 
+import uuid
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
-from django.core.validators import MinValueValidator
-from django.core.exceptions import ValidationError
-from decimal import Decimal
-import uuid
 
 
 class PricingConfig(models.Model):
@@ -37,53 +38,51 @@ class PricingConfig(models.Model):
 
     # Trial
     trial_days = models.PositiveIntegerField(
-        'Días de prueba',
-        default=14,
-        help_text="Días de prueba gratis para nuevas suscripciones"
+        "Días de prueba", default=14, help_text="Días de prueba gratis para nuevas suscripciones"
     )
 
     # Precios de extras globales (pay-as-you-go)
     extra_employee_price = models.DecimalField(
-        'Precio empleado extra',
+        "Precio empleado extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('25000.00'),
-        help_text="Precio mensual por empleado adicional"
+        default=Decimal("25000.00"),
+        help_text="Precio mensual por empleado adicional",
     )
     extra_sms_price = models.DecimalField(
-        'Precio SMS extra',
+        "Precio SMS extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('180.00'),
-        help_text="Precio por SMS adicional"
+        default=Decimal("180.00"),
+        help_text="Precio por SMS adicional",
     )
     extra_whatsapp_price = models.DecimalField(
-        'Precio WhatsApp extra',
+        "Precio WhatsApp extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('250.00'),
-        help_text="Precio por mensaje WhatsApp adicional"
+        default=Decimal("250.00"),
+        help_text="Precio por mensaje WhatsApp adicional",
     )
     extra_appointment_price = models.DecimalField(
-        'Precio cita extra',
+        "Precio cita extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('800.00'),
-        help_text="Precio por cita adicional (sobre límite)"
+        default=Decimal("800.00"),
+        help_text="Precio por cita adicional (sobre límite)",
     )
     extra_storage_price = models.DecimalField(
-        'Precio GB extra',
+        "Precio GB extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('5000.00'),
-        help_text="Precio mensual por GB adicional de almacenamiento"
+        default=Decimal("5000.00"),
+        help_text="Precio mensual por GB adicional de almacenamiento",
     )
     extra_ai_request_price = models.DecimalField(
-        'Precio generación IA extra',
+        "Precio generación IA extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('500.00'),
-        help_text="Precio por generación de IA adicional (~$0.12 USD)"
+        default=Decimal("500.00"),
+        help_text="Precio por generación de IA adicional (~$0.12 USD)",
     )
 
     # Metadata
@@ -91,8 +90,8 @@ class PricingConfig(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Configuración Global'
-        verbose_name_plural = 'Configuración Global'
+        verbose_name = "Configuración Global"
+        verbose_name_plural = "Configuración Global"
 
     def __str__(self):
         return f"Configuración Global (Trial: {self.trial_days} días)"
@@ -123,237 +122,171 @@ class Module(models.Model):
     """
 
     MODULE_SLUGS = [
-        ('web', 'Web'),
-        ('shop', 'Shop'),
-        ('bookings', 'Bookings'),
-        ('services', 'Services'),
-        ('marketing', 'Marketing'),
+        ("web", "Web"),
+        ("shop", "Shop"),
+        ("bookings", "Bookings"),
+        ("services", "Services"),
+        ("marketing", "Marketing"),
     ]
 
     # Identificación
     slug = models.SlugField(
-        'Identificador',
-        max_length=50,
-        unique=True,
-        choices=MODULE_SLUGS,
-        help_text="Identificador único del módulo"
+        "Identificador", max_length=50, unique=True, choices=MODULE_SLUGS, help_text="Identificador único del módulo"
     )
-    name = models.CharField(
-        'Nombre',
-        max_length=100,
-        help_text="Nombre comercial del módulo"
-    )
-    description = models.TextField(
-        'Descripción',
-        help_text="Descripción del módulo para mostrar al cliente"
-    )
-    icon = models.CharField(
-        'Ícono',
-        max_length=50,
-        default='📦',
-        help_text="Emoji o clase de ícono"
-    )
+    name = models.CharField("Nombre", max_length=100, help_text="Nombre comercial del módulo")
+    description = models.TextField("Descripción", help_text="Descripción del módulo para mostrar al cliente")
+    icon = models.CharField("Ícono", max_length=50, default="📦", help_text="Emoji o clase de ícono")
 
     # ¿Es el módulo base requerido?
     is_base = models.BooleanField(
-        'Es módulo base',
+        "Es módulo base",
         default=False,
-        help_text="Si es True, este módulo es requerido para todas las suscripciones (Web)"
+        help_text="Si es True, este módulo es requerido para todas las suscripciones (Web)",
     )
 
     # Versionamiento y vigencia
-    version = models.CharField(
-        'Versión',
-        max_length=20,
-        default='1.0',
-        help_text="Versión del plan (ej: 1.0, 2.0)"
-    )
+    version = models.CharField("Versión", max_length=20, default="1.0", help_text="Versión del plan (ej: 1.0, 2.0)")
     effective_date = models.DateField(
-        'Fecha de vigencia',
-        null=True,
-        blank=True,
-        help_text="Fecha desde la cual aplica este precio"
+        "Fecha de vigencia", null=True, blank=True, help_text="Fecha desde la cual aplica este precio"
     )
 
     # Precios
     monthly_price = models.DecimalField(
-        'Precio Mensual',
+        "Precio Mensual",
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal('0'))],
-        help_text="Precio mensual en COP"
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Precio mensual en COP",
     )
     annual_discount_months = models.PositiveIntegerField(
-        'Meses de descuento (anual)',
-        default=2,
-        help_text="Meses gratis al pagar anual (ej: 2 = paga 10 meses)"
+        "Meses de descuento (anual)", default=2, help_text="Meses gratis al pagar anual (ej: 2 = paga 10 meses)"
     )
 
     # Límites incluidos con este módulo
     included_appointments = models.PositiveIntegerField(
-        'Citas incluidas',
-        default=0,
-        help_text="Citas mensuales incluidas con este módulo (0 = no aplica)"
+        "Citas incluidas", default=0, help_text="Citas mensuales incluidas con este módulo (0 = no aplica)"
     )
     included_employees = models.PositiveIntegerField(
-        'Empleados incluidos',
-        default=0,
-        help_text="Empleados incluidos (0 = no aplica)"
+        "Empleados incluidos", default=0, help_text="Empleados incluidos (0 = no aplica)"
     )
     included_products = models.PositiveIntegerField(
-        'Productos incluidos',
-        default=0,
-        help_text="Productos en catálogo (0 = no aplica/ilimitado)"
+        "Productos incluidos", default=0, help_text="Productos en catálogo (0 = no aplica/ilimitado)"
     )
     included_services = models.PositiveIntegerField(
-        'Servicios incluidos',
-        default=0,
-        help_text="Servicios configurables (0 = no aplica/ilimitado)"
+        "Servicios incluidos", default=0, help_text="Servicios configurables (0 = no aplica/ilimitado)"
     )
-    included_sms = models.PositiveIntegerField(
-        'SMS incluidos',
-        default=0,
-        help_text="SMS incluidos por mes"
-    )
+    included_sms = models.PositiveIntegerField("SMS incluidos", default=0, help_text="SMS incluidos por mes")
     included_whatsapp = models.PositiveIntegerField(
-        'WhatsApp incluidos',
-        default=0,
-        help_text="Mensajes WhatsApp incluidos por mes"
+        "WhatsApp incluidos", default=0, help_text="Mensajes WhatsApp incluidos por mes"
     )
     included_storage_gb = models.PositiveIntegerField(
-        'Almacenamiento (GB)',
-        default=15,
-        help_text="GB de almacenamiento incluidos (0 = no aplica)"
+        "Almacenamiento (GB)", default=15, help_text="GB de almacenamiento incluidos (0 = no aplica)"
     )
     included_ai_requests = models.PositiveIntegerField(
-        'Generaciones IA incluidas',
+        "Generaciones IA incluidas",
         default=0,
-        help_text="Generaciones de IA incluidas por mes (para crear/editar sitio web)"
+        help_text="Generaciones de IA incluidas por mes (para crear/editar sitio web)",
     )
 
     # Precios de extras (por unidad adicional sobre el límite)
     extra_appointment_price = models.DecimalField(
-        'Precio cita extra',
+        "Precio cita extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por cita adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio por cita adicional (0 = no aplica)",
     )
     extra_employee_price = models.DecimalField(
-        'Precio empleado extra',
+        "Precio empleado extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio mensual por empleado adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio mensual por empleado adicional (0 = no aplica)",
     )
     extra_product_price = models.DecimalField(
-        'Precio producto extra',
+        "Precio producto extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por producto adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio por producto adicional (0 = no aplica)",
     )
     extra_sms_price = models.DecimalField(
-        'Precio SMS extra',
+        "Precio SMS extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por SMS adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio por SMS adicional (0 = no aplica)",
     )
     extra_whatsapp_price = models.DecimalField(
-        'Precio WhatsApp extra',
+        "Precio WhatsApp extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por mensaje WhatsApp adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio por mensaje WhatsApp adicional (0 = no aplica)",
     )
     extra_storage_price = models.DecimalField(
-        'Precio GB extra',
+        "Precio GB extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio mensual por GB adicional (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio mensual por GB adicional (0 = no aplica)",
     )
     extra_ai_request_price = models.DecimalField(
-        'Precio generación IA extra',
+        "Precio generación IA extra",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por generación de IA adicional en plan mensual (0 = no aplica)"
+        default=Decimal("0"),
+        help_text="Precio por generación de IA adicional en plan mensual (0 = no aplica)",
     )
 
     # Configuración Trial
     trial_days = models.PositiveIntegerField(
-        'Días de trial',
-        default=14,
-        help_text="Días de prueba para nuevos tenants con este módulo"
+        "Días de trial", default=14, help_text="Días de prueba para nuevos tenants con este módulo"
     )
     trial_included_ai_requests = models.PositiveIntegerField(
-        'Generaciones IA en trial',
-        default=10,
-        help_text="Generaciones de IA incluidas durante el período de prueba"
+        "Generaciones IA en trial", default=10, help_text="Generaciones de IA incluidas durante el período de prueba"
     )
 
     # Configuración Plan Anual (0 = usa valor mensual)
     annual_included_ai_requests = models.PositiveIntegerField(
-        'Generaciones IA (plan anual)',
+        "Generaciones IA (plan anual)",
         default=0,
-        help_text="Generaciones de IA incluidas en plan anual por mes (0 = usa valor mensual)"
+        help_text="Generaciones de IA incluidas en plan anual por mes (0 = usa valor mensual)",
     )
     annual_extra_ai_request_price = models.DecimalField(
-        'Precio generación IA extra (anual)',
+        "Precio generación IA extra (anual)",
         max_digits=8,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Precio por generación de IA adicional en plan anual (0 = usa precio mensual)"
+        default=Decimal("0"),
+        help_text="Precio por generación de IA adicional en plan anual (0 = usa precio mensual)",
     )
 
     # Features especiales del módulo
-    has_analytics = models.BooleanField(
-        'Analytics avanzados',
-        default=False,
-        help_text="Incluye analytics avanzados"
-    )
-    has_api_access = models.BooleanField(
-        'Acceso a API',
-        default=False,
-        help_text="Incluye acceso a API"
-    )
+    has_analytics = models.BooleanField("Analytics avanzados", default=False, help_text="Incluye analytics avanzados")
+    has_api_access = models.BooleanField("Acceso a API", default=False, help_text="Incluye acceso a API")
 
     # Dependencias (ej: marketing podría requerir shop o bookings)
     requires_modules = models.ManyToManyField(
-        'self',
+        "self",
         symmetrical=False,
         blank=True,
-        related_name='required_by',
-        help_text="Módulos requeridos para habilitar este"
+        related_name="required_by",
+        help_text="Módulos requeridos para habilitar este",
     )
 
     # Estado
-    is_active = models.BooleanField(
-        'Activo',
-        default=True,
-        help_text="¿Módulo disponible para contratar?"
-    )
-    is_visible = models.BooleanField(
-        'Visible',
-        default=True,
-        help_text="¿Visible en la página de precios?"
-    )
-    sort_order = models.PositiveIntegerField(
-        'Orden',
-        default=0,
-        help_text="Orden de aparición en la página de precios"
-    )
+    is_active = models.BooleanField("Activo", default=True, help_text="¿Módulo disponible para contratar?")
+    is_visible = models.BooleanField("Visible", default=True, help_text="¿Visible en la página de precios?")
+    sort_order = models.PositiveIntegerField("Orden", default=0, help_text="Orden de aparición en la página de precios")
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['sort_order', 'monthly_price']
-        verbose_name = 'Servicio'
-        verbose_name_plural = 'Servicios'
+        ordering = ["sort_order", "monthly_price"]
+        verbose_name = "Servicio"
+        verbose_name_plural = "Servicios"
 
     def __str__(self):
         return self.name
@@ -380,10 +313,10 @@ class Module(models.Model):
         - Anual (con valor > 0) → annual_included_ai_requests
         - Mensual (o anual sin valor específico) → included_ai_requests
         """
-        if subscription.status == 'trial':
+        if subscription.status == "trial":
             return self.trial_included_ai_requests
 
-        if subscription.billing_period == 'yearly' and self.annual_included_ai_requests > 0:
+        if subscription.billing_period == "yearly" and self.annual_included_ai_requests > 0:
             return self.annual_included_ai_requests
 
         return self.included_ai_requests
@@ -394,7 +327,7 @@ class Module(models.Model):
         - Anual (con valor > 0) → annual_extra_ai_request_price
         - Mensual (o anual sin valor específico) → extra_ai_request_price
         """
-        if subscription.billing_period == 'yearly' and self.annual_extra_ai_request_price > 0:
+        if subscription.billing_period == "yearly" and self.annual_extra_ai_request_price > 0:
             return self.annual_extra_ai_request_price
 
         return self.extra_ai_request_price
@@ -411,114 +344,78 @@ class Subscription(models.Model):
     """
 
     STATUS_CHOICES = [
-        ('trial', 'Período de Prueba'),
-        ('active', 'Activa'),
-        ('past_due', 'Pago Pendiente'),
-        ('canceled', 'Cancelada'),
-        ('expired', 'Expirada'),
+        ("trial", "Período de Prueba"),
+        ("active", "Activa"),
+        ("past_due", "Pago Pendiente"),
+        ("canceled", "Cancelada"),
+        ("expired", "Expirada"),
     ]
 
     BILLING_PERIOD_CHOICES = [
-        ('monthly', 'Mensual'),
-        ('yearly', 'Anual'),
+        ("monthly", "Mensual"),
+        ("yearly", "Anual"),
     ]
 
     # Identificación
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-    tenant = models.OneToOneField(
-        'core.Tenant',
-        on_delete=models.CASCADE,
-        related_name='subscription'
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.OneToOneField("core.Tenant", on_delete=models.CASCADE, related_name="subscription")
 
     # [DEPRECATED] Plan - Se mantiene para compatibilidad durante migración
     plan = models.ForeignKey(
-        'Plan',
+        "Plan",
         on_delete=models.PROTECT,
-        related_name='subscriptions',
+        related_name="subscriptions",
         null=True,
         blank=True,
-        help_text="[DEPRECATED] Usar módulos en su lugar"
+        help_text="[DEPRECATED] Usar módulos en su lugar",
     )
 
     # Módulos contratados
     modules = models.ManyToManyField(
         Module,
-        through='SubscriptionModule',
+        through="SubscriptionModule",
         blank=True,
-        related_name='subscriptions',
-        help_text="Módulos adicionales contratados"
+        related_name="subscriptions",
+        help_text="Módulos adicionales contratados",
     )
 
     # Período de facturación
     billing_period = models.CharField(
-        'Período de facturación',
-        max_length=20,
-        choices=BILLING_PERIOD_CHOICES,
-        default='monthly'
+        "Período de facturación", max_length=20, choices=BILLING_PERIOD_CHOICES, default="monthly"
     )
 
     # Features adicionales (comprados aparte de módulos)
     has_custom_domain = models.BooleanField(
-        'Dominio personalizado',
-        default=False,
-        help_text="Dominio personalizado contratado"
+        "Dominio personalizado", default=False, help_text="Dominio personalizado contratado"
     )
     has_priority_support = models.BooleanField(
-        'Soporte prioritario',
-        default=False,
-        help_text="Soporte prioritario contratado"
+        "Soporte prioritario", default=False, help_text="Soporte prioritario contratado"
     )
     has_white_label = models.BooleanField(
-        'Sin branding (White Label)',
-        default=False,
-        help_text="Sin branding de NERBIS"
+        "Sin branding (White Label)", default=False, help_text="Sin branding de NERBIS"
     )
 
     # Fechas
     started_at = models.DateTimeField(
-        'Fecha de inicio',
-        default=timezone.now,
-        help_text="Fecha de inicio de la suscripción"
+        "Fecha de inicio", default=timezone.now, help_text="Fecha de inicio de la suscripción"
     )
     current_period_start = models.DateTimeField(
-        'Inicio del período',
-        help_text="Inicio del período de facturación actual"
+        "Inicio del período", help_text="Inicio del período de facturación actual"
     )
-    current_period_end = models.DateTimeField(
-        'Fin del período',
-        help_text="Fin del período de facturación actual"
-    )
+    current_period_end = models.DateTimeField("Fin del período", help_text="Fin del período de facturación actual")
     trial_ends_at = models.DateTimeField(
-        'Fin del trial',
-        null=True,
-        blank=True,
-        help_text="Fecha de fin del período de prueba"
+        "Fin del trial", null=True, blank=True, help_text="Fecha de fin del período de prueba"
     )
     canceled_at = models.DateTimeField(
-        'Fecha de cancelación',
-        null=True,
-        blank=True,
-        help_text="Fecha de cancelación (si aplica)"
+        "Fecha de cancelación", null=True, blank=True, help_text="Fecha de cancelación (si aplica)"
     )
 
     # Estado
-    status = models.CharField(
-        'Estado',
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='trial'
-    )
+    status = models.CharField("Estado", max_length=20, choices=STATUS_CHOICES, default="trial")
 
     # Extras contratados (beyond module limits)
     extra_employees = models.PositiveIntegerField(
-        'Empleados adicionales',
-        default=0,
-        help_text="Empleados adicionales contratados"
+        "Empleados adicionales", default=0, help_text="Empleados adicionales contratados"
     )
 
     # Metadata
@@ -526,8 +423,8 @@ class Subscription(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Suscripción'
-        verbose_name_plural = 'Suscripciones'
+        verbose_name = "Suscripción"
+        verbose_name_plural = "Suscripciones"
 
     def __str__(self):
         return f"{self.tenant.name} - ${self.monthly_total:,.0f}/mes ({self.get_status_display()})"
@@ -535,12 +432,12 @@ class Subscription(models.Model):
     @property
     def is_active(self):
         """Suscripción activa (incluye trial y active)."""
-        return self.status in ('trial', 'active')
+        return self.status in ("trial", "active")
 
     @property
     def is_trial(self):
         """¿Está en período de prueba?"""
-        return self.status == 'trial'
+        return self.status == "trial"
 
     @property
     def days_remaining(self):
@@ -565,9 +462,7 @@ class Subscription(models.Model):
     @property
     def _has_non_base_modules(self):
         """Verifica si hay módulos activos además del base (Web)."""
-        return self.subscription_modules.filter(
-            is_active=True, module__is_base=False
-        ).exists()
+        return self.subscription_modules.filter(is_active=True, module__is_base=False).exists()
 
     @property
     def modules_monthly_price(self):
@@ -577,7 +472,7 @@ class Subscription(models.Model):
         Si solo tiene Web, se cobra su precio normal.
         """
         skip_base = self._has_non_base_modules
-        total = Decimal('0')
+        total = Decimal("0")
         for sm in self.subscription_modules.filter(is_active=True):
             if skip_base and sm.module.is_base:
                 continue
@@ -614,7 +509,7 @@ class Subscription(models.Model):
     @property
     def current_period_price(self):
         """Precio del período actual (mensual o anual)."""
-        if self.billing_period == 'yearly':
+        if self.billing_period == "yearly":
             return self.yearly_total
         return self.monthly_total
 
@@ -624,10 +519,7 @@ class Subscription(models.Model):
 
     def has_module(self, module_slug):
         """Verifica si tiene un módulo activo."""
-        return self.subscription_modules.filter(
-            module__slug=module_slug,
-            is_active=True
-        ).exists()
+        return self.subscription_modules.filter(module__slug=module_slug, is_active=True).exists()
 
     def add_module(self, module, lock_price=True):
         """
@@ -643,10 +535,7 @@ class Subscription(models.Model):
         sm, created = SubscriptionModule.objects.get_or_create(
             subscription=self,
             module=module,
-            defaults={
-                'price_locked': module.monthly_price if lock_price else None,
-                'is_active': True
-            }
+            defaults={"price_locked": module.monthly_price if lock_price else None, "is_active": True},
         )
         if not created and not sm.is_active:
             sm.is_active = True
@@ -656,9 +545,9 @@ class Subscription(models.Model):
 
     def remove_module(self, module_slug):
         """Desactiva un módulo (no lo elimina para mantener historial)."""
-        self.subscription_modules.filter(
-            module__slug=module_slug
-        ).update(is_active=False, deactivated_at=timezone.now())
+        self.subscription_modules.filter(module__slug=module_slug).update(
+            is_active=False, deactivated_at=timezone.now()
+        )
 
     def sync_modules_to_tenant(self):
         """
@@ -674,20 +563,15 @@ class Subscription(models.Model):
             return
 
         # Obtener módulos activos
-        active_modules = set(
-            self.subscription_modules.filter(is_active=True)
-            .values_list('module__slug', flat=True)
-        )
+        active_modules = set(self.subscription_modules.filter(is_active=True).values_list("module__slug", flat=True))
 
         # Actualizar flags del tenant
-        tenant.has_shop = 'shop' in active_modules
-        tenant.has_bookings = 'bookings' in active_modules
-        tenant.has_services = 'services' in active_modules
-        tenant.has_marketing = 'marketing' in active_modules
+        tenant.has_shop = "shop" in active_modules
+        tenant.has_bookings = "bookings" in active_modules
+        tenant.has_services = "services" in active_modules
+        tenant.has_marketing = "marketing" in active_modules
 
-        tenant.save(update_fields=[
-            'has_shop', 'has_bookings', 'has_services', 'has_marketing'
-        ])
+        tenant.save(update_fields=["has_shop", "has_bookings", "has_services", "has_marketing"])
 
     # ===================================
     # LÍMITES
@@ -704,7 +588,7 @@ class Subscription(models.Model):
         Returns:
             int: Límite total, o None si es ilimitado
         """
-        field_name = f'included_{resource}'
+        field_name = f"included_{resource}"
 
         # Sumar límites de todos los módulos activos
         total = sum(
@@ -720,7 +604,7 @@ class Subscription(models.Model):
                     return None  # Ilimitado
 
         # Sumar extras si aplica
-        if resource == 'employees':
+        if resource == "employees":
             total += self.extra_employees
 
         return total if total > 0 else None
@@ -734,7 +618,7 @@ class Subscription(models.Model):
             return True  # Ilimitado
 
         # Recursos con límite fijo
-        if resource == 'employees':
+        if resource == "employees":
             return current_usage < limit
 
         # Recursos pay-as-you-go siempre permitidos
@@ -758,48 +642,30 @@ class SubscriptionModule(models.Model):
     - Mantener historial de módulos
     """
 
-    subscription = models.ForeignKey(
-        Subscription,
-        on_delete=models.CASCADE,
-        related_name='subscription_modules'
-    )
-    module = models.ForeignKey(
-        Module,
-        on_delete=models.PROTECT,
-        related_name='subscription_modules'
-    )
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="subscription_modules")
+    module = models.ForeignKey(Module, on_delete=models.PROTECT, related_name="subscription_modules")
 
     # Precio bloqueado al momento de contratar
     price_locked = models.DecimalField(
-        'Precio bloqueado',
+        "Precio bloqueado",
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Precio mensual al momento de contratar (para grandfathering)"
+        help_text="Precio mensual al momento de contratar (para grandfathering)",
     )
 
     # Estado
-    is_active = models.BooleanField(
-        'Activo',
-        default=True
-    )
+    is_active = models.BooleanField("Activo", default=True)
 
     # Fechas
-    activated_at = models.DateTimeField(
-        'Fecha de activación',
-        auto_now_add=True
-    )
-    deactivated_at = models.DateTimeField(
-        'Fecha de desactivación',
-        null=True,
-        blank=True
-    )
+    activated_at = models.DateTimeField("Fecha de activación", auto_now_add=True)
+    deactivated_at = models.DateTimeField("Fecha de desactivación", null=True, blank=True)
 
     class Meta:
-        unique_together = ['subscription', 'module']
-        verbose_name = 'Módulo de Suscripción'
-        verbose_name_plural = 'Módulos de Suscripción'
+        unique_together = ["subscription", "module"]
+        verbose_name = "Módulo de Suscripción"
+        verbose_name_plural = "Módulos de Suscripción"
 
     def __str__(self):
         status = "✓" if self.is_active else "✗"
@@ -816,98 +682,61 @@ class SubscriptionModule(models.Model):
 # (Se mantienen igual pero adaptados)
 # ===================================
 
+
 class UsageRecord(models.Model):
     """
     Registro de uso para facturación pay-as-you-go.
     """
 
     RESOURCE_CHOICES = [
-        ('appointment', 'Cita'),
-        ('sms', 'SMS'),
-        ('whatsapp', 'WhatsApp'),
-        ('employee', 'Empleado'),
-        ('ai_request', 'Generación IA'),
+        ("appointment", "Cita"),
+        ("sms", "SMS"),
+        ("whatsapp", "WhatsApp"),
+        ("employee", "Empleado"),
+        ("ai_request", "Generación IA"),
     ]
 
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-    subscription = models.ForeignKey(
-        Subscription,
-        on_delete=models.CASCADE,
-        related_name='usage_records'
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="usage_records")
 
     # Qué se usó
-    resource = models.CharField(
-        max_length=50,
-        choices=RESOURCE_CHOICES
-    )
-    quantity = models.PositiveIntegerField(
-        default=1,
-        help_text="Cantidad usada"
-    )
+    resource = models.CharField(max_length=50, choices=RESOURCE_CHOICES)
+    quantity = models.PositiveIntegerField(default=1, help_text="Cantidad usada")
 
     # Cuándo
     recorded_at = models.DateTimeField(default=timezone.now)
-    period_start = models.DateField(
-        help_text="Inicio del período de facturación"
-    )
-    period_end = models.DateField(
-        help_text="Fin del período de facturación"
-    )
+    period_start = models.DateField(help_text="Inicio del período de facturación")
+    period_end = models.DateField(help_text="Fin del período de facturación")
 
     # Referencia al objeto que generó el uso
-    content_type = models.ForeignKey(
-        'contenttypes.ContentType',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
-    object_id = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="ID del objeto relacionado"
-    )
+    content_type = models.ForeignKey("contenttypes.ContentType", on_delete=models.SET_NULL, null=True, blank=True)
+    object_id = models.CharField(max_length=100, blank=True, help_text="ID del objeto relacionado")
 
     # Facturación
-    is_billable = models.BooleanField(
-        default=True,
-        help_text="¿Se debe cobrar?"
-    )
+    is_billable = models.BooleanField(default=True, help_text="¿Se debe cobrar?")
     unit_price = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text="Precio unitario al momento del registro"
+        max_digits=8, decimal_places=2, null=True, blank=True, help_text="Precio unitario al momento del registro"
     )
     invoice = models.ForeignKey(
-        'Invoice',
+        "Invoice",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='usage_records',
-        help_text="Factura donde se cobró este uso"
+        related_name="usage_records",
+        help_text="Factura donde se cobró este uso",
     )
 
     # Metadata
-    description = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text="Descripción del uso"
-    )
+    description = models.CharField(max_length=255, blank=True, help_text="Descripción del uso")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-recorded_at']
-        verbose_name = 'Registro de Uso'
-        verbose_name_plural = 'Registros de Uso'
+        ordering = ["-recorded_at"]
+        verbose_name = "Registro de Uso"
+        verbose_name_plural = "Registros de Uso"
         indexes = [
-            models.Index(fields=['subscription', 'resource', 'period_start']),
-            models.Index(fields=['subscription', 'period_start', 'period_end']),
+            models.Index(fields=["subscription", "resource", "period_start"]),
+            models.Index(fields=["subscription", "period_start", "period_end"]),
         ]
 
     def __str__(self):
@@ -920,31 +749,19 @@ class Invoice(models.Model):
     """
 
     STATUS_CHOICES = [
-        ('draft', 'Borrador'),
-        ('pending', 'Pendiente'),
-        ('paid', 'Pagada'),
-        ('failed', 'Pago Fallido'),
-        ('void', 'Anulada'),
-        ('refunded', 'Reembolsada'),
+        ("draft", "Borrador"),
+        ("pending", "Pendiente"),
+        ("paid", "Pagada"),
+        ("failed", "Pago Fallido"),
+        ("void", "Anulada"),
+        ("refunded", "Reembolsada"),
     ]
 
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-    subscription = models.ForeignKey(
-        Subscription,
-        on_delete=models.CASCADE,
-        related_name='invoices'
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="invoices")
 
     # Número de factura
-    number = models.CharField(
-        max_length=50,
-        unique=True,
-        help_text="Número de factura (ej: INV-2024-001)"
-    )
+    number = models.CharField(max_length=50, unique=True, help_text="Número de factura (ej: INV-2024-001)")
 
     # Período
     period_start = models.DateField()
@@ -952,60 +769,39 @@ class Invoice(models.Model):
 
     # Montos (COP)
     subtotal_base = models.DecimalField(
-        'Cargo base',
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text="Cargo por web estática (base)"
+        "Cargo base", max_digits=12, decimal_places=2, default=Decimal("0"), help_text="Cargo por web estática (base)"
     )
     subtotal_modules = models.DecimalField(
-        'Cargo módulos',
+        "Cargo módulos",
         max_digits=12,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Cargo por módulos adicionales"
+        default=Decimal("0"),
+        help_text="Cargo por módulos adicionales",
     )
     subtotal_extras = models.DecimalField(
-        'Cargo extras',
+        "Cargo extras",
         max_digits=12,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Cargo por extras fijos (empleados adicionales)"
+        default=Decimal("0"),
+        help_text="Cargo por extras fijos (empleados adicionales)",
     )
     subtotal_usage = models.DecimalField(
-        'Cargo uso',
+        "Cargo uso",
         max_digits=12,
         decimal_places=2,
-        default=Decimal('0'),
-        help_text="Cargo por uso adicional (pay-as-you-go)"
+        default=Decimal("0"),
+        help_text="Cargo por uso adicional (pay-as-you-go)",
     )
     discount = models.DecimalField(
-        'Descuento',
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text="Descuento aplicado"
+        "Descuento", max_digits=12, decimal_places=2, default=Decimal("0"), help_text="Descuento aplicado"
     )
     tax = models.DecimalField(
-        'Impuesto',
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal('0'),
-        help_text="IVA u otros impuestos"
+        "Impuesto", max_digits=12, decimal_places=2, default=Decimal("0"), help_text="IVA u otros impuestos"
     )
-    total = models.DecimalField(
-        'Total',
-        max_digits=12,
-        decimal_places=2,
-        help_text="Total a pagar"
-    )
+    total = models.DecimalField("Total", max_digits=12, decimal_places=2, help_text="Total a pagar")
 
     # Estado
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='draft'
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
 
     # Fechas
     issued_at = models.DateTimeField(null=True, blank=True)
@@ -1024,9 +820,9 @@ class Invoice(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-period_start']
-        verbose_name = 'Factura'
-        verbose_name_plural = 'Facturas'
+        ordering = ["-period_start"]
+        verbose_name = "Factura"
+        verbose_name_plural = "Facturas"
 
     def __str__(self):
         return f"{self.number} - {self.subscription.tenant.name} (${self.total:,.0f})"
@@ -1038,12 +834,7 @@ class Invoice(models.Model):
 
     def calculate_total(self):
         """Calcula el total de la factura."""
-        subtotal = (
-            self.subtotal_base +
-            self.subtotal_modules +
-            self.subtotal_extras +
-            self.subtotal_usage
-        )
+        subtotal = self.subtotal_base + self.subtotal_modules + self.subtotal_extras + self.subtotal_usage
         self.total = subtotal - self.discount + self.tax
 
 
@@ -1053,43 +844,31 @@ class InvoiceLineItem(models.Model):
     """
 
     LINE_TYPE_CHOICES = [
-        ('base', 'Web Base'),
-        ('module', 'Módulo'),
-        ('extra_employee', 'Empleado Adicional'),
-        ('usage_appointment', 'Citas Adicionales'),
-        ('usage_sms', 'SMS Adicionales'),
-        ('usage_whatsapp', 'WhatsApp Adicionales'),
-        ('usage_ai', 'Generaciones IA Adicionales'),
-        ('discount', 'Descuento'),
-        ('tax', 'Impuesto'),
+        ("base", "Web Base"),
+        ("module", "Módulo"),
+        ("extra_employee", "Empleado Adicional"),
+        ("usage_appointment", "Citas Adicionales"),
+        ("usage_sms", "SMS Adicionales"),
+        ("usage_whatsapp", "WhatsApp Adicionales"),
+        ("usage_ai", "Generaciones IA Adicionales"),
+        ("discount", "Descuento"),
+        ("tax", "Impuesto"),
     ]
 
-    invoice = models.ForeignKey(
-        Invoice,
-        on_delete=models.CASCADE,
-        related_name='line_items'
-    )
-    line_type = models.CharField(
-        max_length=50,
-        choices=LINE_TYPE_CHOICES
-    )
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="line_items")
+    line_type = models.CharField(max_length=50, choices=LINE_TYPE_CHOICES)
     description = models.CharField(max_length=255)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     total = models.DecimalField(max_digits=12, decimal_places=2)
 
     # Referencia al módulo (si aplica)
-    module = models.ForeignKey(
-        Module,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
+    module = models.ForeignKey(Module, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
-        ordering = ['id']
-        verbose_name = 'Línea de Factura'
-        verbose_name_plural = 'Líneas de Factura'
+        ordering = ["id"]
+        verbose_name = "Línea de Factura"
+        verbose_name_plural = "Líneas de Factura"
 
     def __str__(self):
         return f"{self.description} - ${self.total:,.0f}"
@@ -1103,6 +882,7 @@ class InvoiceLineItem(models.Model):
 # ===================================
 # MODELO PLAN (DEPRECATED - Solo para migración)
 # ===================================
+
 
 class Plan(models.Model):
     """
@@ -1129,10 +909,10 @@ class Plan(models.Model):
     included_services = models.PositiveIntegerField(default=10)
 
     # Precios extras
-    extra_appointment_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('800.00'))
-    extra_employee_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('29000.00'))
-    extra_sms_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('180.00'))
-    extra_whatsapp_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('250.00'))
+    extra_appointment_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("800.00"))
+    extra_employee_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("29000.00"))
+    extra_sms_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("180.00"))
+    extra_whatsapp_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("250.00"))
 
     # Features
     has_analytics = models.BooleanField(default=False)
@@ -1156,9 +936,9 @@ class Plan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['sort_order']
-        verbose_name = '[DEPRECATED] Plan'
-        verbose_name_plural = '[DEPRECATED] Planes'
+        ordering = ["sort_order"]
+        verbose_name = "[DEPRECATED] Plan"
+        verbose_name_plural = "[DEPRECATED] Planes"
 
     def __str__(self):
         return f"[DEP] {self.name}"
@@ -1169,6 +949,4 @@ class Plan(models.Model):
         tenant.has_bookings = self.includes_bookings
         tenant.has_services = self.includes_services
         tenant.has_marketing = self.includes_marketing
-        tenant.save(update_fields=[
-            'has_shop', 'has_bookings', 'has_services', 'has_marketing'
-        ])
+        tenant.save(update_fields=["has_shop", "has_bookings", "has_services", "has_marketing"])

@@ -1,12 +1,15 @@
 # backend/bookings/serializers.py
 
-from rest_framework import serializers
+from datetime import timedelta
+
 from django.db import models
 from django.utils import timezone
-from datetime import datetime, timedelta
+from rest_framework import serializers
+
 from core.serializers import UserSerializer
-from services.serializers import ServiceListSerializer, ServiceDetailSerializer, StaffMemberListSerializer
-from .models import BusinessHours, TimeOff, Appointment
+from services.serializers import ServiceDetailSerializer, ServiceListSerializer, StaffMemberListSerializer
+
+from .models import Appointment, BusinessHours, TimeOff
 
 
 class BusinessHoursSerializer(serializers.ModelSerializer):
@@ -142,9 +145,7 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         # Verificar que no se reserve una cita consigo mismo
         request = self.context.get("request")
         if staff_member and request and hasattr(staff_member, "user") and staff_member.user == request.user:
-            raise serializers.ValidationError(
-                {"staff_member": "No puedes reservar una cita contigo mismo"}
-            )
+            raise serializers.ValidationError({"staff_member": "No puedes reservar una cita contigo mismo"})
 
         # Verificar que el staff member puede dar ese servicio
         if staff_member and service:
@@ -183,38 +184,46 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
 
             # Verificar que el staff member no tenga otra cita en ese horario
             now = timezone.now()
-            staff_conflict = Appointment.objects.filter(
-                tenant=request.tenant,
-                staff_member=staff_member,
-                start_datetime__lt=end_datetime,
-                end_datetime__gt=start_datetime,
-            ).filter(
-                models.Q(status__in=["confirmed", "in_progress"])
-                | models.Q(status="pending", expires_at__gt=now)
-                | models.Q(status="pending", expires_at__isnull=True)
-            ).exists()
+            staff_conflict = (
+                Appointment.objects.filter(
+                    tenant=request.tenant,
+                    staff_member=staff_member,
+                    start_datetime__lt=end_datetime,
+                    end_datetime__gt=start_datetime,
+                )
+                .filter(
+                    models.Q(status__in=["confirmed", "in_progress"])
+                    | models.Q(status="pending", expires_at__gt=now)
+                    | models.Q(status="pending", expires_at__isnull=True)
+                )
+                .exists()
+            )
 
             if staff_conflict:
                 raise serializers.ValidationError(
-                    {"start_datetime": "Este horario ya no está disponible para este profesional. Por favor seleccione otro."}
+                    {
+                        "start_datetime": "Este horario ya no está disponible para este profesional. Por favor seleccione otro."
+                    }
                 )
 
             # Verificar que el cliente no tenga otra cita a la misma hora
-            customer_conflict = Appointment.objects.filter(
-                tenant=request.tenant,
-                customer=request.user,
-                start_datetime__lt=end_datetime,
-                end_datetime__gt=start_datetime,
-            ).filter(
-                models.Q(status__in=["confirmed", "in_progress"])
-                | models.Q(status="pending", expires_at__gt=now)
-                | models.Q(status="pending", expires_at__isnull=True)
-            ).exists()
+            customer_conflict = (
+                Appointment.objects.filter(
+                    tenant=request.tenant,
+                    customer=request.user,
+                    start_datetime__lt=end_datetime,
+                    end_datetime__gt=start_datetime,
+                )
+                .filter(
+                    models.Q(status__in=["confirmed", "in_progress"])
+                    | models.Q(status="pending", expires_at__gt=now)
+                    | models.Q(status="pending", expires_at__isnull=True)
+                )
+                .exists()
+            )
 
             if customer_conflict:
-                raise serializers.ValidationError(
-                    {"start_datetime": "Ya tienes una cita programada en este horario."}
-                )
+                raise serializers.ValidationError({"start_datetime": "Ya tienes una cita programada en este horario."})
 
         return attrs
 
@@ -238,6 +247,7 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         # Estado inicial
         validated_data["status"] = "pending"
         from django.conf import settings
+
         validated_data["expires_at"] = timezone.now() + timedelta(minutes=settings.BOOKING_HOLD_MINUTES)
 
         appointment = super().create(validated_data)
@@ -310,9 +320,7 @@ class GuestBookingSerializer(serializers.Serializer):
 
         # Verificar que el staff puede dar el servicio
         if not service.assigned_staff.filter(id=staff_member.id).exists():
-            raise serializers.ValidationError(
-                {"staff_member_id": "Este profesional no puede realizar este servicio"}
-            )
+            raise serializers.ValidationError({"staff_member_id": "Este profesional no puede realizar este servicio"})
 
         # Verificar anticipación mínima
         now = timezone.now()
@@ -326,29 +334,37 @@ class GuestBookingSerializer(serializers.Serializer):
 
         if hours_until < service.min_advance_booking_hours:
             raise serializers.ValidationError(
-                {"start_datetime": f"Debe reservar con al menos {service.min_advance_booking_hours} horas de anticipación"}
+                {
+                    "start_datetime": f"Debe reservar con al menos {service.min_advance_booking_hours} horas de anticipación"
+                }
             )
 
         # Verificar anticipación máxima
         days_until = (start_datetime - timezone.now()).days
         if days_until > service.max_advance_booking_days:
             raise serializers.ValidationError(
-                {"start_datetime": f"No puede reservar con más de {service.max_advance_booking_days} días de anticipación"}
+                {
+                    "start_datetime": f"No puede reservar con más de {service.max_advance_booking_days} días de anticipación"
+                }
             )
 
         # Verificar que el slot esté disponible (no haya otra cita)
         end_datetime = start_datetime + timedelta(minutes=service.duration_minutes)
         now = timezone.now()
-        conflicting = Appointment.objects.filter(
-            tenant=tenant,
-            staff_member=staff_member,
-            start_datetime__lt=end_datetime,
-            end_datetime__gt=start_datetime,
-        ).filter(
-            models.Q(status__in=["confirmed", "in_progress"])
-            | models.Q(status="pending", expires_at__gt=now)
-            | models.Q(status="pending", expires_at__isnull=True)
-        ).exists()
+        conflicting = (
+            Appointment.objects.filter(
+                tenant=tenant,
+                staff_member=staff_member,
+                start_datetime__lt=end_datetime,
+                end_datetime__gt=start_datetime,
+            )
+            .filter(
+                models.Q(status__in=["confirmed", "in_progress"])
+                | models.Q(status="pending", expires_at__gt=now)
+                | models.Q(status="pending", expires_at__isnull=True)
+            )
+            .exists()
+        )
 
         if conflicting:
             raise serializers.ValidationError(

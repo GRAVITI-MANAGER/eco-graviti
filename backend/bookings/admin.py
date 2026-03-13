@@ -1,12 +1,14 @@
 # backend/bookings/admin.py
 
 from django.contrib import admin
+from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.utils import timezone
-from .models import BusinessHours, TimeOff, Appointment
-from core.admin_site import nerbis_admin_site
+
 from core.admin import BookingsModuleAdmin
+from core.admin_site import nerbis_admin_site
+
+from .models import Appointment, BusinessHours, TimeOff
 
 
 @admin.register(BusinessHours, site=nerbis_admin_site)

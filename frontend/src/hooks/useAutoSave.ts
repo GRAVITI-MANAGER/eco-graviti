@@ -29,7 +29,11 @@ export function useAutoSave({
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSavingRef = useRef(false);
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+
+  // Keep onSaveRef in sync with latest onSave callback
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
   // Clear all timers on unmount
   useEffect(() => {
@@ -62,14 +66,16 @@ export function useAutoSave({
     if (!hasChanges) return;
     if (isSavingRef.current) return;
 
-    setStatus('unsaved');
-
     // Clear previous timer
     if (timerRef.current) clearTimeout(timerRef.current);
 
+    // Mark as unsaved then start debounce
     timerRef.current = setTimeout(() => {
-      doSave();
-    }, delay);
+      setStatus('unsaved');
+      timerRef.current = setTimeout(() => {
+        doSave();
+      }, delay);
+    }, 0);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -80,7 +86,8 @@ export function useAutoSave({
   useEffect(() => {
     if (!hasChanges && status === 'unsaved') {
       if (timerRef.current) clearTimeout(timerRef.current);
-      setStatus('idle');
+      const t = setTimeout(() => setStatus('idle'), 0);
+      return () => clearTimeout(t);
     }
   }, [hasChanges, status]);
 

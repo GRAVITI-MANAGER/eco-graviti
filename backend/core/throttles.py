@@ -10,6 +10,7 @@ throttle_cache = caches["throttle"]
 
 class LoginThrottle(SimpleRateThrottle):
     """5 intentos de login por minuto por IP."""
+
     scope = "login"
     cache = throttle_cache
 
@@ -22,6 +23,7 @@ class LoginThrottle(SimpleRateThrottle):
 
 class RegisterThrottle(SimpleRateThrottle):
     """3 registros por minuto por IP."""
+
     scope = "register"
     cache = throttle_cache
 
@@ -34,6 +36,7 @@ class RegisterThrottle(SimpleRateThrottle):
 
 class OTPRequestThrottle(SimpleRateThrottle):
     """3 solicitudes de OTP por minuto por IP."""
+
     scope = "otp_request"
     cache = throttle_cache
 
@@ -46,6 +49,7 @@ class OTPRequestThrottle(SimpleRateThrottle):
 
 class OTPVerifyThrottle(SimpleRateThrottle):
     """5 verificaciones de OTP por minuto por IP."""
+
     scope = "otp_verify"
     cache = throttle_cache
 
@@ -58,6 +62,7 @@ class OTPVerifyThrottle(SimpleRateThrottle):
 
 class PasswordResetThrottle(SimpleRateThrottle):
     """3 resets de contraseña por minuto por IP."""
+
     scope = "password_reset"
     cache = throttle_cache
 
