@@ -9,23 +9,23 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    WebsiteTemplateViewSet,
-    WebsiteConfigViewSet,
-    StartOnboardingView,
-    SaveOnboardingResponsesView,
-    OnboardingStatusView,
-    GenerateContentView,
-    ChatView,
-    SuggestSeoView,
-    UploadWebsiteMediaView,
-    PublishWebsiteView,
-    PreviewWebsiteView,
-    PreviewRenderView,
-    ReorderSectionsView,
     AddSectionView,
-    RemoveSectionView,
+    ChatView,
     DuplicateSectionView,
+    GenerateContentView,
+    OnboardingStatusView,
+    PreviewRenderView,
+    PreviewWebsiteView,
+    PublishWebsiteView,
+    RemoveSectionView,
+    ReorderSectionsView,
+    SaveOnboardingResponsesView,
+    StartOnboardingView,
+    SuggestSeoView,
     UpdateSectionVariantView,
+    UploadWebsiteMediaView,
+    WebsiteConfigViewSet,
+    WebsiteTemplateViewSet,
 )
 
 router = DefaultRouter()

@@ -10,7 +10,6 @@ servicios, industria) para máxima relevancia.
 import logging
 import re
 import requests
-from typing import Dict, List
 
 from django.conf import settings
 from django.core.cache import cache
@@ -74,7 +73,7 @@ class UnsplashService:
         query: str,
         per_page: int = 5,
         orientation: str = 'landscape',
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Busca fotos en Unsplash API con cache."""
         if not self.is_configured:
             return []
@@ -107,11 +106,11 @@ class UnsplashService:
 
     def get_images_for_generation(
         self,
-        sections: List[str],
-        onboarding_responses: Dict[str, str],
+        sections: list[str],
+        onboarding_responses: dict[str, str],
         tenant_industry: str = '',
         template_industry: str = 'generic',
-    ) -> Dict[str, List[Dict]]:
+    ) -> dict[str, list[dict]]:
         """
         Busca imágenes relevantes usando TODA la info del onboarding.
 
@@ -122,12 +121,12 @@ class UnsplashService:
 
         Args:
             sections: IDs de secciones generadas (hero, about, services, ...)
-            onboarding_responses: Dict con todas las respuestas del onboarding
+            onboarding_responses: dict con todas las respuestas del onboarding
             tenant_industry: Industria del tenant (ej: 'bakery', 'yoga')
             template_industry: Industria del template (fallback)
 
         Returns:
-            Dict con section_id → lista de imágenes.
+            dict con section_id → lista de imágenes.
         """
         if not self.is_configured:
             return {}
@@ -261,7 +260,7 @@ class UnsplashService:
         except Exception:
             pass
 
-    def _format_photo(self, photo: Dict) -> Dict:
+    def _format_photo(self, photo: dict) -> dict:
         """Formatea respuesta de Unsplash API a nuestro formato interno."""
         return {
             'id': photo['id'],

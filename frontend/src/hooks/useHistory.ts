@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 
 const MAX_HISTORY = 30;
 
@@ -17,24 +17,33 @@ export function useHistory<T>(current: T, onApply: (state: T) => void) {
   const pointerRef = useRef(0);
   const isUndoRedoRef = useRef(false);
   const lastValueRef = useRef(current);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const updateFlags = useCallback(() => {
+    setCanUndo(pointerRef.current > 0);
+    setCanRedo(pointerRef.current < historyRef.current.length - 1);
+  }, []);
 
   // Detect external changes and push to history
-  if (
-    !isUndoRedoRef.current &&
-    JSON.stringify(current) !== JSON.stringify(lastValueRef.current) &&
-    JSON.stringify(current) !== JSON.stringify(historyRef.current[pointerRef.current])
-  ) {
-    const next = historyRef.current.slice(0, pointerRef.current + 1);
-    next.push(structuredClone(current));
-    if (next.length > MAX_HISTORY) next.shift();
-    historyRef.current = next;
-    pointerRef.current = next.length - 1;
-    lastValueRef.current = current;
-  }
-  isUndoRedoRef.current = false;
-
-  const canUndo = pointerRef.current > 0;
-  const canRedo = pointerRef.current < historyRef.current.length - 1;
+  useEffect(() => {
+    if (isUndoRedoRef.current) {
+      isUndoRedoRef.current = false;
+      return;
+    }
+    if (
+      JSON.stringify(current) !== JSON.stringify(lastValueRef.current) &&
+      JSON.stringify(current) !== JSON.stringify(historyRef.current[pointerRef.current])
+    ) {
+      const next = historyRef.current.slice(0, pointerRef.current + 1);
+      next.push(structuredClone(current));
+      if (next.length > MAX_HISTORY) next.shift();
+      historyRef.current = next;
+      pointerRef.current = next.length - 1;
+      lastValueRef.current = current;
+      updateFlags();
+    }
+  }, [current, updateFlags]);
 
   const undo = useCallback(() => {
     if (pointerRef.current > 0) {
@@ -42,9 +51,10 @@ export function useHistory<T>(current: T, onApply: (state: T) => void) {
       isUndoRedoRef.current = true;
       const state = structuredClone(historyRef.current[pointerRef.current]);
       lastValueRef.current = state;
+      updateFlags();
       onApply(state);
     }
-  }, [onApply]);
+  }, [onApply, updateFlags]);
 
   const redo = useCallback(() => {
     if (pointerRef.current < historyRef.current.length - 1) {
@@ -52,16 +62,18 @@ export function useHistory<T>(current: T, onApply: (state: T) => void) {
       isUndoRedoRef.current = true;
       const state = structuredClone(historyRef.current[pointerRef.current]);
       lastValueRef.current = state;
+      updateFlags();
       onApply(state);
     }
-  }, [onApply]);
+  }, [onApply, updateFlags]);
 
   const reset = useCallback((initial?: T) => {
     const val = initial !== undefined ? structuredClone(initial) : structuredClone(current);
     historyRef.current = [val];
     pointerRef.current = 0;
     lastValueRef.current = val;
-  }, [current]);
+    updateFlags();
+  }, [current, updateFlags]);
 
   return { canUndo, canRedo, undo, redo, reset };
 }
