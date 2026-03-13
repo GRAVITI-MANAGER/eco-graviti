@@ -374,7 +374,7 @@ EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@nerbis.comm")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@nerbis.com")
 
 # URL base del frontend (para links en emails)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -407,29 +407,6 @@ TAX_RATE = 0.21  # 21% IVA
 # ===================================
 BOOKING_HOLD_MINUTES = int(os.getenv("BOOKING_HOLD_MINUTES", "15"))
 
-
-# ===================================
-# EMAIL CONFIGURATION
-# ===================================
-import os
-
-# Backend de email
-EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"  # Desarrollo: imprime en consola
-)
-
-# Configuración SMTP (para producción)
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@gcbellezayestetica.es")
-DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "GC Belleza y Estética")
-
-# Para desarrollo: imprimir emails en consola
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ===================================
 # CACHE CONFIGURATION (Redis — compartido con Celery)

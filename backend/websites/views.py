@@ -120,12 +120,12 @@ class WebsiteConfigViewSet(viewsets.ModelViewSet):
         old_logo = (serializer.instance.media_data or {}).get('logo_url', '')
         instance = serializer.save()
         new_logo = (instance.media_data or {}).get('logo_url', '')
-        # Only sync when logo actually changed
-        if new_logo and new_logo != old_logo:
+        # Sync when logo changed (including removal)
+        if new_logo != old_logo:
             OnboardingResponse.objects.filter(
                 website_config=instance,
                 question__question_key='logo_upload',
-            ).update(response_value=new_logo)
+            ).update(response_value=new_logo or '')
 
     @action(detail=False, methods=['get'])
     def my_site(self, request):
@@ -475,7 +475,7 @@ class GenerateContentView(APIView):
             # Derivar páginas habilitadas de las secciones generadas
             config.enabled_pages = [
                 k for k in content_data.keys()
-                if not k.startswith('_') and k != 'hero'
+                if not k.startswith('_') and k not in ('hero', 'header', 'footer')
             ]
 
             # Guardar contenido generado + branding
@@ -1289,7 +1289,9 @@ class PreviewRenderView(APIView):
             if section_id in ('header', 'footer'):
                 continue  # header and footer are rendered separately
             data = content.get(section_id, {})
-            renderer = getattr(self, f'_render_{section_id}', None)
+            # For duplicated sections (e.g. services_2), use _type to find the renderer
+            render_key = data.get('_type', section_id) if isinstance(data, dict) else section_id
+            renderer = getattr(self, f'_render_{render_key}', None)
             if renderer:
                 html = renderer(data, primary, secondary)
             else:
@@ -3356,8 +3358,11 @@ class PreviewRenderView(APIView):
             # Fallback: auto-generar desde secciones activas
             for sid in nav_sections:
                 label = self.SECTION_NAV_LABELS.get(sid, sid.replace('_', ' ').title())
-                page = self.SECTION_PAGE_MAP.get(sid)
-                href = self._tenant_url(page) if page else f'#{sid}'
+                if page_slugs and sid in page_slugs:
+                    href = page_slugs[sid]
+                else:
+                    page = self.SECTION_PAGE_MAP.get(sid)
+                    href = self._tenant_url(page) if page else f'#{sid}'
                 nav_html += f'<a href="{href}">{self._esc(label)}</a>\n'
 
         cta_html = ''
@@ -5192,7 +5197,11 @@ class DuplicateSectionView(APIView):
             new_id = f"{base_id}_{counter}"
 
         # Copiar contenido de la sección original
-        content[new_id] = copy.deepcopy(content[section_id])
+        cloned = copy.deepcopy(content[section_id])
+        # Preserve the base section type so render dispatch works for duplicated ids
+        if '_type' not in cloned:
+            cloned['_type'] = base_id
+        content[new_id] = cloned
 
         # Insertar justo después del original en el orden
         order = content.get('_section_order', [])

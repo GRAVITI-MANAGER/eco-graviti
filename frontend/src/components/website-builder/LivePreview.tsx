@@ -906,7 +906,7 @@ export default function LivePreview({
         for (const sel of selectors) {
           const el = sectionEl.querySelector(sel);
           if (el) {
-            el.textContent = String(value || '');
+            el.textContent = String(value ?? '');
             break;
           }
         }
@@ -1187,7 +1187,7 @@ export default function LivePreview({
               className="w-full border-0"
               style={{ height: isNarrow ? 'calc(100% - 6px)' : '100%' }}
               title="Vista previa del sitio"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              sandbox="allow-scripts allow-same-origin"
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">

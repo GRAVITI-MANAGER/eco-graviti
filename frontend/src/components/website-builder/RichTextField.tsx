@@ -8,7 +8,7 @@ const ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'A', 'BR', 'P', 'SPAN'])
 function sanitizeHtml(html: string): string {
   if (!html) return '';
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  // Remove dangerous elements
+  // Remove dangerous elements entirely
   doc.querySelectorAll('script, style, iframe, object, embed, form, input, textarea, select, button')
     .forEach(el => el.remove());
   // Remove event handler attributes and dangerous attrs
@@ -25,11 +25,14 @@ function sanitizeHtml(html: string): string {
         el.removeAttribute('href');
       }
     }
-    // Remove tags not in allowlist but keep their text content
-    if (!ALLOWED_TAGS.has(el.tagName)) {
-      el.replaceWith(document.createTextNode(el.textContent || ''));
-    }
   });
+  // Unwrap disallowed tags bottom-up to preserve nested allowed children
+  const allElements = Array.from(doc.body.querySelectorAll('*')).reverse();
+  for (const el of allElements) {
+    if (!ALLOWED_TAGS.has(el.tagName)) {
+      el.replaceWith(...Array.from(el.childNodes));
+    }
+  }
   return doc.body.innerHTML;
 }
 
