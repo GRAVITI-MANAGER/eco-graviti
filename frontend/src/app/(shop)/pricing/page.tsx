@@ -83,10 +83,10 @@ export default function PricingPage() {
                           <span className="text-2xl font-bold text-primary">
                             ${Number(service.price).toLocaleString()}
                           </span>
-                          {service.duration && (
+                          {service.duration_minutes && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                               <Clock className="h-3.5 w-3.5" />
-                              {service.duration} min
+                              {service.duration_minutes} min
                             </div>
                           )}
                         </div>
