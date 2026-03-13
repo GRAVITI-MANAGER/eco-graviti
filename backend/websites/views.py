@@ -12,27 +12,34 @@ Endpoints para:
 
 import logging
 import random
+
 from django.conf import settings as django_settings
 from django.db import models, transaction
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import (
-    WebsiteTemplate, OnboardingQuestion, WebsiteConfig,
-    OnboardingResponse, AIGenerationLog, ChatMessage
+    ChatMessage,
+    OnboardingQuestion,
+    OnboardingResponse,
+    WebsiteConfig,
+    WebsiteTemplate,
 )
 from .serializers import (
-    WebsiteTemplateListSerializer, WebsiteTemplateDetailSerializer,
-    OnboardingQuestionSerializer, WebsiteConfigSerializer,
-    WebsiteConfigCreateSerializer, BulkOnboardingResponseSerializer,
-    ChatRequestSerializer, ChatResponseSerializer,
-    GenerateContentRequestSerializer, GenerateContentResponseSerializer,
-    PublishWebsiteSerializer, AIGenerationLogSerializer
+    BulkOnboardingResponseSerializer,
+    ChatRequestSerializer,
+    GenerateContentRequestSerializer,
+    OnboardingQuestionSerializer,
+    PublishWebsiteSerializer,
+    WebsiteConfigCreateSerializer,
+    WebsiteConfigSerializer,
+    WebsiteTemplateDetailSerializer,
+    WebsiteTemplateListSerializer,
 )
 from .services import AIService, UnsplashService
 
@@ -868,8 +875,8 @@ class UploadWebsiteMediaView(APIView):
         return None
 
     def post(self, request):
-        import os
         import uuid
+
         from django.core.files.storage import default_storage
 
         tenant = self._get_tenant(request)
@@ -1227,7 +1234,6 @@ class PreviewRenderView(APIView):
         cookie_text = seo.get('cookie_banner_text', 'Usamos cookies para mejorar tu experiencia.')
         cookie_accept = seo.get('cookie_accept_label', 'Aceptar')
         cookie_decline = seo.get('cookie_decline_label', 'Rechazar')
-        cookie_privacy_url = seo.get('cookie_privacy_url', '')
 
         # ─── New features ─────────────────────────────────
         hide_from_search = seo.get('hide_from_search', False)
@@ -3019,11 +3025,16 @@ class PreviewRenderView(APIView):
         )
 
         contact_parts = []
-        if name:    contact_parts.append('<strong>' + name + '</strong>')
-        if address: contact_parts.append(address)
-        if city:    contact_parts.append(city)
-        if email:   contact_parts.append('<a href="mailto:' + email + '" style="color:var(--primary)">' + email + '</a>')
-        if phone:   contact_parts.append(phone)
+        if name:
+            contact_parts.append('<strong>' + name + '</strong>')
+        if address:
+            contact_parts.append(address)
+        if city:
+            contact_parts.append(city)
+        if email:
+            contact_parts.append('<a href="mailto:' + email + '" style="color:var(--primary)">' + email + '</a>')
+        if phone:
+            contact_parts.append(phone)
         contact_html = ' &middot; '.join(contact_parts) if contact_parts else '(informacion de contacto no disponible)'
 
         html_parts = [
@@ -4184,7 +4195,7 @@ class PreviewRenderView(APIView):
                 bg = f'background-image:url({image_url});'
                 attr = self._unsplash_attr(image, 'img-attribution')
             else:
-                bg = f'background:linear-gradient(135deg,var(--primary),var(--secondary));'
+                bg = 'background:linear-gradient(135deg,var(--primary),var(--secondary));'
                 attr = ''
             price_html = f'<span class="showcase-price">{price}</span>' if price else ''
             cards_html += f'<div class="showcase-card" style="{bg}">{price_html}<div class="showcase-overlay"><h3>{name}</h3><p>{desc}</p></div>{attr}</div>\n'
@@ -4415,7 +4426,7 @@ class PreviewRenderView(APIView):
             cta_text = self._esc(item.get('cta_text', item.get('button_text', 'Elegir plan')))
             cta_link = item.get('cta_link', item.get('button_link', '#contact'))
             rec_cls = ' pricing-card--recommended' if is_rec else ''
-            badge = f'<span class="pricing-badge">Recomendado</span>' if is_rec else ''
+            badge = '<span class="pricing-badge">Recomendado</span>' if is_rec else ''
             period_html = f'<span class="pricing-period">/{period}</span>' if period else ''
             feats = ''
             if features:

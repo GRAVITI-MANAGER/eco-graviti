@@ -63,5 +63,5 @@ export function useHistory<T>(current: T, onApply: (state: T) => void) {
     lastValueRef.current = val;
   }, [current]);
 
-  return { canUndo, canRedo, undo, redo, reset, steps: pointerRef.current };
+  return { canUndo, canRedo, undo, redo, reset };
 }
