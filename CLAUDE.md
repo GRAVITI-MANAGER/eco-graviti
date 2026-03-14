@@ -13,7 +13,8 @@ Lee `docs/SDD.md` antes de cambios arquitectónicos.
 
 - Incluir siempre: `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`
 - Subject en minúsculas (commitlint lo valida)
-- Crear branch desde `develop` actualizado
+- Usar prefijos: `feature/*`, `fix/*`, `docs/*` según el tipo de cambio
+- Crear branch desde `develop` actualizado (`feature/*` o `fix/*` o `docs/*` → PR → `develop`)
 
 ## Antes de codear
 
@@ -33,8 +34,9 @@ Lee `docs/SDD.md` antes de cambios arquitectónicos.
 ### Cuándo usar worktrees
 - Múltiples agentes Claude trabajando en paralelo
 - Tarea larga que no debe bloquear el branch principal
-- Comando: usar EnterWorktree al inicio de sesión
-- Los worktrees se crean en `.claude/worktrees/`
+- Activar con: `claude -w nombre-feature "descripción de tarea"` o `claude --worktree nombre-feature "..."`
+- Claude crea automáticamente `.claude/worktrees/nombre-feature` y el branch `worktree-nombre-feature`
+- `EnterWorktree` es una acción interna de permisos — no es un comando manual
 
 ## Skills
 
