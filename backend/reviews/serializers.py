@@ -3,8 +3,8 @@
 # backend/reviews/serializers.py
 
 from rest_framework import serializers
-from .models import Review, ReviewImage, ReviewHelpful
-from core.serializers import UserSerializer
+
+from .models import Review, ReviewHelpful, ReviewImage
 
 
 class ReviewImageSerializer(serializers.ModelSerializer):
@@ -143,7 +143,7 @@ class CreateReviewSerializer(serializers.ModelSerializer):
             content_type=content_type,
             object_id=item.id,
             is_verified_purchase=is_verified,
-            **validated_data
+            **validated_data,
         )
 
         # Crear imágenes
@@ -154,7 +154,7 @@ class CreateReviewSerializer(serializers.ModelSerializer):
 
     def _check_purchase(self, user, item, content_type):
         """Verificar si el usuario compró el item"""
-        from orders.models import Order, OrderItem, OrderServiceItem
+        from orders.models import OrderItem, OrderServiceItem
 
         if content_type.model == "product":
             # Verificar si compró el producto

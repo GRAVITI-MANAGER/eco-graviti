@@ -1,10 +1,12 @@
 # backend/services/models.py
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.utils.text import slugify
-from core.models import TenantAwareModel, User
 from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.utils.text import slugify
+
+from core.models import TenantAwareModel, User
 
 
 class ServiceCategory(TenantAwareModel):

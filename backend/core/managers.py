@@ -1,8 +1,8 @@
 # backend/core/managers.py
 
+from django.contrib.auth.models import UserManager
 from django.db import models
 from django.db.models import QuerySet
-from django.contrib.auth.models import UserManager
 
 
 class TenantQuerySet(QuerySet):

@@ -1,9 +1,9 @@
-# backend/orders/serializers.py
-
 from rest_framework import serializers
+
 from core.serializers import UserSerializer
 from ecommerce.serializers import ProductListSerializer
 from services.serializers import ServiceListSerializer
+
 from .models import Order, OrderItem, OrderServiceItem, Payment
 
 
@@ -161,7 +161,7 @@ class PaymentIntentSerializer(serializers.Serializer):
         """Validar que la orden existe y pertenece al usuario"""
         request = self.context["request"]
         try:
-            order = Order.objects.get(id=value, tenant=request.tenant, customer=request.user, status="pending")
+            Order.objects.get(id=value, tenant=request.tenant, customer=request.user, status="pending")
         except Order.DoesNotExist:
             raise serializers.ValidationError("Orden no encontrada")
         return value

@@ -1,25 +1,26 @@
 # backend/orders/views.py
 
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from decimal import Decimal
+
 from django.conf import settings
-from django.utils import timezone
 from django.db import transaction
-from cart.models import Cart, CartItem
-from ecommerce.models import Product
-from bookings.models import Appointment
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from cart.models import Cart
+from notifications.tasks import send_order_confirmation_email
+
 from .models import Order, OrderItem, OrderServiceItem, Payment
 from .serializers import (
-    OrderListSerializer,
-    OrderDetailSerializer,
     CreateOrderSerializer,
+    OrderDetailSerializer,
+    OrderListSerializer,
     PaymentIntentSerializer,
 )
 from .stripe_utils import create_payment_intent
-from decimal import Decimal
-from notifications.tasks import send_order_confirmation_email
 
 
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -273,11 +274,13 @@ class CheckoutViewSet(viewsets.ViewSet):
             # Si ya está pagada, retornar éxito
             if order.status == "paid":
                 print(f"✅ Orden {order.order_number} ya estaba pagada")
-                return Response({
-                    "message": "Orden ya confirmada",
-                    "order_status": order.status,
-                    "appointments_confirmed": order.service_items.count()
-                })
+                return Response(
+                    {
+                        "message": "Orden ya confirmada",
+                        "order_status": order.status,
+                        "appointments_confirmed": order.service_items.count(),
+                    }
+                )
 
             # Verificar estado del Payment Intent en Stripe
             stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -312,11 +315,13 @@ class CheckoutViewSet(viewsets.ViewSet):
 
                 print(f"🎉 Total: {appointments_confirmed} citas confirmadas para orden {order.order_number}")
 
-                return Response({
-                    "message": "Pago confirmado exitosamente",
-                    "order_status": order.status,
-                    "appointments_confirmed": appointments_confirmed
-                })
+                return Response(
+                    {
+                        "message": "Pago confirmado exitosamente",
+                        "order_status": order.status,
+                        "appointments_confirmed": appointments_confirmed,
+                    }
+                )
             else:
                 return Response(
                     {
@@ -333,6 +338,7 @@ class CheckoutViewSet(viewsets.ViewSet):
         except Exception as e:
             print(f"❌ Error en confirm_payment: {str(e)}")
             import traceback
+
             traceback.print_exc()
             return Response(
                 {"error": f"Error al confirmar pago: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR

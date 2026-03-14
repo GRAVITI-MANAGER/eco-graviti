@@ -1,12 +1,14 @@
 # backend/notifications/tasks.py
 
+import logging
+from datetime import timedelta
+
 from celery import shared_task
 from django.utils import timezone
-from django.db.models import Q
-from datetime import timedelta
-from .utils import send_email, send_whatsapp
+
 from bookings.models import Appointment
-import logging
+
+from .utils import send_email, send_whatsapp
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ def send_appointment_reminder_email(appointment_id):
 
         send_email(
             user=appointment.customer,
-            subject=f"Recordatorio - Cita mañana",
+            subject="Recordatorio - Cita mañana",
             template_name="appointment_reminder",
             context={"appointment": appointment, "metadata": {"appointment_id": appointment.id}},
         )
@@ -134,7 +136,7 @@ def send_appointment_reminder_whatsapp(appointment_id):
 Hola {appointment.customer.first_name},
 
 Tu cita es HOY:
-📅 {appointment.start_datetime.strftime('%H:%M')}
+📅 {appointment.start_datetime.strftime("%H:%M")}
 💆 {appointment.service.name}
 👤 Con {appointment.staff_member.full_name}
 
@@ -233,7 +235,7 @@ def send_welcome_email(user_id):
 
         send_email(
             user=user,
-            subject=f"Bienvenido a {user.tenant.name if user.tenant else 'GRAVITIFY'}",
+            subject=f"Bienvenido a {user.tenant.name if user.tenant else 'NERBIS'}",
             template_name="welcome",
             context={"metadata": {"user_id": user.id}},
         )
@@ -261,10 +263,10 @@ def send_otp_email(user_id, otp_code, purpose):
         user = User.objects.select_related("tenant").get(id=user_id)
 
         # Determinar asunto y template según propósito
-        if purpose == 'password_reset':
+        if purpose == "password_reset":
             subject = "Código de verificación - Restablecer contraseña"
             template_name = "otp_password_reset"
-        elif purpose == 'account_reactivation':
+        elif purpose == "account_reactivation":
             subject = "Código de verificación - Reactivar cuenta"
             template_name = "otp_account_reactivation"
         else:
@@ -275,11 +277,7 @@ def send_otp_email(user_id, otp_code, purpose):
             user=user,
             subject=subject,
             template_name=template_name,
-            context={
-                "otp_code": otp_code,
-                "purpose": purpose,
-                "metadata": {"user_id": user.id, "purpose": purpose}
-            },
+            context={"otp_code": otp_code, "purpose": purpose, "metadata": {"user_id": user.id, "purpose": purpose}},
         )
 
         logger.info(f"OTP email enviado a {user.email} para {purpose}")

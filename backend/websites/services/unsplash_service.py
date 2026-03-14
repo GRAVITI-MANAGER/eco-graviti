@@ -9,9 +9,8 @@ servicios, industria) para máxima relevancia.
 
 import logging
 import re
-import requests
-from typing import Dict, List
 
+import requests
 from django.conf import settings
 from django.core.cache import cache
 
@@ -19,10 +18,42 @@ logger = logging.getLogger(__name__)
 
 # Palabras comunes en español que no aportan a la búsqueda de imágenes
 STOP_WORDS = {
-    'de', 'del', 'la', 'las', 'el', 'los', 'un', 'una', 'unos', 'unas',
-    'en', 'con', 'por', 'para', 'al', 'y', 'o', 'que', 'es', 'su', 'se',
-    'nos', 'nuestro', 'nuestra', 'nuestros', 'nuestras', 'somos', 'como',
-    'más', 'muy', 'tu', 'tus', 'mi', 'mis', 'te', 'ti', 'nos',
+    "de",
+    "del",
+    "la",
+    "las",
+    "el",
+    "los",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "en",
+    "con",
+    "por",
+    "para",
+    "al",
+    "y",
+    "o",
+    "que",
+    "es",
+    "su",
+    "se",
+    "nos",
+    "nuestro",
+    "nuestra",
+    "nuestros",
+    "nuestras",
+    "somos",
+    "como",
+    "más",
+    "muy",
+    "tu",
+    "tus",
+    "mi",
+    "mis",
+    "te",
+    "ti",
 }
 
 
@@ -32,38 +63,38 @@ class UnsplashService:
 
     # Mapeo de industria del tenant (onboarding) → keywords para Unsplash
     INDUSTRY_KEYWORDS = {
-        'beauty': 'beauty salon hairdresser',
-        'spa': 'spa wellness massage',
-        'nails': 'nail salon manicure',
-        'gym': 'gym fitness workout',
-        'yoga': 'yoga pilates studio',
-        'clinic': 'medical clinic doctor',
-        'dental': 'dental clinic dentist',
-        'psychology': 'therapy psychology office',
-        'nutrition': 'nutrition healthy food',
-        'veterinary': 'veterinary pet clinic',
-        'restaurant': 'restaurant dining food',
-        'bakery': 'bakery coffee pastry',
-        'store': 'retail store shopping',
-        'fashion': 'fashion boutique clothing',
-        'education': 'education classroom academy',
-        'coworking': 'coworking office modern',
-        'photography': 'photography studio camera',
-        'architecture': 'architecture design modern',
-        'legal': 'law office professional',
-        'accounting': 'accounting finance office',
-        'marketing': 'marketing agency creative',
-        'tech': 'technology startup office',
-        'real_estate': 'real estate luxury home',
-        'automotive': 'automotive car workshop',
-        'events': 'events wedding celebration',
-        'travel': 'travel tourism vacation',
-        'services': 'professional services office',
-        'other': 'modern business workspace',
+        "beauty": "beauty salon hairdresser",
+        "spa": "spa wellness massage",
+        "nails": "nail salon manicure",
+        "gym": "gym fitness workout",
+        "yoga": "yoga pilates studio",
+        "clinic": "medical clinic doctor",
+        "dental": "dental clinic dentist",
+        "psychology": "therapy psychology office",
+        "nutrition": "nutrition healthy food",
+        "veterinary": "veterinary pet clinic",
+        "restaurant": "restaurant dining food",
+        "bakery": "bakery coffee pastry",
+        "store": "retail store shopping",
+        "fashion": "fashion boutique clothing",
+        "education": "education classroom academy",
+        "coworking": "coworking office modern",
+        "photography": "photography studio camera",
+        "architecture": "architecture design modern",
+        "legal": "law office professional",
+        "accounting": "accounting finance office",
+        "marketing": "marketing agency creative",
+        "tech": "technology startup office",
+        "real_estate": "real estate luxury home",
+        "automotive": "automotive car workshop",
+        "events": "events wedding celebration",
+        "travel": "travel tourism vacation",
+        "services": "professional services office",
+        "other": "modern business workspace",
     }
 
     def __init__(self):
-        self.api_key = getattr(settings, 'UNSPLASH_ACCESS_KEY', '')
+        self.api_key = getattr(settings, "UNSPLASH_ACCESS_KEY", "")
 
     @property
     def is_configured(self):
@@ -73,8 +104,8 @@ class UnsplashService:
         self,
         query: str,
         per_page: int = 5,
-        orientation: str = 'landscape',
-    ) -> List[Dict]:
+        orientation: str = "landscape",
+    ) -> list[dict]:
         """Busca fotos en Unsplash API con cache."""
         if not self.is_configured:
             return []
@@ -88,17 +119,17 @@ class UnsplashService:
             resp = requests.get(
                 f"{self.BASE_URL}/search/photos",
                 params={
-                    'query': query,
-                    'per_page': per_page,
-                    'orientation': orientation,
-                    'content_filter': 'high',
+                    "query": query,
+                    "per_page": per_page,
+                    "orientation": orientation,
+                    "content_filter": "high",
                 },
-                headers={'Authorization': f'Client-ID {self.api_key}'},
+                headers={"Authorization": f"Client-ID {self.api_key}"},
                 timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
-            results = [self._format_photo(p) for p in data.get('results', [])]
+            results = [self._format_photo(p) for p in data.get("results", [])]
             cache.set(cache_key, results, self.CACHE_TTL)
             return results
         except requests.RequestException as e:
@@ -107,11 +138,11 @@ class UnsplashService:
 
     def get_images_for_generation(
         self,
-        sections: List[str],
-        onboarding_responses: Dict[str, str],
-        tenant_industry: str = '',
-        template_industry: str = 'generic',
-    ) -> Dict[str, List[Dict]]:
+        sections: list[str],
+        onboarding_responses: dict[str, str],
+        tenant_industry: str = "",
+        template_industry: str = "generic",
+    ) -> dict[str, list[dict]]:
         """
         Busca imágenes relevantes usando TODA la info del onboarding.
 
@@ -122,51 +153,49 @@ class UnsplashService:
 
         Args:
             sections: IDs de secciones generadas (hero, about, services, ...)
-            onboarding_responses: Dict con todas las respuestas del onboarding
+            onboarding_responses: dict con todas las respuestas del onboarding
             tenant_industry: Industria del tenant (ej: 'bakery', 'yoga')
             template_industry: Industria del template (fallback)
 
         Returns:
-            Dict con section_id → lista de imágenes.
+            dict con section_id → lista de imágenes.
         """
         if not self.is_configured:
             return {}
 
         # Extraer datos clave del onboarding
-        biz_name = onboarding_responses.get('business_name', '')
-        biz_desc = onboarding_responses.get('business_description', '')
-        main_services = onboarding_responses.get('main_services', '')
-        tagline = onboarding_responses.get('business_tagline', '')
+        biz_name = onboarding_responses.get("business_name", "")
+        biz_desc = onboarding_responses.get("business_description", "")
+        main_services = onboarding_responses.get("main_services", "")
+        tagline = onboarding_responses.get("business_tagline", "")
 
         # Construir la base semántica del negocio
-        base_keywords = self._extract_business_keywords(
-            biz_name, biz_desc, tagline, tenant_industry, template_industry
-        )
+        base_keywords = self._extract_business_keywords(biz_name, biz_desc, tagline, tenant_industry, template_industry)
 
         logger.info(f"Unsplash base query: '{base_keywords}' (industry={tenant_industry})")
 
         results = {}
         for section in sections:
-            if section not in ('hero', 'about', 'services'):
+            if section not in ("hero", "about", "services"):
                 continue
 
-            if section == 'hero':
+            if section == "hero":
                 # Hero: imagen atmosférica del espacio/negocio
                 query = f"{base_keywords} interior"
-                results['hero'] = self.search_photos(query, per_page=3, orientation='landscape')
+                results["hero"] = self.search_photos(query, per_page=3, orientation="landscape")
 
-            elif section == 'about':
+            elif section == "about":
                 # About: equipo, personas, workspace
                 query = f"{base_keywords} team people"
-                results['about'] = self.search_photos(query, per_page=2, orientation='landscape')
+                results["about"] = self.search_photos(query, per_page=2, orientation="landscape")
 
-            elif section == 'services':
+            elif section == "services":
                 # Services: usar nombres de servicios si están disponibles
                 if main_services:
                     query = self._services_query(main_services, tenant_industry)
                 else:
                     query = base_keywords
-                results['services'] = self.search_photos(query, per_page=6, orientation='landscape')
+                results["services"] = self.search_photos(query, per_page=6, orientation="landscape")
 
         return results
 
@@ -193,7 +222,7 @@ class UnsplashService:
 
         if raw_text and len(raw_text) > 5:
             # Extraer palabras significativas (sin stop words, > 2 chars)
-            words = re.findall(r'\b[a-záéíóúñü]+\b', raw_text.lower())
+            words = re.findall(r"\b[a-záéíóúñü]+\b", raw_text.lower())
             keywords = [w for w in words if w not in STOP_WORDS and len(w) > 2]
 
             # Tomar las primeras 5 palabras únicas (sin repetir)
@@ -207,7 +236,7 @@ class UnsplashService:
                     break
 
             if len(unique) >= 2:
-                return ' '.join(unique)
+                return " ".join(unique)
 
         # Fallback: usar mapeo de industria
         if tenant_industry:
@@ -216,7 +245,7 @@ class UnsplashService:
                 return mapped
 
         # Último fallback: industria del template
-        return self.INDUSTRY_KEYWORDS.get(template_industry, 'modern business workspace')
+        return self.INDUSTRY_KEYWORDS.get(template_industry, "modern business workspace")
 
     def _services_query(self, main_services: str, tenant_industry: str) -> str:
         """
@@ -226,7 +255,7 @@ class UnsplashService:
         → "café espresso pasteles brunch"
         """
         # main_services puede ser texto libre o separado por comas/saltos de línea
-        words = re.findall(r'\b[a-záéíóúñü]+\b', main_services.lower())
+        words = re.findall(r"\b[a-záéíóúñü]+\b", main_services.lower())
         keywords = [w for w in words if w not in STOP_WORDS and len(w) > 2]
 
         seen = set()
@@ -239,10 +268,10 @@ class UnsplashService:
                 break
 
         if len(unique) >= 2:
-            return ' '.join(unique)
+            return " ".join(unique)
 
         # Fallback a industria
-        return self.INDUSTRY_KEYWORDS.get(tenant_industry, 'professional services')
+        return self.INDUSTRY_KEYWORDS.get(tenant_industry, "professional services")
 
     def trigger_download(self, download_location: str):
         """
@@ -255,21 +284,21 @@ class UnsplashService:
         try:
             requests.get(
                 download_location,
-                headers={'Authorization': f'Client-ID {self.api_key}'},
+                headers={"Authorization": f"Client-ID {self.api_key}"},
                 timeout=5,
             )
         except Exception:
             pass
 
-    def _format_photo(self, photo: Dict) -> Dict:
+    def _format_photo(self, photo: dict) -> dict:
         """Formatea respuesta de Unsplash API a nuestro formato interno."""
         return {
-            'id': photo['id'],
-            'url': f"{photo['urls']['raw']}&w=1200&q=80&fm=webp",
-            'thumb_url': f"{photo['urls']['raw']}&w=400&q=60&fm=webp",
-            'alt': photo.get('alt_description', '') or photo.get('description', '') or '',
-            'photographer': photo['user']['name'],
-            'photographer_url': photo['user']['links']['html'],
-            'unsplash_url': photo['links']['html'],
-            'download_location': photo.get('links', {}).get('download_location', ''),
+            "id": photo["id"],
+            "url": f"{photo['urls']['raw']}&w=1200&q=80&fm=webp",
+            "thumb_url": f"{photo['urls']['raw']}&w=400&q=60&fm=webp",
+            "alt": photo.get("alt_description", "") or photo.get("description", "") or "",
+            "photographer": photo["user"]["name"],
+            "photographer_url": photo["user"]["links"]["html"],
+            "unsplash_url": photo["links"]["html"],
+            "download_location": photo.get("links", {}).get("download_location", ""),
         }

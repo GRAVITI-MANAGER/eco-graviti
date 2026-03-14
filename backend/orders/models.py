@@ -1,14 +1,16 @@
 # backend/orders/models.py
 
-from django.db import models
+import uuid
+from decimal import Decimal
+
 from django.core.validators import MinValueValidator
+from django.db import models
 from django.utils import timezone
+
+from bookings.models import Appointment
 from core.models import TenantAwareModel, User
 from ecommerce.models import Product
 from services.models import Service
-from bookings.models import Appointment
-from decimal import Decimal
-import uuid
 
 
 class Order(TenantAwareModel):

@@ -1,10 +1,12 @@
 # backend/bookings/models.py
 
-from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
 from django.utils import timezone
-from datetime import datetime, timedelta, time
+
 from core.models import TenantAwareModel, User
 from services.models import Service, StaffMember
 
@@ -34,14 +36,14 @@ class BusinessHours(TenantAwareModel):
         null=True,
         blank=True,
         verbose_name="Hora de apertura",
-        help_text="Hora en que abre el negocio (ej: 09:00). Dejar vacío si está cerrado."
+        help_text="Hora en que abre el negocio (ej: 09:00). Dejar vacío si está cerrado.",
     )
 
     close_time = models.TimeField(
         null=True,
         blank=True,
         verbose_name="Hora de cierre",
-        help_text="Hora en que cierra el negocio (ej: 18:00). Dejar vacío si está cerrado."
+        help_text="Hora en que cierra el negocio (ej: 18:00). Dejar vacío si está cerrado.",
     )
 
     is_open = models.BooleanField(default=True, verbose_name="¿Está abierto?", help_text="Si el negocio abre este día")

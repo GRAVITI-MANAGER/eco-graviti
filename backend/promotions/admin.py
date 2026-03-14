@@ -3,151 +3,153 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.utils import timezone
 from unfold.admin import TabularInline
+
 from core.admin import MarketingModuleAdmin
-from core.admin_site import gravitify_admin_site
+from core.admin_site import nerbis_admin_site
+
 from .models import Promotion, PromotionItem
 
 
 class PromotionItemInline(TabularInline):
     """Inline para items de promoción"""
+
     model = PromotionItem
     extra = 1
-    fields = ['service', 'product', 'quantity', 'order']
-    autocomplete_fields = ['service', 'product']
+    fields = ["service", "product", "quantity", "order"]
+    autocomplete_fields = ["service", "product"]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        if not request.user.is_superuser and hasattr(request.user, 'tenant'):
+        if not request.user.is_superuser and hasattr(request.user, "tenant"):
             return qs.filter(tenant=request.user.tenant)
         return qs
 
 
-@admin.register(Promotion, site=gravitify_admin_site)
+@admin.register(Promotion, site=nerbis_admin_site)
 class PromotionAdmin(MarketingModuleAdmin):
     """
     Panel de administración para Promociones.
     """
 
     list_display = [
-        'name',
-        'promotion_type_badge',
-        'discount_display',
-        'status_badge',
-        'date_range',
-        'times_used',
-        'priority',
-        'tenant',
+        "name",
+        "promotion_type_badge",
+        "discount_display",
+        "status_badge",
+        "date_range",
+        "times_used",
+        "priority",
+        "tenant",
     ]
 
     list_filter = [
-        'promotion_type',
-        'discount_type',
-        'is_active',
-        'is_featured',
-        'tenant',
-        'start_date',
-        'end_date',
+        "promotion_type",
+        "discount_type",
+        "is_active",
+        "is_featured",
+        "tenant",
+        "start_date",
+        "end_date",
     ]
 
     search_fields = [
-        'name',
-        'description',
-        'slug',
-        'tenant__name',
+        "name",
+        "description",
+        "slug",
+        "tenant__name",
     ]
 
-    ordering = ['-priority', '-is_featured', '-created_at']
+    ordering = ["-priority", "-is_featured", "-created_at"]
 
     readonly_fields = [
-        'times_used',
-        'created_at',
-        'updated_at',
-        'promotion_preview',
-        'price_summary',
+        "times_used",
+        "created_at",
+        "updated_at",
+        "promotion_preview",
+        "price_summary",
     ]
 
-    prepopulated_fields = {'slug': ('name',)}
+    prepopulated_fields = {"slug": ("name",)}
 
     inlines = [PromotionItemInline]
 
     fieldsets = (
         (
-            'Información Básica',
+            "Información Básica",
             {
-                'fields': (
-                    'tenant',
-                    'name',
-                    'slug',
-                    'short_description',
-                    'description',
-                    'image',
+                "fields": (
+                    "tenant",
+                    "name",
+                    "slug",
+                    "short_description",
+                    "description",
+                    "image",
                 )
             },
         ),
         (
-            'Tipo y Descuento',
+            "Tipo y Descuento",
             {
-                'fields': (
-                    'promotion_type',
-                    'discount_type',
-                    'discount_value',
-                    'fixed_price',
+                "fields": (
+                    "promotion_type",
+                    "discount_type",
+                    "discount_value",
+                    "fixed_price",
                 )
             },
         ),
         (
-            'Configuración',
+            "Configuración",
             {
-                'fields': (
-                    'minimum_purchase',
-                    'max_uses',
-                    'max_uses_per_customer',
-                    'times_used',
+                "fields": (
+                    "minimum_purchase",
+                    "max_uses",
+                    "max_uses_per_customer",
+                    "times_used",
                 )
             },
         ),
         (
-            'Vigencia',
+            "Vigencia",
             {
-                'fields': (
-                    'start_date',
-                    'end_date',
+                "fields": (
+                    "start_date",
+                    "end_date",
                 ),
-                'description': 'Define cuándo estará activa la promoción'
+                "description": "Define cuándo estará activa la promoción",
             },
         ),
         (
-            'Visualización',
+            "Visualización",
             {
-                'fields': (
-                    'badge_text',
-                    'cta_text',
-                    'is_active',
-                    'is_featured',
-                    'priority',
+                "fields": (
+                    "badge_text",
+                    "cta_text",
+                    "is_active",
+                    "is_featured",
+                    "priority",
                 )
             },
         ),
         (
-            'Vista Previa',
+            "Vista Previa",
             {
-                'fields': (
-                    'promotion_preview',
-                    'price_summary',
+                "fields": (
+                    "promotion_preview",
+                    "price_summary",
                 ),
-                'classes': ('collapse',),
+                "classes": ("collapse",),
             },
         ),
         (
-            'Metadata',
+            "Metadata",
             {
-                'fields': (
-                    'created_at',
-                    'updated_at',
+                "fields": (
+                    "created_at",
+                    "updated_at",
                 ),
-                'classes': ('collapse',),
+                "classes": ("collapse",),
             },
         ),
     )
@@ -155,37 +157,32 @@ class PromotionAdmin(MarketingModuleAdmin):
     def promotion_type_badge(self, obj):
         """Badge visual para el tipo de promoción"""
         colors = {
-            'bundle': '#8b5cf6',    # Violeta
-            'discount': '#3b82f6',  # Azul
-            'fixed': '#10b981',     # Verde
+            "bundle": "#8b5cf6",  # Violeta
+            "discount": "#3b82f6",  # Azul
+            "fixed": "#10b981",  # Verde
         }
-        color = colors.get(obj.promotion_type, '#6b7280')
+        color = colors.get(obj.promotion_type, "#6b7280")
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px; font-size: 0.75rem;">{}</span>',
             color,
-            obj.get_promotion_type_display()
+            obj.get_promotion_type_display(),
         )
-    promotion_type_badge.short_description = 'Tipo'
+
+    promotion_type_badge.short_description = "Tipo"
 
     def discount_display(self, obj):
         """Mostrar el descuento de forma legible"""
-        if obj.promotion_type == 'fixed' and obj.fixed_price:
-            return format_html(
-                '<span style="color: #10b981; font-weight: 600;">€{}</span>',
-                obj.fixed_price
-            )
+        if obj.promotion_type == "fixed" and obj.fixed_price:
+            return format_html('<span style="color: #10b981; font-weight: 600;">€{}</span>', obj.fixed_price)
 
-        if obj.discount_type == 'percentage':
+        if obj.discount_type == "percentage":
             return format_html(
-                '<span style="color: #ef4444; font-weight: 600;">{}% OFF</span>',
-                int(obj.discount_value)
+                '<span style="color: #ef4444; font-weight: 600;">{}% OFF</span>', int(obj.discount_value)
             )
         else:
-            return format_html(
-                '<span style="color: #ef4444; font-weight: 600;">-€{}</span>',
-                obj.discount_value
-            )
-    discount_display.short_description = 'Descuento'
+            return format_html('<span style="color: #ef4444; font-weight: 600;">-€{}</span>', obj.discount_value)
+
+    discount_display.short_description = "Descuento"
 
     def status_badge(self, obj):
         """Badge visual para el estado"""
@@ -205,14 +202,16 @@ class PromotionAdmin(MarketingModuleAdmin):
             return mark_safe(
                 '<span style="background-color: #ef4444; color: white; padding: 3px 10px; border-radius: 3px;">Inactiva</span>'
             )
-    status_badge.short_description = 'Estado'
+
+    status_badge.short_description = "Estado"
 
     def date_range(self, obj):
         """Mostrar rango de fechas"""
-        start = obj.start_date.strftime('%d/%m/%Y')
-        end = obj.end_date.strftime('%d/%m/%Y')
-        return f'{start} - {end}'
-    date_range.short_description = 'Vigencia'
+        start = obj.start_date.strftime("%d/%m/%Y")
+        end = obj.end_date.strftime("%d/%m/%Y")
+        return f"{start} - {end}"
+
+    date_range.short_description = "Vigencia"
 
     def promotion_preview(self, obj):
         """Vista previa de la promoción"""
@@ -230,7 +229,7 @@ class PromotionAdmin(MarketingModuleAdmin):
             items_html = '<li style="color: #9ca3af;">No hay items agregados</li>'
 
         return format_html(
-            '''
+            """
             <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
                         border-radius: 12px; padding: 20px; max-width: 400px;
                         border: 1px solid #f59e0b;">
@@ -251,14 +250,15 @@ class PromotionAdmin(MarketingModuleAdmin):
                     {}
                 </button>
             </div>
-            ''',
-            obj.badge_text or f'{int(obj.discount_value)}% OFF',
+            """,
+            obj.badge_text or f"{int(obj.discount_value)}% OFF",
             obj.name,
-            obj.short_description or obj.description[:100] if obj.description else '',
+            obj.short_description or obj.description[:100] if obj.description else "",
             mark_safe(items_html),
-            obj.cta_text
+            obj.cta_text,
         )
-    promotion_preview.short_description = 'Vista Previa'
+
+    promotion_preview.short_description = "Vista Previa"
 
     def price_summary(self, obj):
         """Resumen de precios"""
@@ -270,7 +270,7 @@ class PromotionAdmin(MarketingModuleAdmin):
         savings = obj.savings_amount
 
         return format_html(
-            '''
+            """
             <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; max-width: 300px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span style="color: #6b7280;">Precio original:</span>
@@ -285,19 +285,20 @@ class PromotionAdmin(MarketingModuleAdmin):
                     <span style="color: #ef4444; font-weight: 600;">€{}</span>
                 </div>
             </div>
-            ''',
+            """,
             original,
             discounted,
-            savings
+            savings,
         )
-    price_summary.short_description = 'Resumen de Precios'
+
+    price_summary.short_description = "Resumen de Precios"
 
     def save_formset(self, request, form, formset, change):
         """Asignar tenant a los items inline"""
         instances = formset.save(commit=False)
         for instance in instances:
             if not request.user.is_superuser:
-                if hasattr(request.user, 'tenant') and request.user.tenant:
+                if hasattr(request.user, "tenant") and request.user.tenant:
                     instance.tenant = request.user.tenant
             instance.save()
         formset.save_m2m()

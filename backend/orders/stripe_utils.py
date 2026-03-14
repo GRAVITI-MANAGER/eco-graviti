@@ -28,7 +28,7 @@ def get_or_create_stripe_customer(user):
     customer = stripe.Customer.create(
         email=user.email,
         name=user.get_full_name() or f"{user.first_name} {user.last_name}".strip(),
-        phone=getattr(user, 'phone', None),
+        phone=getattr(user, "phone", None),
         metadata={
             "user_id": str(user.id),
         },

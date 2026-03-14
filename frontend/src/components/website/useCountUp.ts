@@ -53,8 +53,9 @@ export function useCountUp<T extends HTMLElement = HTMLDivElement>({
     // Respect prefers-reduced-motion
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) {
-      setDisplay(format(end));
       hasAnimated.current = true;
+      // Use rAF to avoid synchronous setState in effect
+      requestAnimationFrame(() => setDisplay(format(end)));
       return;
     }
 

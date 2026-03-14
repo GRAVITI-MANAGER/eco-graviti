@@ -1,8 +1,9 @@
 # backend/ecommerce/serializers.py
 
-from typing import Optional
+
 from rest_framework import serializers
-from .models import ProductCategory, Product, ProductImage, Inventory
+
+from .models import Inventory, Product, ProductCategory, ProductImage
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -14,7 +15,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
         model = ProductImage
         fields = ["id", "image", "image_url", "alt_text", "is_primary", "order"]
 
-    def get_image_url(self, obj) -> Optional[str]:
+    def get_image_url(self, obj) -> str | None:
         request = self.context.get("request")
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
@@ -85,7 +86,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "reviews_count",
         ]
 
-    def get_main_image(self, obj) -> Optional[str]:
+    def get_main_image(self, obj) -> str | None:
         image = obj.main_image
         if image:
             request = self.context.get("request")

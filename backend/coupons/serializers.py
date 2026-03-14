@@ -1,33 +1,31 @@
 # backend/coupons/serializers.py
 
 from rest_framework import serializers
+
 from .models import Coupon, CouponUsage
 
 
 class CouponSerializer(serializers.ModelSerializer):
     """Serializer para mostrar información del cupón."""
 
-    discount_display = serializers.CharField(
-        source='get_discount_display',
-        read_only=True
-    )
+    discount_display = serializers.CharField(source="get_discount_display", read_only=True)
     is_valid = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Coupon
         fields = [
-            'id',
-            'code',
-            'description',
-            'discount_type',
-            'discount_value',
-            'discount_display',
-            'minimum_purchase',
-            'maximum_discount',
-            'valid_from',
-            'valid_until',
-            'first_purchase_only',
-            'is_valid',
+            "id",
+            "code",
+            "description",
+            "discount_type",
+            "discount_value",
+            "discount_display",
+            "minimum_purchase",
+            "maximum_discount",
+            "valid_from",
+            "valid_until",
+            "first_purchase_only",
+            "is_valid",
         ]
         read_only_fields = fields
 
@@ -53,20 +51,17 @@ class CouponApplySerializer(serializers.Serializer):
 class CouponUsageSerializer(serializers.ModelSerializer):
     """Serializer para el historial de uso de cupones."""
 
-    coupon_code = serializers.CharField(source='coupon.code', read_only=True)
-    coupon_discount = serializers.CharField(
-        source='coupon.get_discount_display',
-        read_only=True
-    )
+    coupon_code = serializers.CharField(source="coupon.code", read_only=True)
+    coupon_discount = serializers.CharField(source="coupon.get_discount_display", read_only=True)
 
     class Meta:
         model = CouponUsage
         fields = [
-            'id',
-            'coupon_code',
-            'coupon_discount',
-            'discount_applied',
-            'used_at',
+            "id",
+            "coupon_code",
+            "coupon_discount",
+            "discount_applied",
+            "used_at",
         ]
         read_only_fields = fields
 

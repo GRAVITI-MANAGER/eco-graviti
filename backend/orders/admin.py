@@ -1,12 +1,14 @@
 # backend/orders/admin.py
 
 from django.contrib import admin
-from django.utils.html import format_html
 from django.utils import timezone
-from unfold.admin import TabularInline, StackedInline
-from .models import Order, OrderItem, OrderServiceItem, Payment
-from core.admin_site import gravitify_admin_site
+from django.utils.html import format_html
+from unfold.admin import StackedInline, TabularInline
+
 from core.admin import ShopModuleAdmin
+from core.admin_site import nerbis_admin_site
+
+from .models import Order, OrderItem, OrderServiceItem, Payment
 
 
 class OrderItemInline(TabularInline):
@@ -35,7 +37,7 @@ class PaymentInline(StackedInline):
     fields = ["payment_method", "amount", "currency", "status", "stripe_payment_intent_id", "processed_at"]
 
 
-@admin.register(Order, site=gravitify_admin_site)
+@admin.register(Order, site=nerbis_admin_site)
 class OrderAdmin(ShopModuleAdmin):
     """Admin para órdenes"""
 
@@ -201,7 +203,7 @@ class OrderAdmin(ShopModuleAdmin):
     cancel_orders.short_description = "Cancelar órdenes"
 
 
-@admin.register(Payment, site=gravitify_admin_site)
+@admin.register(Payment, site=nerbis_admin_site)
 class PaymentAdmin(ShopModuleAdmin):
     """Admin para pagos"""
 

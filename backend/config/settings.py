@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-import dj_database_url
 
+import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +21,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-solo-desarroll
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 if not DEBUG and SECRET_KEY == "django-insecure-default-key-solo-desarrollo":
-    raise ValueError(
-        "SECRET_KEY no está configurada. "
-        "Configura la variable de entorno SECRET_KEY en producción."
-    )
+    raise ValueError("SECRET_KEY no está configurada. Configura la variable de entorno SECRET_KEY en producción.")
 
 # Desarrollo: localhost
 # Producción: agrega tus dominios via variable de entorno
@@ -39,10 +36,13 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Producción: agrega via variable de entorno
-# Ejemplo: CSRF_TRUSTED_ORIGINS=https://api.graviti.co,https://app.graviti.co
+# Ejemplo: CSRF_TRUSTED_ORIGINS=https://api.nerbis.com,https://app.nerbis.com
 _csrf_env = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 if _csrf_env:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _csrf_env.split(",") if o.strip()]
+
+# Google Maps API Key (for website builder map embeds)
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
 # Session Configuration
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Guardar sesiones en DB
@@ -212,7 +212,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Producción: agrega via variable de entorno
-# Ejemplo: CORS_ALLOWED_ORIGINS=https://app.graviti.co,https://graviti.co
+# Ejemplo: CORS_ALLOWED_ORIGINS=https://app.nerbis.com,https://nerbis.com
 _cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
 if _cors_env:
     CORS_ALLOWED_ORIGINS += [o.strip() for o in _cors_env.split(",") if o.strip()]
@@ -321,10 +321,10 @@ REST_FRAMEWORK = {
         "THROTTLED_CACHE": "throttle",
     },
     "DEFAULT_THROTTLE_RATES": {
-        "login": "5/min",           # Login: 5 intentos por minuto por IP
-        "register": "3/min",        # Registro: 3 por minuto por IP
-        "otp_request": "3/min",     # Solicitar OTP: 3 por minuto por IP
-        "otp_verify": "5/min",      # Verificar OTP: 5 por minuto por IP
+        "login": "5/min",  # Login: 5 intentos por minuto por IP
+        "register": "3/min",  # Registro: 3 por minuto por IP
+        "otp_request": "3/min",  # Solicitar OTP: 3 por minuto por IP
+        "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
     },
 }
@@ -336,8 +336,8 @@ from datetime import timedelta
 
 SIMPLE_JWT = {
     # Tiempo de vida de los tokens
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=3),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     # Rotación de tokens
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -371,13 +371,13 @@ EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@graviti.com")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@nerbis.com")
 
 # URL base del frontend (para links en emails)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # Dominio base de la plataforma (para subdominios de tenants/websites)
-PLATFORM_BASE_DOMAIN = os.getenv("PLATFORM_BASE_DOMAIN", "graviti.co")
+PLATFORM_BASE_DOMAIN = os.getenv("PLATFORM_BASE_DOMAIN", "nerbis.com")
 
 
 # ===================================
@@ -404,29 +404,6 @@ TAX_RATE = 0.21  # 21% IVA
 # ===================================
 BOOKING_HOLD_MINUTES = int(os.getenv("BOOKING_HOLD_MINUTES", "15"))
 
-
-# ===================================
-# EMAIL CONFIGURATION
-# ===================================
-import os
-
-# Backend de email
-EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"  # Desarrollo: imprime en consola
-)
-
-# Configuración SMTP (para producción)
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@gcbellezayestetica.es")
-DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "GC Belleza y Estética")
-
-# Para desarrollo: imprimir emails en consola
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ===================================
 # CACHE CONFIGURATION (Redis — compartido con Celery)
@@ -478,7 +455,7 @@ TWILIO_ENABLED = os.getenv("TWILIO_ENABLED", "False") == "True"
 # ===================================
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
-ANTHROPIC_PRICE_INPUT = os.getenv("ANTHROPIC_PRICE_INPUT", "0.25")   # USD por 1M tokens
+ANTHROPIC_PRICE_INPUT = os.getenv("ANTHROPIC_PRICE_INPUT", "0.25")  # USD por 1M tokens
 ANTHROPIC_PRICE_OUTPUT = os.getenv("ANTHROPIC_PRICE_OUTPUT", "1.25")  # USD por 1M tokens
 
 # ===================================

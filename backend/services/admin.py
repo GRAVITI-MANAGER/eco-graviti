@@ -4,10 +4,12 @@ from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from .models import ServiceCategory, Service, StaffMember
-from core.admin_site import gravitify_admin_site
+
 from core.admin import BookingsModuleAdmin
+from core.admin_site import nerbis_admin_site
 from core.widgets import ImagePreviewWidget
+
+from .models import Service, ServiceCategory, StaffMember
 
 
 class ServiceCategoryForm(forms.ModelForm):
@@ -15,9 +17,9 @@ class ServiceCategoryForm(forms.ModelForm):
 
     class Meta:
         model = ServiceCategory
-        fields = '__all__'
+        fields = "__all__"
         widgets = {
-            'image': ImagePreviewWidget(),
+            "image": ImagePreviewWidget(),
         }
 
 
@@ -26,9 +28,9 @@ class ServiceForm(forms.ModelForm):
 
     class Meta:
         model = Service
-        fields = '__all__'
+        fields = "__all__"
         widgets = {
-            'image': ImagePreviewWidget(),
+            "image": ImagePreviewWidget(),
         }
 
 
@@ -37,13 +39,13 @@ class StaffMemberForm(forms.ModelForm):
 
     class Meta:
         model = StaffMember
-        fields = '__all__'
+        fields = "__all__"
         widgets = {
-            'photo': ImagePreviewWidget(),
+            "photo": ImagePreviewWidget(),
         }
 
 
-@admin.register(ServiceCategory, site=gravitify_admin_site)
+@admin.register(ServiceCategory, site=nerbis_admin_site)
 class ServiceCategoryAdmin(BookingsModuleAdmin):
     """Admin para categorías de servicios"""
 
@@ -96,7 +98,7 @@ class ServiceCategoryAdmin(BookingsModuleAdmin):
     services_count.short_description = "Servicios"
 
 
-@admin.register(Service, site=gravitify_admin_site)
+@admin.register(Service, site=nerbis_admin_site)
 class ServiceAdmin(BookingsModuleAdmin):
     """Admin para servicios"""
 
@@ -180,7 +182,7 @@ class ServiceAdmin(BookingsModuleAdmin):
     image_preview.short_description = "Imagen"
 
 
-@admin.register(StaffMember, site=gravitify_admin_site)
+@admin.register(StaffMember, site=nerbis_admin_site)
 class StaffMemberAdmin(BookingsModuleAdmin):
     """Admin para miembros del staff"""
 
@@ -231,7 +233,7 @@ class StaffMemberAdmin(BookingsModuleAdmin):
 
     def assigned_services_list(self, obj):
         """Mostrar servicios asignados a este staff member"""
-        services = obj.services.filter(is_active=True).order_by('category__name', 'name')
+        services = obj.services.filter(is_active=True).order_by("category__name", "name")
 
         if not services.exists():
             return mark_safe(
@@ -258,14 +260,14 @@ class StaffMemberAdmin(BookingsModuleAdmin):
             for service in cat_services:
                 html_parts.append(
                     f'<li style="margin: 2px 0; color: #4b5563;">'
-                    f'{service.name} '
+                    f"{service.name} "
                     f'<span style="color: #9ca3af;">({service.formatted_duration} - €{service.price})</span>'
-                    f'</li>'
+                    f"</li>"
                 )
-            html_parts.append('</ul></div>')
-        html_parts.append('</div>')
+            html_parts.append("</ul></div>")
+        html_parts.append("</div>")
 
-        return mark_safe(''.join(html_parts))
+        return mark_safe("".join(html_parts))
 
     assigned_services_list.short_description = "Servicios que puede realizar"
 

@@ -11,8 +11,8 @@ Integra con Claude (Anthropic) para:
 
 import json
 import logging
-from typing import Dict, List, Optional, Tuple
 from decimal import Decimal
+
 from django.conf import settings
 from django.utils import timezone
 
@@ -42,7 +42,8 @@ class AIService:
         """Obtiene el cliente de Anthropic."""
         try:
             import anthropic
-            api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
+
+            api_key = getattr(settings, "ANTHROPIC_API_KEY", None)
             if not api_key:
                 logger.warning("ANTHROPIC_API_KEY no configurada")
                 return None
@@ -51,13 +52,13 @@ class AIService:
             logger.error("anthropic package no instalado. Ejecutar: pip install anthropic")
             return None
 
-    def _build_system_prompt(self, template, onboarding_responses: Dict) -> str:
+    def _build_system_prompt(self, template, onboarding_responses: dict) -> str:
         """
         Construye el prompt del sistema basado en el template y respuestas.
 
         Args:
             template: WebsiteTemplate seleccionado
-            onboarding_responses: Dict de respuestas del onboarding
+            onboarding_responses: dict de respuestas del onboarding
 
         Returns:
             String con el prompt del sistema
@@ -79,7 +80,7 @@ Tu objetivo es generar contenido profesional, atractivo y personalizado.
 
 ## Reglas Generales
 1. Escribe en español (España/Latinoamérica según el contexto)
-2. Usa un tono {onboarding_responses.get('brand_tone', 'profesional y cercano')}
+2. Usa un tono {onboarding_responses.get("brand_tone", "profesional y cercano")}
 3. Sé conciso pero impactante
 4. Incluye llamadas a la acción claras
 5. Personaliza el contenido según la industria y audiencia
@@ -92,57 +93,54 @@ No incluyas explicaciones fuera del JSON.
 """
         return system_prompt
 
-    def _format_business_context(self, responses: Dict) -> str:
+    def _format_business_context(self, responses: dict) -> str:
         """Formatea las respuestas del onboarding como contexto."""
         context_lines = []
 
         # Mapeo de claves a descripciones legibles
         key_labels = {
-            'business_name': 'Nombre del negocio',
-            'business_tagline': 'Slogan',
-            'business_description': 'Descripción',
-            'target_audience': 'Audiencia objetivo',
-            'unique_selling_point': 'Propuesta de valor única',
-            'brand_tone': 'Tono de comunicación',
-            'website_sections': 'Secciones seleccionadas para el sitio',
-            'business_address': 'Dirección',
-            'business_phone': 'Teléfono',
-            'business_email': 'Email',
-            'business_whatsapp': 'WhatsApp',
-            'business_hours': 'Horario de atención',
+            "business_name": "Nombre del negocio",
+            "business_tagline": "Slogan",
+            "business_description": "Descripción",
+            "target_audience": "Audiencia objetivo",
+            "unique_selling_point": "Propuesta de valor única",
+            "brand_tone": "Tono de comunicación",
+            "website_sections": "Secciones seleccionadas para el sitio",
+            "business_address": "Dirección",
+            "business_phone": "Teléfono",
+            "business_email": "Email",
+            "business_whatsapp": "WhatsApp",
+            "business_hours": "Horario de atención",
         }
 
         for key, value in responses.items():
             if value:  # Solo incluir si tiene valor
-                label = key_labels.get(key, key.replace('_', ' ').title())
+                label = key_labels.get(key, key.replace("_", " ").title())
                 if isinstance(value, list):
-                    value = ', '.join(str(v) for v in value)
+                    value = ", ".join(str(v) for v in value)
                 context_lines.append(f"- {label}: {value}")
 
-        return '\n'.join(context_lines) if context_lines else "No se proporcionó información adicional."
+        return "\n".join(context_lines) if context_lines else "No se proporcionó información adicional."
 
     def generate_initial_content(
-        self,
-        template,
-        onboarding_responses: Dict,
-        additional_instructions: str = ""
-    ) -> Tuple[Dict, Dict, int, int, str, str]:
+        self, template, onboarding_responses: dict, additional_instructions: str = ""
+    ) -> tuple[dict, dict, int, int, str, str]:
         """
         Genera el contenido inicial del sitio web.
 
         Args:
             template: WebsiteTemplate seleccionado
-            onboarding_responses: Dict con respuestas del onboarding
+            onboarding_responses: dict con respuestas del onboarding
             additional_instructions: Instrucciones adicionales
 
         Returns:
-            Tuple de (content_data, seo_data, tokens_input, tokens_output, full_prompt, raw_response)
+            tuple de (content_data, seo_data, tokens_input, tokens_output, full_prompt, raw_response)
         """
         if not self.client:
             return (*self._mock_generate_content(template, onboarding_responses), "", "")
 
         # Obtener estructura de secciones del template
-        sections = template.structure_schema.get('sections', self._default_sections())
+        sections = template.structure_schema.get("sections", self._default_sections())
 
         # Filtrar secciones según selección del usuario (reduce tokens)
         sections = self._filter_sections_by_selection(sections, onboarding_responses)
@@ -156,7 +154,7 @@ No incluyas explicaciones fuera del JSON.
 {json.dumps(sections, indent=2, ensure_ascii=False)}
 
 ## Instrucciones Adicionales
-{additional_instructions if additional_instructions else 'Ninguna'}
+{additional_instructions if additional_instructions else "Ninguna"}
 
 ## Formato de Respuesta Esperado
 Responde con un JSON con esta estructura (incluye SOLO las secciones indicadas arriba):
@@ -235,7 +233,7 @@ Genera contenido profesional y atractivo basado en la información del negocio."
                 model=settings.ANTHROPIC_MODEL,
                 max_tokens=4096,
                 system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
+                messages=[{"role": "user", "content": user_prompt}],
             )
 
             # Parsear respuesta
@@ -247,16 +245,16 @@ Genera contenido profesional y atractivo basado en la información del negocio."
             try:
                 # Limpiar posibles caracteres extra
                 json_text = response_text.strip()
-                if json_text.startswith('```json'):
+                if json_text.startswith("```json"):
                     json_text = json_text[7:]
-                if json_text.startswith('```'):
+                if json_text.startswith("```"):
                     json_text = json_text[3:]
-                if json_text.endswith('```'):
+                if json_text.endswith("```"):
                     json_text = json_text[:-3]
 
                 result = json.loads(json_text.strip())
-                content_data = result.get('content', {})
-                seo_data = result.get('seo', {})
+                content_data = result.get("content", {})
+                seo_data = result.get("seo", {})
 
             except json.JSONDecodeError as e:
                 logger.error(f"Error parseando JSON de IA: {e}")
@@ -272,12 +270,8 @@ Genera contenido profesional y atractivo basado en la información del negocio."
             return (*self._mock_generate_content(template, onboarding_responses), "", "")
 
     def chat_edit(
-        self,
-        message: str,
-        current_content: Dict,
-        chat_history: List[Dict],
-        section_id: Optional[str] = None
-    ) -> Tuple[str, Optional[Dict], Optional[str], int, int]:
+        self, message: str, current_content: dict, chat_history: list[dict], section_id: str | None = None
+    ) -> tuple[str, dict | None, str | None, int, int]:
         """
         Procesa un mensaje del chat para editar contenido.
 
@@ -288,7 +282,7 @@ Genera contenido profesional y atractivo basado en la información del negocio."
             section_id: Sección específica a editar (opcional)
 
         Returns:
-            Tuple de (response_message, updated_content, affected_section, tokens_in, tokens_out)
+            tuple de (response_message, updated_content, affected_section, tokens_in, tokens_out)
         """
         if not self.client:
             return self._mock_chat_response(message, section_id)
@@ -325,24 +319,15 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
         # Construir mensajes con historial
         messages = []
         for msg in chat_history[-10:]:  # Últimos 10 mensajes para contexto
-            messages.append({
-                "role": msg['role'],
-                "content": msg['content']
-            })
+            messages.append({"role": msg["role"], "content": msg["content"]})
 
         # Agregar mensaje actual
         context_prefix = f"[Editando sección: {section_id}] " if section_id else ""
-        messages.append({
-            "role": "user",
-            "content": f"{context_prefix}{message}"
-        })
+        messages.append({"role": "user", "content": f"{context_prefix}{message}"})
 
         try:
             response = self.client.messages.create(
-                model=settings.ANTHROPIC_MODEL,
-                max_tokens=2048,
-                system=system_prompt,
-                messages=messages
+                model=settings.ANTHROPIC_MODEL, max_tokens=2048, system=system_prompt, messages=messages
             )
 
             response_text = response.content[0].text
@@ -352,18 +337,18 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
             # Parsear respuesta
             try:
                 json_text = response_text.strip()
-                if json_text.startswith('```json'):
+                if json_text.startswith("```json"):
                     json_text = json_text[7:]
-                if json_text.endswith('```'):
+                if json_text.endswith("```"):
                     json_text = json_text[:-3]
 
                 result = json.loads(json_text.strip())
                 return (
-                    result.get('message', 'Cambios aplicados'),
-                    result.get('updated_content'),
-                    result.get('updated_section'),
+                    result.get("message", "Cambios aplicados"),
+                    result.get("updated_content"),
+                    result.get("updated_section"),
                     tokens_input,
-                    tokens_output
+                    tokens_output,
                 )
             except json.JSONDecodeError:
                 return response_text, None, None, tokens_input, tokens_output
@@ -391,12 +376,12 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
         cost_usd = cost_input + cost_output
 
         # Convertir a COP (tasa aproximada)
-        usd_to_cop = Decimal('4200')  # TODO: Obtener tasa actual
+        usd_to_cop = Decimal("4200")  # TODO: Obtener tasa actual
         cost_cop = cost_usd * usd_to_cop
 
-        return cost_cop.quantize(Decimal('0.01'))
+        return cost_cop.quantize(Decimal("0.01"))
 
-    def check_usage_limit(self, tenant) -> Tuple[bool, int, int]:
+    def check_usage_limit(self, tenant) -> tuple[bool, int, int]:
         """
         Verifica si el tenant ha excedido su límite de generaciones.
 
@@ -404,37 +389,32 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
             tenant: Tenant a verificar
 
         Returns:
-            Tuple de (can_generate, used_this_month, limit)
+            tuple de (can_generate, used_this_month, limit)
         """
         from billing.models import Subscription
 
         # Obtener suscripción activa o trial
-        subscription = Subscription.objects.filter(
-            tenant=tenant,
-            status__in=['active', 'trial']
-        ).first()
+        subscription = Subscription.objects.filter(tenant=tenant, status__in=["active", "trial"]).first()
 
         if not subscription:
             return False, 0, 0
 
         # Obtener límite del módulo web (configurable desde admin)
-        web_sm = subscription.subscription_modules.filter(
-            module__slug='web',
-            is_active=True
-        ).select_related('module').first()
+        web_sm = (
+            subscription.subscription_modules.filter(module__slug="web", is_active=True)
+            .select_related("module")
+            .first()
+        )
         if not web_sm:
-            limit = 5
+            limit = 10
         else:
             limit = web_sm.module.get_ai_limit_for_subscription(subscription)
 
         # Contar uso del mes actual
         from websites.models import AIGenerationLog
+
         month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        used = AIGenerationLog.objects.filter(
-            tenant=tenant,
-            created_at__gte=month_start,
-            is_successful=True
-        ).count()
+        used = AIGenerationLog.objects.filter(tenant=tenant, created_at__gte=month_start, is_successful=True).count()
 
         can_generate = used < limit
         return can_generate, used, limit
@@ -498,37 +478,132 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
         if self.website_config and is_successful:
             self.website_config.ai_generations_count += 1
             self.website_config.last_generation_at = timezone.now()
-            self.website_config.save(update_fields=['ai_generations_count', 'last_generation_at'])
+            self.website_config.save(update_fields=["ai_generations_count", "last_generation_at"])
 
         return log
+
+    # ===================================
+    # SEO AI Suggestions
+    # ===================================
+
+    def suggest_seo(
+        self,
+        keywords: list[str],
+        business_name: str = "",
+        business_description: str = "",
+        current_title: str = "",
+        current_description: str = "",
+    ) -> tuple[dict, int, int]:
+        """
+        Genera sugerencias SEO optimizadas basadas en las keywords del usuario.
+
+        Args:
+            keywords: lista de palabras clave del negocio
+            business_name: Nombre del negocio
+            business_description: Descripción breve
+            current_title: Título actual (para mejorar)
+            current_description: Descripción actual (para mejorar)
+
+        Returns:
+            tuple de (suggestions_dict, tokens_input, tokens_output)
+        """
+        if not self.client:
+            return self._mock_seo_suggestions(keywords, business_name), 0, 0
+
+        keywords_str = ", ".join(keywords) if keywords else "negocio"
+
+        system_prompt = """Eres un experto en SEO para negocios pequeños y medianos.
+Tu trabajo es generar un título y descripción optimizados para Google.
+
+## Reglas
+1. El TÍTULO debe tener entre 30 y 60 caracteres — obligatorio
+2. La DESCRIPCIÓN debe tener entre 120 y 155 caracteres — obligatorio
+3. Usa las palabras clave como CONTEXTO para entender el negocio, NO las copies literalmente
+4. El título debe empezar con el nombre del negocio, seguido de un guion y una frase que describa lo que hacen
+5. Escribe en español, tono profesional pero cercano
+6. El título debe ser atractivo para que la gente haga clic en Google
+7. La descripción debe explicar qué ofrece el negocio y motivar a visitar el sitio
+8. Sugiere 3-5 keywords adicionales relevantes que el usuario no haya pensado
+9. NUNCA uses palabras genéricas como "Mi Negocio", "Tu empresa", "Servicios" solas
+10. NO uses emojis
+11. Si el negocio ya tiene un título actual, mejóralo conservando su esencia
+
+## Formato de Respuesta — JSON estricto
+{
+    "title": "Título SEO optimizado (30-60 chars)",
+    "description": "Meta descripción optimizada (120-155 chars)",
+    "extra_keywords": ["keyword1", "keyword2", "keyword3"]
+}"""
+
+        user_prompt = f"""Genera título y descripción SEO para este negocio:
+
+- Nombre del negocio: {business_name or "No especificado"}
+- Palabras clave que describen el negocio: {keywords_str}
+{f"- Título actual (mejóralo conservando su esencia): {current_title}" if current_title else ""}
+{f"- Descripción actual (mejórala): {current_description}" if current_description else ""}
+
+Responde SOLO con el JSON, sin explicaciones."""
+
+        try:
+            response = self.client.messages.create(
+                model=settings.ANTHROPIC_MODEL,
+                max_tokens=512,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            response_text = response.content[0].text
+            tokens_input = response.usage.input_tokens
+            tokens_output = response.usage.output_tokens
+
+            # Parse JSON
+            json_text = response_text.strip()
+            if json_text.startswith("```json"):
+                json_text = json_text[7:]
+            if json_text.startswith("```"):
+                json_text = json_text[3:]
+            if json_text.endswith("```"):
+                json_text = json_text[:-3]
+
+            result = json.loads(json_text.strip())
+            return result, tokens_input, tokens_output
+
+        except Exception as e:
+            logger.error(f"Error generando sugerencias SEO: {e}")
+            return self._mock_seo_suggestions(keywords, business_name), 0, 0
+
+    def _mock_seo_suggestions(self, keywords: list[str], business_name: str) -> dict:
+        """Sugerencias SEO mock cuando no hay API key."""
+        kw_str = ", ".join(keywords[:3]) if keywords else ""
+        name = business_name or "Tu Negocio"
+        subtitle = f" - Especialistas en {kw_str}" if kw_str else ""
+        return {
+            "title": f"{name}{subtitle}"[:60],
+            "description": f"Conoce {name}: ofrecemos {kw_str or 'soluciones'} con calidad y atención personalizada. Visítanos y descubre todo lo que tenemos para ti.",
+            "extra_keywords": ["calidad", "confianza", "profesional"],
+        }
 
     # ===================================
     # MÉTODOS MOCK (para desarrollo sin API)
     # ===================================
 
-    def _mock_generate_content(self, template, responses: Dict) -> Tuple[Dict, Dict, int, int]:
+    def _mock_generate_content(self, template, responses: dict) -> tuple[dict, dict, int, int]:
         """Genera contenido mock para desarrollo."""
-        business_name = responses.get('business_name', 'Mi Negocio')
-        tagline = responses.get('business_tagline', 'Tu mejor opción')
-        description = responses.get('business_description', 'Descripción del negocio...')
+        business_name = responses.get("business_name", "Mi Negocio")
+        tagline = responses.get("business_tagline", "Tu mejor opción")
+        description = responses.get("business_description", "Descripción del negocio...")
 
         # Determinar secciones seleccionadas (compatible con formato viejo y nuevo)
-        selected_sections = responses.get('website_sections', [])
+        selected_sections = responses.get("website_sections", [])
         # Nuevo formato: "Servicios" y "Productos" por separado
         # Viejo formato: "Servicios / Productos" combinado
-        wants_services = (
-            'Servicios' in selected_sections
-            or 'Servicios / Productos' in selected_sections
-        )
-        wants_products = (
-            'Productos' in selected_sections
-            or 'Servicios / Productos' in selected_sections
-        )
-        has_about = 'Sobre nosotros' in selected_sections
-        has_gallery = 'Galería de fotos' in selected_sections
-        has_testimonials = 'Testimonios / Reseñas' in selected_sections
-        has_pricing = 'Precios / Tarifas' in selected_sections
-        has_faq = 'Preguntas frecuentes' in selected_sections
+        wants_services = "Servicios" in selected_sections or "Servicios / Productos" in selected_sections
+        wants_products = "Productos" in selected_sections or "Servicios / Productos" in selected_sections
+        has_about = "Sobre nosotros" in selected_sections
+        has_gallery = "Galería de fotos" in selected_sections
+        has_testimonials = "Testimonios / Reseñas" in selected_sections
+        has_pricing = "Precios / Tarifas" in selected_sections
+        has_faq = "Preguntas frecuentes" in selected_sections
 
         # Hero y contact son siempre obligatorios
         content_data = {
@@ -536,42 +611,38 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
                 "title": f"Bienvenido a {business_name}",
                 "subtitle": tagline,
                 "cta_text": "Contáctanos",
-                "cta_link": "#contacto"
+                "cta_link": "#contacto",
             },
             "contact": {
                 "title": "Contáctanos",
                 "subtitle": "Estamos aquí para ayudarte",
-                "phone": responses.get('business_phone', '[Tu teléfono]'),
-                "email": responses.get('business_email', '[Tu email]'),
-                "address": responses.get('business_address', '[Tu dirección]'),
-                "hours": responses.get('business_hours', 'Lunes a Viernes: 9am - 6pm')
-            }
+                "phone": responses.get("business_phone", "[Tu teléfono]"),
+                "email": responses.get("business_email", "[Tu email]"),
+                "address": responses.get("business_address", "[Tu dirección]"),
+                "hours": responses.get("business_hours", "Lunes a Viernes: 9am - 6pm"),
+            },
         }
 
         if has_about or not selected_sections:
             content_data["about"] = {
                 "title": "Sobre Nosotros",
                 "content": description,
-                "highlights": [
-                    "Años de experiencia",
-                    "Atención personalizada",
-                    "Calidad garantizada"
-                ]
+                "highlights": ["Años de experiencia", "Atención personalizada", "Calidad garantizada"],
             }
 
         # Servicios: solo si seleccionó y el tenant tiene has_services
-        if wants_services and getattr(self.tenant, 'has_services', False):
+        if wants_services and getattr(self.tenant, "has_services", False):
             content_data["services"] = {
                 "title": "Nuestros Servicios",
                 "subtitle": "Descubre todo lo que podemos hacer por ti",
                 "items": [
                     {"name": "Servicio 1", "description": "Descripción del servicio", "icon": "spa"},
                     {"name": "Servicio 2", "description": "Descripción del servicio", "icon": "star"},
-                ]
+                ],
             }
 
         # Productos: solo si seleccionó y el tenant tiene has_shop
-        if wants_products and getattr(self.tenant, 'has_shop', False):
+        if wants_products and getattr(self.tenant, "has_shop", False):
             content_data["products"] = {
                 "title": "Nuestros Productos",
                 "subtitle": "Encuentra lo mejor para ti",
@@ -579,24 +650,24 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
                     {"name": "Producto 1", "description": "Descripción del producto", "price": "$29.900"},
                     {"name": "Producto 2", "description": "Descripción del producto", "price": "$49.900"},
                     {"name": "Producto 3", "description": "Descripción del producto", "price": "$19.900"},
-                ]
+                ],
             }
 
         if has_testimonials:
             content_data["testimonials"] = {
                 "title": "Lo que dicen nuestros clientes",
                 "items": [
-                    {"name": "Cliente 1", "role": "Cliente frecuente", "content": "Excelente servicio, siempre vuelvo."},
+                    {
+                        "name": "Cliente 1",
+                        "role": "Cliente frecuente",
+                        "content": "Excelente servicio, siempre vuelvo.",
+                    },
                     {"name": "Cliente 2", "role": "Cliente nuevo", "content": "Muy buena experiencia, lo recomiendo."},
-                ]
+                ],
             }
 
         if has_gallery:
-            content_data["gallery"] = {
-                "title": "Galería",
-                "subtitle": "Conoce nuestro trabajo",
-                "items": []
-            }
+            content_data["gallery"] = {"title": "Galería", "subtitle": "Conoce nuestro trabajo", "items": []}
 
         if has_pricing:
             content_data["pricing"] = {
@@ -605,35 +676,41 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
                 "items": [
                     {"name": "Básico", "price": "$50.000/mes", "description": "Ideal para empezar"},
                     {"name": "Premium", "price": "$120.000/mes", "description": "Para negocios en crecimiento"},
-                ]
+                ],
             }
 
         if has_faq:
             content_data["faq"] = {
                 "title": "Preguntas Frecuentes",
                 "items": [
-                    {"question": "¿Cuáles son los horarios de atención?", "answer": responses.get('business_hours', 'Lunes a Viernes: 9am - 6pm')},
-                    {"question": "¿Cómo puedo contactarlos?", "answer": f"Puedes llamarnos al {responses.get('business_phone', '[teléfono]')} o escribirnos a {responses.get('business_email', '[email]')}."},
-                ]
+                    {
+                        "question": "¿Cuáles son los horarios de atención?",
+                        "answer": responses.get("business_hours", "Lunes a Viernes: 9am - 6pm"),
+                    },
+                    {
+                        "question": "¿Cómo puedo contactarlos?",
+                        "answer": f"Puedes llamarnos al {responses.get('business_phone', '[teléfono]')} o escribirnos a {responses.get('business_email', '[email]')}.",
+                    },
+                ],
             }
 
         keywords = [business_name.lower()]
-        if 'services' in content_data:
+        if "services" in content_data:
             keywords.append("servicios")
-        if 'products' in content_data:
+        if "products" in content_data:
             keywords.append("productos")
         keywords.append("contacto")
 
         seo_data = {
             "meta_title": f"{business_name} - {tagline}",
             "meta_description": description[:160] if description else f"Bienvenido a {business_name}",
-            "keywords": keywords
+            "keywords": keywords,
         }
 
         # Simular tokens usados
         return content_data, seo_data, 500, 800
 
-    def _mock_chat_response(self, message: str, section_id: Optional[str]) -> Tuple:
+    def _mock_chat_response(self, message: str, section_id: str | None) -> tuple:
         """Respuesta mock del chat."""
         return (
             f"Entendido. He procesado tu solicitud: '{message}'. "
@@ -641,24 +718,22 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
             None,
             section_id,
             100,
-            150
+            150,
         )
 
     # Mapeo: opción del multi_choice → IDs de sección del template
     SECTION_OPTION_MAP = {
-        'Sobre nosotros': ['about'],
-        'Servicios': ['services'],
-        'Productos': ['products'],
-        'Servicios / Productos': ['services', 'products'],  # backwards compat
-        'Galería de fotos': ['gallery'],
-        'Testimonios / Reseñas': ['testimonials'],
-        'Precios / Tarifas': ['pricing'],
-        'Preguntas frecuentes': ['faq'],
+        "Sobre nosotros": ["about"],
+        "Servicios": ["services"],
+        "Productos": ["products"],
+        "Servicios / Productos": ["services", "products"],  # backwards compat
+        "Galería de fotos": ["gallery"],
+        "Testimonios / Reseñas": ["testimonials"],
+        "Precios / Tarifas": ["pricing"],
+        "Preguntas frecuentes": ["faq"],
     }
 
-    def _filter_sections_by_selection(
-        self, sections: List[Dict], responses: Dict
-    ) -> List[Dict]:
+    def _filter_sections_by_selection(self, sections: list[dict], responses: dict) -> list[dict]:
         """
         Filtra secciones del template según lo que el usuario seleccionó
         y los módulos activos del tenant.
@@ -668,7 +743,7 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
         'services' solo si el tenant tiene has_services.
         'products' solo si el tenant tiene has_shop.
         """
-        selected = responses.get('website_sections', [])
+        selected = responses.get("website_sections", [])
         if not selected or not isinstance(selected, list):
             return sections  # Sin filtro si no hay selección
 
@@ -680,22 +755,19 @@ Si el usuario hace una pregunta sin pedir cambios, responde solo con:
 
         # Filtrar services/products según módulos del tenant
         if self.tenant:
-            if not getattr(self.tenant, 'has_services', False) and 'services' in allowed_ids:
-                allowed_ids.discard('services')
-            if not getattr(self.tenant, 'has_shop', False) and 'products' in allowed_ids:
-                allowed_ids.discard('products')
+            if not getattr(self.tenant, "has_services", False) and "services" in allowed_ids:
+                allowed_ids.discard("services")
+            if not getattr(self.tenant, "has_shop", False) and "products" in allowed_ids:
+                allowed_ids.discard("products")
             # Asegurar que al menos uno quede si seleccionó servicios/productos
-            services_or_products = {'Servicios', 'Productos', 'Servicios / Productos'}
-            if services_or_products & set(selected) and not allowed_ids & {'services', 'products'}:
+            services_or_products = {"Servicios", "Productos", "Servicios / Productos"}
+            if services_or_products & set(selected) and not allowed_ids & {"services", "products"}:
                 # Si ninguno quedó por los flags, incluir genérico
-                allowed_ids.add('services')
+                allowed_ids.add("services")
 
-        return [
-            s for s in sections
-            if s.get('required', False) or s.get('id') in allowed_ids
-        ]
+        return [s for s in sections if s.get("required", False) or s.get("id") in allowed_ids]
 
-    def _default_sections(self) -> List[Dict]:
+    def _default_sections(self) -> list[dict]:
         """Secciones por defecto si el template no las define."""
         return [
             {"id": "hero", "name": "Encabezado Principal", "required": True},

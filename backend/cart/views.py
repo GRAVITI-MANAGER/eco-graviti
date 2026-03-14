@@ -1,20 +1,22 @@
 # backend/cart/views.py
 
 import logging
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+
 from django.contrib.contenttypes.models import ContentType
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from bookings.models import Appointment
 from ecommerce.models import Product
 from services.models import Service
-from bookings.models import Appointment
+
 from .models import Cart, CartItem
 from .serializers import (
-    CartSerializer,
-    CartItemSerializer,
     AddProductToCartSerializer,
     AddServiceToCartSerializer,
+    CartSerializer,
     UpdateCartItemSerializer,
 )
 
@@ -58,20 +60,18 @@ class CartViewSet(viewsets.ViewSet):
         """
         try:
             # Check tenant is available
-            if not hasattr(request, 'tenant') or request.tenant is None:
+            if not hasattr(request, "tenant") or request.tenant is None:
                 logger.error("No tenant found in request")
-                return Response(
-                    {"error": "Tenant no encontrado"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"error": "Tenant no encontrado"}, status=status.HTTP_400_BAD_REQUEST)
 
-            cart, created = Cart.objects.select_related('coupon').prefetch_related(
-                'items__appointment__service',
-                'items__appointment__staff_member',
-                'items__appointment__customer',
-            ).get_or_create(
-                tenant=request.tenant,
-                user=request.user
+            cart, created = (
+                Cart.objects.select_related("coupon")
+                .prefetch_related(
+                    "items__appointment__service",
+                    "items__appointment__staff_member",
+                    "items__appointment__customer",
+                )
+                .get_or_create(tenant=request.tenant, user=request.user)
             )
 
             # Clean up orphaned cart items (items pointing to deleted products/services)
@@ -86,9 +86,31 @@ class CartViewSet(viewsets.ViewSet):
             except Exception as serializer_error:
                 logger.exception(f"Error serializing cart {cart.id}: {serializer_error}")
                 # Return basic cart data without items if serialization fails
-                return Response({
-                    "id": cart.id,
-                    "user": request.user.id,
+                return Response(
+                    {
+                        "id": cart.id,
+                        "user": request.user.id,
+                        "items": [],
+                        "items_count": 0,
+                        "subtotal": "0.00",
+                        "discount_amount": "0.00",
+                        "tax_amount": "0.00",
+                        "total": "0.00",
+                        "coupon": None,
+                        "created_at": cart.created_at.isoformat() if cart.created_at else None,
+                        "updated_at": cart.updated_at.isoformat() if cart.updated_at else None,
+                    }
+                )
+
+            return Response(data)
+        except Exception as e:
+            user_id = getattr(request.user, "id", None) if hasattr(request, "user") else None
+            logger.exception(f"Error getting cart for user {user_id}: {e}")
+            # Return empty cart structure on error
+            return Response(
+                {
+                    "id": None,
+                    "user": user_id,
                     "items": [],
                     "items_count": 0,
                     "subtotal": "0.00",
@@ -96,28 +118,10 @@ class CartViewSet(viewsets.ViewSet):
                     "tax_amount": "0.00",
                     "total": "0.00",
                     "coupon": None,
-                    "created_at": cart.created_at.isoformat() if cart.created_at else None,
-                    "updated_at": cart.updated_at.isoformat() if cart.updated_at else None,
-                })
-
-            return Response(data)
-        except Exception as e:
-            user_id = getattr(request.user, 'id', None) if hasattr(request, 'user') else None
-            logger.exception(f"Error getting cart for user {user_id}: {e}")
-            # Return empty cart structure on error
-            return Response({
-                "id": None,
-                "user": user_id,
-                "items": [],
-                "items_count": 0,
-                "subtotal": "0.00",
-                "discount_amount": "0.00",
-                "tax_amount": "0.00",
-                "total": "0.00",
-                "coupon": None,
-                "created_at": None,
-                "updated_at": None,
-            })
+                    "created_at": None,
+                    "updated_at": None,
+                }
+            )
 
     @action(detail=False, methods=["post"])
     def add_product(self, request):
@@ -152,10 +156,9 @@ class CartViewSet(viewsets.ViewSet):
             # Actualizar cantidad
             existing_item.quantity += quantity
             existing_item.save()
-            item = existing_item
         else:
             # Crear nuevo item
-            item = CartItem.objects.create(
+            CartItem.objects.create(
                 tenant=request.tenant,
                 cart=cart,
                 item_type="product",
@@ -173,9 +176,7 @@ class CartViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception(f"Error serializing cart after add_product: {e}")
-            return Response(
-                {"message": "Producto agregado al carrito", "cart": None}, status=status.HTTP_200_OK
-            )
+            return Response({"message": "Producto agregado al carrito", "cart": None}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"])
     def add_service(self, request):
@@ -205,7 +206,7 @@ class CartViewSet(viewsets.ViewSet):
 
         # Crear item
         service_ct = ContentType.objects.get_for_model(Service)
-        item = CartItem.objects.create(
+        CartItem.objects.create(
             tenant=request.tenant,
             cart=cart,
             item_type="service",
@@ -224,9 +225,7 @@ class CartViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception(f"Error serializing cart after add_service: {e}")
-            return Response(
-                {"message": "Servicio agregado al carrito", "cart": None}, status=status.HTTP_200_OK
-            )
+            return Response({"message": "Servicio agregado al carrito", "cart": None}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["patch"], url_path="items/(?P<item_id>[^/.]+)")
     def update_item(self, request, item_id=None):

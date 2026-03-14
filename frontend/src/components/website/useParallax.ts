@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 interface UseParallaxOptions {
   /** Parallax speed factor (0-1). Default: 0.3 */
@@ -19,13 +19,13 @@ interface UseParallaxOptions {
  * Respects `prefers-reduced-motion: reduce` — disables parallax entirely.
  */
 export function useParallax<T extends HTMLElement = HTMLDivElement>(
+  externalRef: React.RefObject<T | null>,
   options: UseParallaxOptions = {}
 ) {
-  const containerRef = useRef<T>(null);
   const { speed = 0.3, className = 'parallax-bg' } = options;
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = externalRef.current;
     if (!container) return;
 
     // Respect prefers-reduced-motion
@@ -58,7 +58,5 @@ export function useParallax<T extends HTMLElement = HTMLDivElement>(
     handleScroll(); // Initial position
 
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [speed, className]);
-
-  return containerRef;
+  }, [externalRef, speed, className]);
 }

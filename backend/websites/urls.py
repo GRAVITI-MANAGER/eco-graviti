@@ -5,52 +5,56 @@ URLs para el sistema de Website Builder.
 Endpoints para la construcción de sitios web con IA.
 """
 
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
 from .views import (
-    WebsiteTemplateViewSet,
-    WebsiteConfigViewSet,
-    StartOnboardingView,
-    SaveOnboardingResponsesView,
-    OnboardingStatusView,
-    GenerateContentView,
-    ChatView,
-    PublishWebsiteView,
-    PreviewWebsiteView,
-    PreviewRenderView,
-    ReorderSectionsView,
     AddSectionView,
+    ChatView,
+    DuplicateSectionView,
+    GenerateContentView,
+    OnboardingStatusView,
+    PreviewRenderView,
+    PreviewWebsiteView,
+    PublishWebsiteView,
     RemoveSectionView,
+    ReorderSectionsView,
+    SaveOnboardingResponsesView,
+    StartOnboardingView,
+    SuggestSeoView,
     UpdateSectionVariantView,
+    UploadWebsiteMediaView,
+    WebsiteConfigViewSet,
+    WebsiteTemplateViewSet,
 )
 
 router = DefaultRouter()
-router.register(r'templates', WebsiteTemplateViewSet, basename='website-template')
-router.register(r'configs', WebsiteConfigViewSet, basename='website-config')
+router.register(r"templates", WebsiteTemplateViewSet, basename="website-template")
+router.register(r"configs", WebsiteConfigViewSet, basename="website-config")
 
 urlpatterns = [
     # ViewSets
-    path('', include(router.urls)),
-
+    path("", include(router.urls)),
     # Onboarding Flow
-    path('onboarding/start/', StartOnboardingView.as_view(), name='onboarding-start'),
-    path('onboarding/responses/', SaveOnboardingResponsesView.as_view(), name='onboarding-responses'),
-    path('onboarding/status/', OnboardingStatusView.as_view(), name='onboarding-status'),
-
+    path("onboarding/start/", StartOnboardingView.as_view(), name="onboarding-start"),
+    path("onboarding/responses/", SaveOnboardingResponsesView.as_view(), name="onboarding-responses"),
+    path("onboarding/status/", OnboardingStatusView.as_view(), name="onboarding-status"),
     # AI Generation
-    path('generate/', GenerateContentView.as_view(), name='generate-content'),
-
+    path("generate/", GenerateContentView.as_view(), name="generate-content"),
     # Chat
-    path('chat/', ChatView.as_view(), name='chat'),
-
+    path("chat/", ChatView.as_view(), name="chat"),
+    # SEO AI Suggestions
+    path("suggest-seo/", SuggestSeoView.as_view(), name="suggest-seo"),
+    # Media Upload
+    path("upload-media/", UploadWebsiteMediaView.as_view(), name="upload-media"),
     # Publish & Preview
-    path('publish/', PublishWebsiteView.as_view(), name='publish-website'),
-    path('preview/', PreviewWebsiteView.as_view(), name='preview-website'),
-    path('preview/render/', PreviewRenderView.as_view(), name='preview-render'),
-
+    path("publish/", PublishWebsiteView.as_view(), name="publish-website"),
+    path("preview/", PreviewWebsiteView.as_view(), name="preview-website"),
+    path("preview/render/", PreviewRenderView.as_view(), name="preview-render"),
     # Section Management
-    path('sections/reorder/', ReorderSectionsView.as_view(), name='sections-reorder'),
-    path('sections/add/', AddSectionView.as_view(), name='sections-add'),
-    path('sections/remove/', RemoveSectionView.as_view(), name='sections-remove'),
-    path('sections/variant/', UpdateSectionVariantView.as_view(), name='sections-variant'),
+    path("sections/reorder/", ReorderSectionsView.as_view(), name="sections-reorder"),
+    path("sections/add/", AddSectionView.as_view(), name="sections-add"),
+    path("sections/remove/", RemoveSectionView.as_view(), name="sections-remove"),
+    path("sections/duplicate/", DuplicateSectionView.as_view(), name="sections-duplicate"),
+    path("sections/variant/", UpdateSectionVariantView.as_view(), name="sections-variant"),
 ]

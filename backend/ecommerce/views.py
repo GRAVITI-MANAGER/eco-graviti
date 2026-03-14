@@ -1,20 +1,22 @@
 # backend/ecommerce/views.py
 
 from django.db import models
-from rest_framework import viewsets, filters, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
+
 from core.permissions import IsTenantStaffOrAdmin
-from .models import ProductCategory, Product, ProductImage, Inventory
+
+from .models import Product, ProductCategory, ProductImage
 from .serializers import (
-    ProductCategorySerializer,
-    ProductListSerializer,
-    ProductDetailSerializer,
-    ProductCreateUpdateSerializer,
-    ProductImageSerializer,
     InventorySerializer,
+    ProductCategorySerializer,
+    ProductCreateUpdateSerializer,
+    ProductDetailSerializer,
+    ProductImageSerializer,
+    ProductListSerializer,
 )
 
 
@@ -35,7 +37,7 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         queryset = ProductCategory.objects.filter(tenant=self.request.tenant)
         # Staff/admin ven todas las categorías (incluyendo inactivas)
         user = self.request.user
-        if not (user.is_authenticated and hasattr(user, 'role') and user.role in ('admin', 'staff')):
+        if not (user.is_authenticated and hasattr(user, "role") and user.role in ("admin", "staff")):
             queryset = queryset.filter(is_active=True)
         return queryset
 
@@ -72,7 +74,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         # Staff/admin ven todos los productos (incluyendo inactivos)
         user = self.request.user
-        if not (user.is_authenticated and hasattr(user, 'role') and user.role in ('admin', 'staff')):
+        if not (user.is_authenticated and hasattr(user, "role") and user.role in ("admin", "staff")):
             queryset = queryset.filter(is_active=True)
 
         # Por defecto, excluir productos agotados para usuarios normales
@@ -83,9 +85,9 @@ class ProductViewSet(viewsets.ModelViewSet):
             # Excluir productos sin inventario o con stock <= 0
             # Productos sin track_inventory siempre se muestran
             queryset = queryset.filter(
-                models.Q(inventory__track_inventory=False) |
-                models.Q(inventory__stock__gt=0) |
-                models.Q(inventory__allow_backorders=True)
+                models.Q(inventory__track_inventory=False)
+                | models.Q(inventory__stock__gt=0)
+                | models.Q(inventory__allow_backorders=True)
             )
 
         # Filtro: solo en stock (legacy, ahora es el comportamiento por defecto)

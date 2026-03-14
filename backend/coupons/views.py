@@ -1,22 +1,24 @@
 # backend/coupons/views.py
 
 from decimal import Decimal
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from .models import Coupon
-from .serializers import (
-    CouponSerializer,
-    CouponValidateSerializer,
-    CouponApplySerializer,
-    AppliedCouponSerializer,
-)
+
 from cart.models import Cart
 
+from .models import Coupon
+from .serializers import (
+    AppliedCouponSerializer,
+    CouponApplySerializer,
+    CouponSerializer,
+    CouponValidateSerializer,
+)
 
-@api_view(['POST'])
+
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def validate_coupon(request):
     """
@@ -26,27 +28,18 @@ def validate_coupon(request):
     serializer = CouponValidateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    code = serializer.validated_data['code']
+    code = serializer.validated_data["code"]
     tenant = request.tenant
 
     try:
-        coupon = Coupon.objects.get(
-            tenant=tenant,
-            code__iexact=code
-        )
+        coupon = Coupon.objects.get(tenant=tenant, code__iexact=code)
     except Coupon.DoesNotExist:
-        return Response(
-            {'error': 'Cupón no encontrado'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "Cupón no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
     # Validar para el usuario
     is_valid, error_message = coupon.validate_for_user(request.user)
     if not is_valid:
-        return Response(
-            {'error': error_message},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     # Obtener el carrito para validar monto mínimo
     try:
@@ -59,22 +52,24 @@ def validate_coupon(request):
     is_valid, error_message = coupon.validate_for_amount(subtotal)
     if not is_valid:
         return Response(
-            {'error': error_message, 'minimum_purchase': float(coupon.minimum_purchase)},
-            status=status.HTTP_400_BAD_REQUEST
+            {"error": error_message, "minimum_purchase": float(coupon.minimum_purchase)},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Calcular descuento potencial
     discount_amount = coupon.calculate_discount(subtotal)
 
-    return Response({
-        'valid': True,
-        'coupon': CouponSerializer(coupon).data,
-        'discount_amount': float(discount_amount),
-        'message': f'Cupón válido: {coupon.get_discount_display()} de descuento'
-    })
+    return Response(
+        {
+            "valid": True,
+            "coupon": CouponSerializer(coupon).data,
+            "discount_amount": float(discount_amount),
+            "message": f"Cupón válido: {coupon.get_discount_display()} de descuento",
+        }
+    )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def apply_coupon(request):
     """
@@ -83,40 +78,28 @@ def apply_coupon(request):
     serializer = CouponApplySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    code = serializer.validated_data['code']
+    code = serializer.validated_data["code"]
     tenant = request.tenant
 
     try:
-        coupon = Coupon.objects.get(
-            tenant=tenant,
-            code__iexact=code
-        )
+        coupon = Coupon.objects.get(tenant=tenant, code__iexact=code)
     except Coupon.DoesNotExist:
-        return Response(
-            {'error': 'Cupón no encontrado'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "Cupón no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
     # Validar para el usuario
     is_valid, error_message = coupon.validate_for_user(request.user)
     if not is_valid:
-        return Response(
-            {'error': error_message},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     # Obtener o crear carrito
-    cart, created = Cart.objects.get_or_create(
-        user=request.user,
-        tenant=tenant
-    )
+    cart, created = Cart.objects.get_or_create(user=request.user, tenant=tenant)
 
     # Validar monto mínimo
     is_valid, error_message = coupon.validate_for_amount(cart.subtotal)
     if not is_valid:
         return Response(
-            {'error': error_message, 'minimum_purchase': float(coupon.minimum_purchase)},
-            status=status.HTTP_400_BAD_REQUEST
+            {"error": error_message, "minimum_purchase": float(coupon.minimum_purchase)},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Aplicar cupón al carrito
@@ -126,23 +109,27 @@ def apply_coupon(request):
     # Calcular descuento
     discount_amount = coupon.calculate_discount(cart.subtotal)
 
-    return Response({
-        'success': True,
-        'message': f'Cupón {coupon.code} aplicado correctamente',
-        'coupon': AppliedCouponSerializer({
-            'code': coupon.code,
-            'discount_type': coupon.discount_type,
-            'discount_value': coupon.discount_value,
-            'discount_display': coupon.get_discount_display(),
-            'discount_amount': discount_amount,
-        }).data,
-        'cart_subtotal': float(cart.subtotal),
-        'discount_amount': float(discount_amount),
-        'cart_total': float(cart.subtotal - discount_amount),
-    })
+    return Response(
+        {
+            "success": True,
+            "message": f"Cupón {coupon.code} aplicado correctamente",
+            "coupon": AppliedCouponSerializer(
+                {
+                    "code": coupon.code,
+                    "discount_type": coupon.discount_type,
+                    "discount_value": coupon.discount_value,
+                    "discount_display": coupon.get_discount_display(),
+                    "discount_amount": discount_amount,
+                }
+            ).data,
+            "cart_subtotal": float(cart.subtotal),
+            "discount_amount": float(discount_amount),
+            "cart_total": float(cart.subtotal - discount_amount),
+        }
+    )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def remove_coupon(request):
     """
@@ -153,29 +140,25 @@ def remove_coupon(request):
     try:
         cart = Cart.objects.get(user=request.user, tenant=tenant)
     except Cart.DoesNotExist:
-        return Response(
-            {'error': 'No tienes un carrito activo'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "No tienes un carrito activo"}, status=status.HTTP_404_NOT_FOUND)
 
     if not cart.coupon:
-        return Response(
-            {'error': 'No hay ningún cupón aplicado'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "No hay ningún cupón aplicado"}, status=status.HTTP_400_BAD_REQUEST)
 
     cart.coupon = None
     cart.save()
 
-    return Response({
-        'success': True,
-        'message': 'Cupón eliminado correctamente',
-        'cart_subtotal': float(cart.subtotal),
-        'cart_total': float(cart.subtotal),
-    })
+    return Response(
+        {
+            "success": True,
+            "message": "Cupón eliminado correctamente",
+            "cart_subtotal": float(cart.subtotal),
+            "cart_total": float(cart.subtotal),
+        }
+    )
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_cart_coupon(request):
     """
@@ -186,10 +169,10 @@ def get_cart_coupon(request):
     try:
         cart = Cart.objects.get(user=request.user, tenant=tenant)
     except Cart.DoesNotExist:
-        return Response({'coupon': None})
+        return Response({"coupon": None})
 
     if not cart.coupon:
-        return Response({'coupon': None})
+        return Response({"coupon": None})
 
     coupon = cart.coupon
 
@@ -199,26 +182,26 @@ def get_cart_coupon(request):
         # Remover cupón inválido
         cart.coupon = None
         cart.save()
-        return Response({
-            'coupon': None,
-            'removed': True,
-            'reason': error_message
-        })
+        return Response({"coupon": None, "removed": True, "reason": error_message})
 
     discount_amount = coupon.calculate_discount(cart.subtotal)
 
-    return Response({
-        'coupon': AppliedCouponSerializer({
-            'code': coupon.code,
-            'discount_type': coupon.discount_type,
-            'discount_value': coupon.discount_value,
-            'discount_display': coupon.get_discount_display(),
-            'discount_amount': discount_amount,
-        }).data
-    })
+    return Response(
+        {
+            "coupon": AppliedCouponSerializer(
+                {
+                    "code": coupon.code,
+                    "discount_type": coupon.discount_type,
+                    "discount_value": coupon.discount_value,
+                    "discount_display": coupon.get_discount_display(),
+                    "discount_amount": discount_amount,
+                }
+            ).data
+        }
+    )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 def preview_coupon(request):
     """
@@ -230,54 +213,37 @@ def preview_coupon(request):
     serializer = CouponValidateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    code = serializer.validated_data['code']
-    subtotal = Decimal(str(request.data.get('subtotal', 0)))
+    code = serializer.validated_data["code"]
+    subtotal = Decimal(str(request.data.get("subtotal", 0)))
     tenant = request.tenant
 
     try:
-        coupon = Coupon.objects.get(
-            tenant=tenant,
-            code__iexact=code
-        )
+        coupon = Coupon.objects.get(tenant=tenant, code__iexact=code)
     except Coupon.DoesNotExist:
-        return Response(
-            {'error': 'Cupón no encontrado'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "Cupón no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
     # Validar estado básico del cupón (sin validaciones de usuario)
     if not coupon.is_valid:
         if not coupon.is_active:
-            return Response(
-                {'error': 'Este cupón no está activo'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Este cupón no está activo"}, status=status.HTTP_400_BAD_REQUEST)
 
         from django.utils import timezone
+
         now = timezone.now()
         if now < coupon.valid_from:
-            return Response(
-                {'error': 'Este cupón aún no está vigente'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Este cupón aún no está vigente"}, status=status.HTTP_400_BAD_REQUEST)
         if now > coupon.valid_until:
-            return Response(
-                {'error': 'Este cupón ha expirado'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Este cupón ha expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
         if coupon.max_uses and coupon.times_used >= coupon.max_uses:
-            return Response(
-                {'error': 'Este cupón ha alcanzado el límite de usos'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Este cupón ha alcanzado el límite de usos"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Validar monto mínimo
     is_valid, error_message = coupon.validate_for_amount(subtotal)
     if not is_valid:
         return Response(
-            {'error': error_message, 'minimum_purchase': float(coupon.minimum_purchase)},
-            status=status.HTTP_400_BAD_REQUEST
+            {"error": error_message, "minimum_purchase": float(coupon.minimum_purchase)},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Calcular descuento
@@ -286,20 +252,22 @@ def preview_coupon(request):
     # Advertencia si tiene restricciones de usuario
     warnings = []
     if coupon.first_purchase_only:
-        warnings.append('Este cupón es solo para primera compra. Se validará al completar el pedido.')
+        warnings.append("Este cupón es solo para primera compra. Se validará al completar el pedido.")
     if coupon.max_uses_per_user and coupon.max_uses_per_user < 999:
-        warnings.append(f'Límite de {coupon.max_uses_per_user} uso(s) por cliente.')
+        warnings.append(f"Límite de {coupon.max_uses_per_user} uso(s) por cliente.")
 
-    return Response({
-        'valid': True,
-        'preview': True,  # Indica que es solo preview
-        'coupon': {
-            'code': coupon.code,
-            'discount_type': coupon.discount_type,
-            'discount_value': float(coupon.discount_value),
-            'discount_display': coupon.get_discount_display(),
-        },
-        'discount_amount': float(discount_amount),
-        'message': f'Cupón válido: {coupon.get_discount_display()} de descuento',
-        'warnings': warnings,
-    })
+    return Response(
+        {
+            "valid": True,
+            "preview": True,  # Indica que es solo preview
+            "coupon": {
+                "code": coupon.code,
+                "discount_type": coupon.discount_type,
+                "discount_value": float(coupon.discount_value),
+                "discount_display": coupon.get_discount_display(),
+            },
+            "discount_amount": float(discount_amount),
+            "message": f"Cupón válido: {coupon.get_discount_display()} de descuento",
+            "warnings": warnings,
+        }
+    )

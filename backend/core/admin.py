@@ -2,16 +2,17 @@
 
 from django import forms
 from django.contrib import admin
-from django.db import models
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.db import models
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from unfold.admin import ModelAdmin as UnfoldModelAdmin
-from unfold.contrib.filters.admin import RangeDateFilter
 from unfold.decorators import display
-from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm as UnfoldUserCreationForm
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm
+from unfold.forms import UserCreationForm as UnfoldUserCreationForm
 from unfold.widgets import UnfoldAdminTextareaWidget
-from .models import Tenant, TenantConfig, TenantWebsite, User, Banner
+
+from .models import Banner, Tenant, TenantConfig, TenantWebsite, User
 
 
 class CustomUserCreationForm(UnfoldUserCreationForm):
@@ -37,10 +38,13 @@ class CustomUserCreationForm(UnfoldUserCreationForm):
         if commit:
             user.save()
         return user
-from .admin_site import gravitify_admin_site
-from .widgets import GeographyCascadeWidget, ImagePreviewWidget
-from .geography import get_state_choices, get_city_choices
+
+
 from unfold.widgets import UnfoldAdminSelectWidget
+
+from .admin_site import nerbis_admin_site
+from .geography import get_city_choices, get_state_choices
+from .widgets import GeographyCascadeWidget, ImagePreviewWidget
 
 
 class TenantAdminForm(forms.ModelForm):
@@ -74,27 +78,18 @@ class TenantAdminForm(forms.ModelForm):
         # Obtener valores actuales del instance (si existe)
         country = "Colombia"  # Default
         state = ""
-        city = ""
         if self.instance and self.instance.pk:
             country = self.instance.country or "Colombia"
             state = self.instance.state or ""
-            city = self.instance.city or ""
 
         # Obtener choices basados en los valores actuales
         state_choices = get_state_choices(country)
         city_choices = get_city_choices(country, state)
 
         # Usar UnfoldAdminSelectWidget para mantener el mismo estilo que timezone, currency, etc.
-        self.fields["state"].widget = UnfoldAdminSelectWidget(
-            attrs={"id": "id_state"},
-            choices=state_choices
-        )
+        self.fields["state"].widget = UnfoldAdminSelectWidget(attrs={"id": "id_state"}, choices=state_choices)
 
-        self.fields["city"].widget = UnfoldAdminSelectWidget(
-            attrs={"id": "id_city"},
-            choices=city_choices
-        )
-
+        self.fields["city"].widget = UnfoldAdminSelectWidget(attrs={"id": "id_city"}, choices=city_choices)
 
 
 def is_tenant_admin(user):
@@ -108,7 +103,7 @@ def is_tenant_admin(user):
         return True
     if user.is_staff:
         return True
-    if hasattr(user, 'role') and user.role == 'admin':
+    if hasattr(user, "role") and user.role == "admin":
         return True
     return False
 
@@ -134,15 +129,15 @@ def tenant_has_module(user, module_name):
         return True
 
     # Verificar feature flag del tenant
-    tenant = getattr(user, 'tenant', None)
+    tenant = getattr(user, "tenant", None)
     if not tenant:
         return False
 
     flag_map = {
-        'shop': 'has_shop',
-        'bookings': 'has_bookings',
-        'services': 'has_services',
-        'marketing': 'has_marketing',
+        "shop": "has_shop",
+        "bookings": "has_bookings",
+        "services": "has_services",
+        "marketing": "has_marketing",
     }
 
     flag_name = flag_map.get(module_name)
@@ -179,8 +174,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         if request.user.is_superuser:
             return True
         # Admins de tenant solo pueden ver objetos de su tenant
-        if obj and hasattr(obj, 'tenant'):
-            return obj.tenant == getattr(request.user, 'tenant', None)
+        if obj and hasattr(obj, "tenant"):
+            return obj.tenant == getattr(request.user, "tenant", None)
         return True
 
     def has_add_permission(self, request):
@@ -193,8 +188,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
             return False
         if request.user.is_superuser:
             return True
-        if obj and hasattr(obj, 'tenant'):
-            return obj.tenant == getattr(request.user, 'tenant', None)
+        if obj and hasattr(obj, "tenant"):
+            return obj.tenant == getattr(request.user, "tenant", None)
         return True
 
     def has_delete_permission(self, request, obj=None):
@@ -203,8 +198,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
             return False
         if request.user.is_superuser:
             return True
-        if obj and hasattr(obj, 'tenant'):
-            return obj.tenant == getattr(request.user, 'tenant', None)
+        if obj and hasattr(obj, "tenant"):
+            return obj.tenant == getattr(request.user, "tenant", None)
         return True
 
     def get_queryset(self, request):
@@ -216,7 +211,7 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
             return qs
 
         # Admins de tenant solo ven su tenant
-        if hasattr(request.user, 'tenant') and request.user.tenant:
+        if hasattr(request.user, "tenant") and request.user.tenant:
             return qs.filter(tenant=request.user.tenant)
 
         return qs.none()
@@ -226,14 +221,14 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         if db_field.name == "tenant":
             if not request.user.is_superuser:
                 # Solo mostrar el tenant del usuario
-                if hasattr(request.user, 'tenant') and request.user.tenant:
+                if hasattr(request.user, "tenant") and request.user.tenant:
                     kwargs["queryset"] = Tenant.objects.filter(id=request.user.tenant.id)
 
         formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
 
         # Ocultar el botón de "view related" (ojo) en todos los ForeignKey
         # Solo dejar el lápiz (change) y el + (add) para mejor UX
-        if formfield and hasattr(formfield, 'widget'):
+        if formfield and hasattr(formfield, "widget"):
             formfield.widget.can_view_related = False
 
         return formfield
@@ -243,7 +238,7 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         if not request.user.is_superuser:
             # Siempre forzar el tenant del usuario (crear y editar)
             # Esto previene que un usuario malicioso intente cambiar el tenant
-            if hasattr(request.user, 'tenant') and request.user.tenant:
+            if hasattr(request.user, "tenant") and request.user.tenant:
                 obj.tenant = request.user.tenant
         super().save_model(request, obj, form, change)
 
@@ -252,8 +247,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         exclude = list(super().get_exclude(request, obj) or [])
         if not request.user.is_superuser:
             # Ocultar el campo tenant - se asigna automáticamente
-            if 'tenant' not in exclude:
-                exclude.append('tenant')
+            if "tenant" not in exclude:
+                exclude.append("tenant")
         return exclude
 
     def get_list_display(self, request):
@@ -261,8 +256,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         list_display = list(super().get_list_display(request))
         if not request.user.is_superuser:
             # Remover tenant de la lista si está presente
-            if 'tenant' in list_display:
-                list_display.remove('tenant')
+            if "tenant" in list_display:
+                list_display.remove("tenant")
         return list_display
 
     def get_list_filter(self, request):
@@ -270,8 +265,8 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
         list_filter = list(super().get_list_filter(request))
         if not request.user.is_superuser:
             # Remover tenant del filtro si está presente
-            if 'tenant' in list_filter:
-                list_filter.remove('tenant')
+            if "tenant" in list_filter:
+                list_filter.remove("tenant")
         return list_filter
 
     def get_fieldsets(self, request, obj=None):
@@ -281,13 +276,13 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
             # Crear una copia modificada de fieldsets sin el campo tenant
             new_fieldsets = []
             for name, options in fieldsets:
-                fields = list(options.get('fields', []))
-                if 'tenant' in fields:
-                    fields.remove('tenant')
+                fields = list(options.get("fields", []))
+                if "tenant" in fields:
+                    fields.remove("tenant")
                 # Solo agregar el fieldset si aún tiene campos
                 if fields:
                     new_options = options.copy()
-                    new_options['fields'] = tuple(fields)
+                    new_options["fields"] = tuple(fields)
                     new_fieldsets.append((name, new_options))
             return new_fieldsets
         return fieldsets
@@ -296,6 +291,7 @@ class TenantFilteredAdmin(UnfoldModelAdmin):
 # ===================================
 # CLASES BASE PARA MÓDULOS CON FEATURE FLAGS
 # ===================================
+
 
 class ShopModuleAdmin(TenantFilteredAdmin):
     """
@@ -308,25 +304,25 @@ class ShopModuleAdmin(TenantFilteredAdmin):
     def has_module_permission(self, request):
         if not super().has_module_permission(request):
             return False
-        return tenant_has_module(request.user, 'shop')
+        return tenant_has_module(request.user, "shop")
 
     def has_view_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'shop'):
+        if not tenant_has_module(request.user, "shop"):
             return False
         return super().has_view_permission(request, obj)
 
     def has_add_permission(self, request):
-        if not tenant_has_module(request.user, 'shop'):
+        if not tenant_has_module(request.user, "shop"):
             return False
         return super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'shop'):
+        if not tenant_has_module(request.user, "shop"):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'shop'):
+        if not tenant_has_module(request.user, "shop"):
             return False
         return super().has_delete_permission(request, obj)
 
@@ -342,25 +338,25 @@ class BookingsModuleAdmin(TenantFilteredAdmin):
     def has_module_permission(self, request):
         if not super().has_module_permission(request):
             return False
-        return tenant_has_module(request.user, 'bookings')
+        return tenant_has_module(request.user, "bookings")
 
     def has_view_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'bookings'):
+        if not tenant_has_module(request.user, "bookings"):
             return False
         return super().has_view_permission(request, obj)
 
     def has_add_permission(self, request):
-        if not tenant_has_module(request.user, 'bookings'):
+        if not tenant_has_module(request.user, "bookings"):
             return False
         return super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'bookings'):
+        if not tenant_has_module(request.user, "bookings"):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'bookings'):
+        if not tenant_has_module(request.user, "bookings"):
             return False
         return super().has_delete_permission(request, obj)
 
@@ -376,25 +372,25 @@ class MarketingModuleAdmin(TenantFilteredAdmin):
     def has_module_permission(self, request):
         if not super().has_module_permission(request):
             return False
-        return tenant_has_module(request.user, 'marketing')
+        return tenant_has_module(request.user, "marketing")
 
     def has_view_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'marketing'):
+        if not tenant_has_module(request.user, "marketing"):
             return False
         return super().has_view_permission(request, obj)
 
     def has_add_permission(self, request):
-        if not tenant_has_module(request.user, 'marketing'):
+        if not tenant_has_module(request.user, "marketing"):
             return False
         return super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'marketing'):
+        if not tenant_has_module(request.user, "marketing"):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'marketing'):
+        if not tenant_has_module(request.user, "marketing"):
             return False
         return super().has_delete_permission(request, obj)
 
@@ -411,31 +407,31 @@ class ServicesModuleAdmin(TenantFilteredAdmin):
     def has_module_permission(self, request):
         if not super().has_module_permission(request):
             return False
-        return tenant_has_module(request.user, 'services')
+        return tenant_has_module(request.user, "services")
 
     def has_view_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'services'):
+        if not tenant_has_module(request.user, "services"):
             return False
         return super().has_view_permission(request, obj)
 
     def has_add_permission(self, request):
-        if not tenant_has_module(request.user, 'services'):
+        if not tenant_has_module(request.user, "services"):
             return False
         return super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'services'):
+        if not tenant_has_module(request.user, "services"):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if not tenant_has_module(request.user, 'services'):
+        if not tenant_has_module(request.user, "services"):
             return False
         return super().has_delete_permission(request, obj)
 
 
-# Registrar en el admin site personalizado de GRAVITIFY
-@admin.register(Tenant, site=gravitify_admin_site)
+# Registrar en el admin site personalizado de NERBIS
+@admin.register(Tenant, site=nerbis_admin_site)
 class TenantAdmin(UnfoldModelAdmin):
     """
     Panel de administración para Tenants.
@@ -506,16 +502,12 @@ class TenantAdmin(UnfoldModelAdmin):
 
     @display(description="Ver suscripción")
     def subscription_link(self, obj):
-        if hasattr(obj, 'subscription') and obj.subscription:
+        if hasattr(obj, "subscription") and obj.subscription:
             from django.urls import reverse
-            url = reverse('admin:billing_subscription_change', args=[obj.subscription.pk])
-            return format_html(
-                '<a href="{}" style="color: #3b82f6;">Gestionar suscripción y módulos →</a>',
-                url
-            )
-        return format_html(
-            '<span style="color: #6b7280;">Sin suscripción (se creará automáticamente)</span>'
-        )
+
+            url = reverse("admin:billing_subscription_change", args=[obj.subscription.pk])
+            return format_html('<a href="{}" style="color: #3b82f6;">Gestionar suscripción y módulos →</a>', url)
+        return format_html('<span style="color: #6b7280;">Sin suscripción (se creará automáticamente)</span>')
 
     def get_prepopulated_fields(self, request, obj=None):
         """Solo prepopular slug al crear un nuevo tenant"""
@@ -591,9 +583,7 @@ class TenantAdmin(UnfoldModelAdmin):
         (
             "Suscripción",
             {
-                "fields": (
-                    "subscription_link",
-                ),
+                "fields": ("subscription_link",),
             },
         ),
         (
@@ -639,20 +629,18 @@ class TenantAdmin(UnfoldModelAdmin):
     def website_phase(self, obj):
         """Badge visual para el estado del website builder"""
         if not obj.has_website:
-            return mark_safe(
-                '<span style="color: #9ca3af; font-size: 12px;">—</span>'
-            )
-        status = getattr(obj, 'website_config', None)
-        status = status.status if status else 'not_started'
+            return mark_safe('<span style="color: #9ca3af; font-size: 12px;">—</span>')
+        status = getattr(obj, "website_config", None)
+        status = status.status if status else "not_started"
         labels = {
-            'not_started': ('Sin iniciar', '#9ca3af'),
-            'draft': ('Plantilla', '#f59e0b'),
-            'onboarding': ('Onboarding', '#3b82f6'),
-            'generating': ('Generando', '#8b5cf6'),
-            'review': ('En revisión', '#10b981'),
-            'published': ('Publicado', '#059669'),
+            "not_started": ("Sin iniciar", "#9ca3af"),
+            "draft": ("Plantilla", "#f59e0b"),
+            "onboarding": ("Onboarding", "#3b82f6"),
+            "generating": ("Generando", "#8b5cf6"),
+            "review": ("En revisión", "#10b981"),
+            "published": ("Publicado", "#059669"),
         }
-        label, color = labels.get(status, (status, '#6b7280'))
+        label, color = labels.get(status, (status, "#6b7280"))
         return mark_safe(
             f'<span style="background-color: {color}; color: white; '
             f'padding: 3px 10px; border-radius: 3px; font-size: 12px;">{label}</span>'
@@ -708,21 +696,15 @@ class TenantAdmin(UnfoldModelAdmin):
 
         # Ya expiró
         if obj.is_expired:
-            return mark_safe(
-                '<span style="color: #ef4444; font-weight: bold;">Expirado</span>'
-            )
+            return mark_safe('<span style="color: #ef4444; font-weight: bold;">Expirado</span>')
 
         # Último día (expira hoy)
         if days == 0:
-            return mark_safe(
-                '<span style="color: #f59e0b; font-weight: bold;">Expira hoy</span>'
-            )
+            return mark_safe('<span style="color: #f59e0b; font-weight: bold;">Expira hoy</span>')
 
         # Próximo a expirar (7 días o menos)
         if days <= 7:
-            return mark_safe(
-                f'<span style="color: #f59e0b; font-weight: bold;">{days} días</span>'
-            )
+            return mark_safe(f'<span style="color: #f59e0b; font-weight: bold;">{days} días</span>')
 
         return f"{days} días"
 
@@ -777,15 +759,15 @@ class TenantAdmin(UnfoldModelAdmin):
             f'padding: 15px; border-radius: 4px; max-width: 400px;">'
             f'<div style="font-size: 16px; margin-bottom: 8px;">'
             f'<span style="margin-right: 8px;">{icon}</span>'
-            f'<strong>{title}</strong></div>'
+            f"<strong>{title}</strong></div>"
             f'<div style="font-size: 14px; color: #374151;">{info_html}</div>'
-            f'</div>'
+            f"</div>"
         )
 
     subscription_info.short_description = "Estado de Suscripción"
 
 
-@admin.register(TenantConfig, site=gravitify_admin_site)
+@admin.register(TenantConfig, site=nerbis_admin_site)
 class TenantConfigAdmin(UnfoldModelAdmin):
     """
     Panel "Mi Negocio" para que el admin del tenant edite
@@ -803,14 +785,14 @@ class TenantConfigAdmin(UnfoldModelAdmin):
     def has_view_permission(self, request, obj=None):
         if not is_tenant_admin(request.user):
             return False
-        if obj and hasattr(request.user, 'tenant'):
+        if obj and hasattr(request.user, "tenant"):
             return obj.pk == request.user.tenant_id
         return True
 
     def has_change_permission(self, request, obj=None):
-        if not is_tenant_admin(request.user) or request.user.role != 'admin':
+        if not is_tenant_admin(request.user) or request.user.role != "admin":
             return False
-        if obj and hasattr(request.user, 'tenant'):
+        if obj and hasattr(request.user, "tenant"):
             return obj.pk == request.user.tenant_id
         return True
 
@@ -822,7 +804,7 @@ class TenantConfigAdmin(UnfoldModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        if hasattr(request.user, 'tenant') and request.user.tenant:
+        if hasattr(request.user, "tenant") and request.user.tenant:
             return qs.filter(pk=request.user.tenant_id)
         return qs.none()
 
@@ -902,7 +884,7 @@ class TenantWebsiteForm(forms.ModelForm):
         }
 
 
-@admin.register(TenantWebsite, site=gravitify_admin_site)
+@admin.register(TenantWebsite, site=nerbis_admin_site)
 class TenantWebsiteAdmin(UnfoldModelAdmin):
     """
     Panel "Mi Sitio Web" para que el admin del tenant configure
@@ -919,14 +901,14 @@ class TenantWebsiteAdmin(UnfoldModelAdmin):
     def has_view_permission(self, request, obj=None):
         if not is_tenant_admin(request.user):
             return False
-        if obj and hasattr(request.user, 'tenant'):
+        if obj and hasattr(request.user, "tenant"):
             return obj.pk == request.user.tenant_id
         return True
 
     def has_change_permission(self, request, obj=None):
-        if not is_tenant_admin(request.user) or request.user.role != 'admin':
+        if not is_tenant_admin(request.user) or request.user.role != "admin":
             return False
-        if obj and hasattr(request.user, 'tenant'):
+        if obj and hasattr(request.user, "tenant"):
             return obj.pk == request.user.tenant_id
         return True
 
@@ -938,7 +920,7 @@ class TenantWebsiteAdmin(UnfoldModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        if hasattr(request.user, 'tenant') and request.user.tenant:
+        if hasattr(request.user, "tenant") and request.user.tenant:
             return qs.filter(pk=request.user.tenant_id)
         return qs.none()
 
@@ -981,7 +963,7 @@ class TenantWebsiteAdmin(UnfoldModelAdmin):
     )
 
 
-@admin.register(User, site=gravitify_admin_site)
+@admin.register(User, site=nerbis_admin_site)
 class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
     """
     Panel de administración para Users.
@@ -1007,8 +989,8 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             return False
         if request.user.is_superuser:
             return True
-        if obj and hasattr(obj, 'tenant'):
-            return obj.tenant == getattr(request.user, 'tenant', None)
+        if obj and hasattr(obj, "tenant"):
+            return obj.tenant == getattr(request.user, "tenant", None)
         return True
 
     list_display = [
@@ -1037,13 +1019,13 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         Staff no puede hacer clic para editar usuarios (excepto desde su perfil).
         Solo ve la lista sin enlaces.
         """
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             return None  # Sin enlaces en la lista
         return super().get_list_display_links(request, list_display)
 
     def has_delete_permission_for_changelist(self, request):
         """Helper para verificar permiso de delete en la lista"""
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             return False
         return True
 
@@ -1052,7 +1034,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         Staff no tiene acciones disponibles.
         """
         actions = super().get_actions(request)
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             # Remover todas las acciones para staff
             return {}
         return actions
@@ -1171,7 +1153,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         # Para EDICIÓN de usuarios
         if not request.user.is_superuser:
             # Staff editando su propio perfil
-            if request.user.role == 'staff' and obj and obj.pk == request.user.pk:
+            if request.user.role == "staff" and obj and obj.pk == request.user.pk:
                 fieldsets = [
                     (
                         "Información Personal",
@@ -1179,7 +1161,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
                     ),
                 ]
                 # Agregar sección de servicios si tiene perfil de staff
-                if hasattr(obj, 'staff_profile'):
+                if hasattr(obj, "staff_profile"):
                     fieldsets.append(
                         (
                             "Mis Servicios Asignados",
@@ -1212,7 +1194,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        if hasattr(request.user, 'tenant') and request.user.tenant:
+        if hasattr(request.user, "tenant") and request.user.tenant:
             return qs.filter(tenant=request.user.tenant)
         return qs.none()
 
@@ -1236,7 +1218,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
 
         # Staff NO puede cambiar roles de ningún usuario (solo admin puede)
         # Solo admins (role='admin') y superusuarios pueden cambiar roles
-        if not request.user.is_superuser and request.user.role != 'admin':
+        if not request.user.is_superuser and request.user.role != "admin":
             if "role" not in readonly:
                 readonly.append("role")
 
@@ -1245,14 +1227,14 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """Limitar opciones de tenant y ocultar botón de view"""
         if db_field.name == "tenant" and not request.user.is_superuser:
-            if hasattr(request.user, 'tenant') and request.user.tenant:
+            if hasattr(request.user, "tenant") and request.user.tenant:
                 kwargs["queryset"] = Tenant.objects.filter(id=request.user.tenant.id)
 
         formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
 
         # Ocultar el botón de "view related" (ojo) en todos los ForeignKey
         # Solo dejar el lápiz (change) y el + (add) para mejor UX
-        if formfield and hasattr(formfield, 'widget'):
+        if formfield and hasattr(formfield, "widget"):
             formfield.widget.can_view_related = False
 
         return formfield
@@ -1261,13 +1243,13 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         """Asignar tenant y limitar permisos"""
         if not request.user.is_superuser:
             # Siempre asignar el tenant del admin
-            if hasattr(request.user, 'tenant') and request.user.tenant:
+            if hasattr(request.user, "tenant") and request.user.tenant:
                 obj.tenant = request.user.tenant
             # No permitir crear superusuarios
             obj.is_superuser = False
             # Solo permitir roles admin, staff, customer
-            if obj.role not in ['admin', 'staff', 'customer']:
-                obj.role = 'customer'
+            if obj.role not in ["admin", "staff", "customer"]:
+                obj.role = "customer"
 
         # Si es edición, obtener el usuario original para comparar
         if change:
@@ -1278,19 +1260,17 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
                 obj.role = original_user.role
 
             # Staff NO puede cambiar roles (solo admin y superuser pueden)
-            if not request.user.is_superuser and request.user.role != 'admin':
+            if not request.user.is_superuser and request.user.role != "admin":
                 if original_user.role != obj.role:
                     obj.role = original_user.role  # Revertir cambio de rol
 
             # Prevenir que se quite el último admin del tenant
-            if obj.tenant and original_user.role == 'admin' and obj.role != 'admin':
-                admin_count = User.objects.filter(
-                    tenant=obj.tenant,
-                    role='admin',
-                    is_active=True
-                ).exclude(pk=obj.pk).count()
+            if obj.tenant and original_user.role == "admin" and obj.role != "admin":
+                admin_count = (
+                    User.objects.filter(tenant=obj.tenant, role="admin", is_active=True).exclude(pk=obj.pk).count()
+                )
                 if admin_count == 0:
-                    obj.role = 'admin'  # No permitir quitar el último admin
+                    obj.role = "admin"  # No permitir quitar el último admin
 
         super().save_model(request, obj, form, change)
 
@@ -1302,7 +1282,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             return True
 
         # Staff solo puede editar su propio perfil
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             if obj and obj.pk == request.user.pk:
                 return True  # Puede editar su propio perfil
             return False  # No puede editar a otros
@@ -1314,7 +1294,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             # Solo editar usuarios del mismo tenant
             return obj.tenant == request.user.tenant
         # Sin obj específico, permitir si es admin del tenant
-        return request.user.role == 'admin'
+        return request.user.role == "admin"
 
     def has_delete_permission(self, request, obj=None):
         """Verificar permisos de eliminación"""
@@ -1322,11 +1302,11 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             return True
 
         # Staff NO puede eliminar usuarios
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             return False
 
         # Solo admins pueden eliminar
-        if request.user.role != 'admin':
+        if request.user.role != "admin":
             return False
 
         if obj:
@@ -1334,7 +1314,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             if obj.is_superuser:
                 return False
             # No permitir eliminar admins (proteger a otros admins)
-            if obj.role == 'admin':
+            if obj.role == "admin":
                 return False
             # No permitir eliminarse a sí mismo
             if obj == request.user:
@@ -1348,9 +1328,9 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
         if request.user.is_superuser:
             return True
         # Staff NO puede crear usuarios
-        if request.user.role == 'staff':
+        if request.user.role == "staff":
             return False
-        return request.user.role == 'admin'
+        return request.user.role == "admin"
 
     def role_badge(self, obj):
         """Badge visual para el rol"""
@@ -1370,14 +1350,14 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
 
     def assigned_services_display(self, obj):
         """Mostrar servicios asignados al staff (solo lectura)"""
-        if not hasattr(obj, 'staff_profile'):
+        if not hasattr(obj, "staff_profile"):
             return format_html(
                 '<span style="color: #9ca3af; font-style: italic;">No tienes un perfil de empleado configurado. '
-                'Contacta al administrador.</span>'
+                "Contacta al administrador.</span>"
             )
 
         staff_profile = obj.staff_profile
-        services = staff_profile.services.filter(is_active=True).order_by('category__name', 'name')
+        services = staff_profile.services.filter(is_active=True).order_by("category__name", "name")
 
         if not services.exists():
             return format_html(
@@ -1403,19 +1383,19 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
             for service in cat_services:
                 html_parts.append(
                     f'<li style="margin: 2px 0; color: #4b5563;">'
-                    f'{service.name} '
+                    f"{service.name} "
                     f'<span style="color: #9ca3af;">({service.formatted_duration} - €{service.price})</span>'
-                    f'</li>'
+                    f"</li>"
                 )
-            html_parts.append('</ul></div>')
-        html_parts.append('</div>')
+            html_parts.append("</ul></div>")
+        html_parts.append("</div>")
 
-        return format_html(''.join(html_parts))
+        return format_html("".join(html_parts))
 
     assigned_services_display.short_description = "Servicios que puedo realizar"
 
 
-@admin.register(Banner, site=gravitify_admin_site)
+@admin.register(Banner, site=nerbis_admin_site)
 class BannerAdmin(TenantFilteredAdmin):
     """
     Panel de administración para Banners Promocionales.
@@ -1537,9 +1517,9 @@ class BannerAdmin(TenantFilteredAdmin):
 
         return format_html(
             '<div style="background-color: {}; color: {}; padding: 12px 20px; border-radius: 4px; display: inline-block; max-width: 500px;">'
-            '<span>{}</span>'
-            '{}'
-            '</div>',
+            "<span>{}</span>"
+            "{}"
+            "</div>",
             obj.background_color,
             obj.text_color,
             obj.message[:100] + "..." if len(obj.message) > 100 else obj.message,
@@ -1548,7 +1528,9 @@ class BannerAdmin(TenantFilteredAdmin):
                 obj.link_url or "#",
                 obj.text_color,
                 obj.link_text or "Ver más",
-            ) if obj.link_url else "",
+            )
+            if obj.link_url
+            else "",
         )
 
     preview_banner.short_description = "Vista Previa"

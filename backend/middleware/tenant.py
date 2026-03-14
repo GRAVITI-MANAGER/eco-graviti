@@ -1,10 +1,12 @@
 # backend/core/middleware/tenant.py
 
-from django.utils.deprecation import MiddlewareMixin
-from django.http import HttpResponse
-from core.models import Tenant
-from core.context import set_current_tenant, clear_current_tenant
 import logging
+
+from django.http import HttpResponse
+from django.utils.deprecation import MiddlewareMixin
+
+from core.context import clear_current_tenant, set_current_tenant
+from core.models import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ class TenantMiddleware(MiddlewareMixin):
 
     Métodos de detección (en orden de prioridad):
     1. Header HTTP: X-Tenant-Slug
-    2. Subdominio: mi-negocio.graviti.co
+    2. Subdominio: mi-negocio.nerbis.com
     3. URL parameter: ?tenant=gc-belleza (solo en desarrollo)
 
     Una vez detectado, el tenant se guarda en:
@@ -89,11 +91,12 @@ class TenantMiddleware(MiddlewareMixin):
         Extraer tenant del subdominio.
 
         Ejemplos:
-        - mi-negocio.graviti.co → "mi-negocio"
+        - mi-negocio.nerbis.com → "mi-negocio"
         - localhost:8000 → None
         - 127.0.0.1:8000 → None
         """
         from django.conf import settings as django_settings
+
         host = request.get_host().split(":")[0]  # Remover puerto
 
         # Lista de dominios base
@@ -110,7 +113,7 @@ class TenantMiddleware(MiddlewareMixin):
         # Extraer subdominio
         parts = host.split(".")
 
-        # Si tiene subdominio (ej: mi-negocio.graviti.co)
+        # Si tiene subdominio (ej: mi-negocio.nerbis.com)
         if len(parts) > 2:
             return parts[0]
 

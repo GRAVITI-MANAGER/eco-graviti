@@ -19,12 +19,12 @@ Autor: Sistema Multi-Tenant Ecosistema Digital
 Fecha: Diciembre 2024
 """
 
+import os
+from decimal import Decimal
+
+from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
-from django.contrib.auth.hashers import make_password
-from django.utils import timezone
-from decimal import Decimal
-import datetime
 
 
 class Command(BaseCommand):
@@ -143,7 +143,7 @@ class Command(BaseCommand):
                 "first_name": "Administrador",
                 "last_name": "GC Belleza",
                 "phone": "+34 918 43 11 87",
-                "password": make_password("admin123"),  # ⚠️ Cambiar en producción
+                "password": make_password(os.environ.get("TENANT_ADMIN_PASSWORD", "changeme")),
                 "is_staff": True,
                 "is_superuser": True,
                 "is_active": True,
@@ -154,9 +154,11 @@ class Command(BaseCommand):
 
         if created:
             self.stdout.write(self.style.SUCCESS(f"  ✅ Usuario admin creado: {admin_user.email}"))
-            self.stdout.write(self.style.WARNING(f"  🔑 Contraseña: admin123 (CAMBIAR EN PRODUCCIÓN)"))
+            self.stdout.write(
+                self.style.WARNING("  🔑 Contraseña: definida por TENANT_ADMIN_PASSWORD (CAMBIAR EN PRODUCCIÓN)")
+            )
         else:
-            self.stdout.write(self.style.WARNING(f"  ℹ️  Usuario admin ya existía"))
+            self.stdout.write(self.style.WARNING("  ℹ️  Usuario admin ya existía"))
 
         return admin_user
 
@@ -426,7 +428,7 @@ class Command(BaseCommand):
 
     def _create_products(self, tenant, categories):
         """Crea productos de belleza de ejemplo"""
-        from ecommerce.models import Product, Inventory
+        from ecommerce.models import Inventory, Product
 
         self.stdout.write("\n🛍️  Paso 4: Creando productos...")
 
@@ -551,14 +553,10 @@ class Command(BaseCommand):
                 if created:
                     # Crear inventario
                     Inventory.objects.get_or_create(
-                        product=product,
-                        tenant=tenant,
-                        defaults={"stock": stock, "tenant": tenant}
+                        product=product, tenant=tenant, defaults={"stock": stock, "tenant": tenant}
                     )
                     self.stdout.write(
-                        self.style.SUCCESS(
-                            f"  ✅ Producto creado: {product.name} - €{product.price} (Stock: {stock})"
-                        )
+                        self.style.SUCCESS(f"  ✅ Producto creado: {product.name} - €{product.price} (Stock: {stock})")
                     )
 
         return products
@@ -632,26 +630,26 @@ class Command(BaseCommand):
         self.stdout.write(f"   - Slug: {tenant.slug}")
         self.stdout.write(f"   - Ubicación: {tenant.city}, {tenant.country}")
 
-        self.stdout.write(f"\n👤 Usuario Admin:")
+        self.stdout.write("\n👤 Usuario Admin:")
         self.stdout.write(f"   - Email: {admin_user.email}")
-        self.stdout.write(self.style.WARNING(f"   - Password: admin123"))
+        self.stdout.write(self.style.WARNING("   - Password: (definida por TENANT_ADMIN_PASSWORD)"))
 
-        self.stdout.write(f"\n📊 Datos creados:")
+        self.stdout.write("\n📊 Datos creados:")
         self.stdout.write(f"   - Categorías de Servicios: {len(categories)}")
         self.stdout.write(f"   - Servicios: {len(services)}")
         self.stdout.write(f"   - Categorías de Productos: {len([p for p in products if hasattr(p, 'category')])}")
         self.stdout.write(f"   - Productos: {len(products)}")
 
-        self.stdout.write(f"\n💰 Precios configurados:")
+        self.stdout.write("\n💰 Precios configurados:")
         total_services = sum(s.price for s in services if hasattr(s, "price"))
         total_products = sum(p.price for p in products if hasattr(p, "price"))
         self.stdout.write(f"   - Servicios: €{total_services:.2f} (valor total catálogo)")
         self.stdout.write(f"   - Productos: €{total_products:.2f} (valor total catálogo)")
 
-        self.stdout.write(f"\n🕐 Horarios:")
-        self.stdout.write(f"   - Lun-Vie: 10:00-14:00, 16:00-20:00")
-        self.stdout.write(f"   - Sábado: 10:00-14:00")
-        self.stdout.write(f"   - Domingo: CERRADO")
+        self.stdout.write("\n🕐 Horarios:")
+        self.stdout.write("   - Lun-Vie: 10:00-14:00, 16:00-20:00")
+        self.stdout.write("   - Sábado: 10:00-14:00")
+        self.stdout.write("   - Domingo: CERRADO")
 
         self.stdout.write("\n")
         self.stdout.write(self.style.SUCCESS("═" * 70))
@@ -675,11 +673,11 @@ class Command(BaseCommand):
         self.stdout.write(f"   - Slug: {tenant.slug}")
         self.stdout.write(f"   - Ubicación: {tenant.city}, {tenant.country}")
 
-        self.stdout.write(f"\n👤 Usuario Admin:")
+        self.stdout.write("\n👤 Usuario Admin:")
         self.stdout.write(f"   - Email: {admin_user.email}")
-        self.stdout.write(self.style.WARNING(f"   - Password: admin123"))
+        self.stdout.write(self.style.WARNING("   - Password: (definida por TENANT_ADMIN_PASSWORD)"))
 
-        self.stdout.write(f"\n📊 Datos creados:")
+        self.stdout.write("\n📊 Datos creados:")
         self.stdout.write(f"   - Categorías de Productos: {len(categories)}")
         self.stdout.write(f"   - Productos: {len(products)}")
 

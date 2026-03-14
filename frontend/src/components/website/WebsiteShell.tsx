@@ -45,9 +45,9 @@ export function WebsiteShell({ theme, seo, media, content, sections, children }:
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   // Scroll-triggered animations: observes .anim-* and .reveal elements
-  const scrollRef = useScrollAnimation<HTMLDivElement>({}, [children]);
+  useScrollAnimation<HTMLDivElement>(containerRef, {}, [children]);
   // Parallax effect for hero backgrounds
-  const parallaxRef = useParallax<HTMLDivElement>();
+  useParallax<HTMLDivElement>(containerRef);
 
   const primaryColor = theme?.primary_color || '#3b82f6';
   const secondaryColor = theme?.secondary_color || '#10b981';
@@ -106,7 +106,7 @@ export function WebsiteShell({ theme, seo, media, content, sections, children }:
     return () => window.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  // Scroll reveal is now handled by useScrollAnimation hook (scrollRef)
+  // Scroll reveal is now handled by useScrollAnimation hook
   // which observes both .reveal and .anim-* elements
 
   // ─── Smooth scroll for anchor links ───────────────────
@@ -167,12 +167,7 @@ export function WebsiteShell({ theme, seo, media, content, sections, children }:
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href={fontsUrl} rel="stylesheet" />
 
-      <div ref={(node) => {
-        // Combine refs: containerRef for smooth scroll, scrollRef for animations, parallaxRef for parallax
-        (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-        (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-        (parallaxRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-      }} className={`published-website pw-style-${style}`} style={cssVars} data-color-mode={colorMode}>
+      <div ref={containerRef} className={`published-website pw-style-${style}`} style={cssVars} data-color-mode={colorMode}>
         {/* Header */}
         <header ref={headerRef} className="site-header">
           <div className="container">

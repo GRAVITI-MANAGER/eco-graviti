@@ -1,28 +1,40 @@
 # backend/core/views.py
 
-from rest_framework import status, generics, serializers as drf_serializers
+import logging
+
+from django.shortcuts import render
+from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
+from rest_framework import generics, status
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-from .throttles import LoginThrottle, RegisterThrottle, OTPRequestThrottle, OTPVerifyThrottle, PasswordResetThrottle
-from rest_framework_simplejwt.views import TokenRefreshView
-from django.contrib.auth import authenticate
-from django.shortcuts import render
-from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter, inline_serializer
-from .models import User, Tenant, PasswordSetToken, Banner, OTPToken
-from .serializers import UserSerializer, UserSessionSerializer, RegisterSerializer, LoginSerializer, TenantSerializer, TenantRegisterSerializer, SetPasswordSerializer, BannerSerializer, UpdateProfileSerializer, ChangePasswordSerializer
-from django.utils import timezone
-import logging
+
+from .models import Banner, OTPToken, PasswordSetToken, Tenant, User
+from .serializers import (
+    BannerSerializer,
+    ChangePasswordSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    SetPasswordSerializer,
+    TenantRegisterSerializer,
+    TenantSerializer,
+    UpdateProfileSerializer,
+    UserSerializer,
+    UserSessionSerializer,
+)
+from .throttles import LoginThrottle, OTPRequestThrottle, OTPVerifyThrottle, PasswordResetThrottle, RegisterThrottle
 
 logger = logging.getLogger(__name__)
 from django.db.models import Q
 
-
 # ===================================
 # VISTA DE SUSCRIPCION EXPIRADA
 # ===================================
+
 
 def subscription_expired_view(request):
     """
@@ -32,11 +44,17 @@ def subscription_expired_view(request):
     - Su trial de 30 dias ha expirado
     - Su suscripcion pagada ha expirado
     """
-    tenant = getattr(request.user, 'tenant', None) if hasattr(request, 'user') and request.user.is_authenticated else None
+    tenant = (
+        getattr(request.user, "tenant", None) if hasattr(request, "user") and request.user.is_authenticated else None
+    )
 
-    return render(request, 'subscription_expired.html', {
-        'tenant': tenant,
-    })
+    return render(
+        request,
+        "subscription_expired.html",
+        {
+            "tenant": tenant,
+        },
+    )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -52,7 +70,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
-        email = request.data.get('email', '').lower()
+        email = request.data.get("email", "").lower()
         tenant = request.tenant
 
         # Verificar si existe un usuario inactivo con este email
@@ -109,6 +127,7 @@ class RegisterView(generics.CreateAPIView):
         """Enviar email de bienvenida (sin bloquear el registro si falla)."""
         try:
             from notifications.tasks import send_welcome_email
+
             try:
                 send_welcome_email.delay(user.id)
             except Exception:
@@ -144,9 +163,9 @@ class CheckBusinessNameView(APIView):
                 name="CheckBusinessNameResponse",
                 fields={
                     "exists": drf_serializers.BooleanField(),
-                }
+                },
             ),
-        }
+        },
     )
     def get(self, request):
         name = request.query_params.get("name", "").strip()
@@ -187,9 +206,9 @@ class CheckTenantEmailView(APIView):
                 name="CheckTenantEmailResponse",
                 fields={
                     "exists": drf_serializers.BooleanField(),
-                }
+                },
             ),
-        }
+        },
     )
     def get(self, request):
         email = request.query_params.get("email", "").strip().lower()
@@ -234,7 +253,7 @@ class TenantRegisterView(generics.CreateAPIView):
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
                 },
-                "message": "Negocio creado exitosamente. Bienvenido a GRAVITIFY!",
+                "message": "Negocio creado exitosamente. Bienvenido a NERBIS!",
             },
             status=status.HTTP_201_CREATED,
         )
@@ -243,6 +262,7 @@ class TenantRegisterView(generics.CreateAPIView):
         """Enviar email de bienvenida (sin bloquear el registro si falla)."""
         try:
             from notifications.tasks import send_welcome_email
+
             try:
                 send_welcome_email.delay(user.id)
             except Exception:
@@ -281,12 +301,12 @@ class LoginView(APIView):
                         fields={
                             "refresh": drf_serializers.CharField(),
                             "access": drf_serializers.CharField(),
-                        }
+                        },
                     ),
-                }
+                },
             ),
             401: OpenApiResponse(description="Credenciales inválidas"),
-        }
+        },
     )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -302,17 +322,11 @@ class LoginView(APIView):
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant)
         except User.DoesNotExist:
-            return Response(
-                {"error": "Credenciales inválidas"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # 3. Verificar contraseña
         if not user.check_password(password):
-            return Response(
-                {"error": "Credenciales inválidas"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # 4. Si el usuario está inactivo, notificar que necesita reactivación
         if not user.is_active:
@@ -321,9 +335,9 @@ class LoginView(APIView):
                     "error": "Tu cuenta fue desactivada",
                     "code": "ACCOUNT_INACTIVE",
                     "email": user.email,
-                    "message": "Tu cuenta fue desactivada previamente. ¿Deseas reactivarla?"
+                    "message": "Tu cuenta fue desactivada previamente. ¿Deseas reactivarla?",
                 },
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # 5. Generar tokens JWT con claims del tenant
@@ -346,11 +360,11 @@ class LoginView(APIView):
 
 class PlatformLoginView(APIView):
     """
-    POST /api/public/platform-login/ - Login desde la plataforma GRAVITIFY
+    POST /api/public/platform-login/ - Login desde la plataforma NERBIS
 
     A diferencia del LoginView normal (que requiere tenant context del middleware),
     este endpoint busca al usuario por email en TODOS los tenants.
-    Está diseñado para el formulario de login de la plataforma (gravitify.com),
+    Está diseñado para el formulario de login de la plataforma (nerbis.com),
     donde el usuario no tiene un subdominio de tenant.
     """
 
@@ -369,22 +383,14 @@ class PlatformLoginView(APIView):
         try:
             user = User.objects.select_related("tenant").get(email__iexact=email)
         except User.DoesNotExist:
-            return Response(
-                {"error": "Credenciales inválidas"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
         except User.MultipleObjectsReturned:
             # Email existe en múltiples tenants — usar el más reciente
-            user = User.objects.select_related("tenant").filter(
-                email__iexact=email
-            ).order_by("-date_joined").first()
+            user = User.objects.select_related("tenant").filter(email__iexact=email).order_by("-date_joined").first()
 
         # Verificar contraseña
         if not user.check_password(password):
-            return Response(
-                {"error": "Credenciales inválidas"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Si el usuario está inactivo
         if not user.is_active:
@@ -393,16 +399,15 @@ class PlatformLoginView(APIView):
                     "error": "Tu cuenta fue desactivada",
                     "code": "ACCOUNT_INACTIVE",
                     "email": user.email,
-                    "message": "Tu cuenta fue desactivada previamente. ¿Deseas reactivarla?"
+                    "message": "Tu cuenta fue desactivada previamente. ¿Deseas reactivarla?",
                 },
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # Verificar que el tenant esté activo
         if not user.tenant.is_active:
             return Response(
-                {"error": "El negocio asociado a esta cuenta no está activo."},
-                status=status.HTTP_403_FORBIDDEN
+                {"error": "El negocio asociado a esta cuenta no está activo."}, status=status.HTTP_403_FORBIDDEN
             )
 
         # Generar tokens JWT
@@ -439,36 +444,36 @@ class PlatformForgotPasswordView(APIView):
         email = request.data.get("email")
 
         if not email:
-            return Response(
-                {"error": "El email es requerido"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "El email es requerido"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar usuario en todos los tenants
         try:
             user = User.objects.select_related("tenant").get(email__iexact=email)
         except User.DoesNotExist:
             # Por seguridad, no revelar si el email existe
-            return Response({
-                "message": "Si el email existe, recibirás un código de verificación",
-                "email": email,
-            })
+            return Response(
+                {
+                    "message": "Si el email existe, recibirás un código de verificación",
+                    "email": email,
+                }
+            )
         except User.MultipleObjectsReturned:
-            user = User.objects.select_related("tenant").filter(
-                email__iexact=email
-            ).order_by("-date_joined").first()
+            user = User.objects.select_related("tenant").filter(email__iexact=email).order_by("-date_joined").first()
 
         # Crear OTP
-        otp = OTPToken.create_for_user(user, purpose='password_reset')
+        otp = OTPToken.create_for_user(user, purpose="password_reset")
 
         # Enviar email con OTP (async con Celery)
         from notifications.tasks import send_otp_email
-        send_otp_email.delay(user.id, otp.code, 'password_reset')
 
-        return Response({
-            "message": "Si el email existe, recibirás un código de verificación",
-            "email": email,
-        })
+        send_otp_email.delay(user.id, otp.code, "password_reset")
+
+        return Response(
+            {
+                "message": "Si el email existe, recibirás un código de verificación",
+                "email": email,
+            }
+        )
 
 
 class PlatformVerifyResetOTPView(APIView):
@@ -491,34 +496,24 @@ class PlatformVerifyResetOTPView(APIView):
 
         if not all([email, code, new_password]):
             return Response(
-                {"error": "Email, código y nueva contraseña son requeridos"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Email, código y nueva contraseña son requeridos"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         # Buscar usuario en todos los tenants
         try:
             user = User.objects.select_related("tenant").get(email__iexact=email)
         except User.DoesNotExist:
-            return Response(
-                {"error": "Usuario no encontrado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         except User.MultipleObjectsReturned:
-            user = User.objects.select_related("tenant").filter(
-                email__iexact=email
-            ).order_by("-date_joined").first()
+            user = User.objects.select_related("tenant").filter(email__iexact=email).order_by("-date_joined").first()
 
         # Buscar OTP válido
         try:
-            otp = OTPToken.objects.get(
-                user=user,
-                purpose='password_reset',
-                used_at__isnull=True
-            )
+            otp = OTPToken.objects.get(user=user, purpose="password_reset", used_at__isnull=True)
         except OTPToken.DoesNotExist:
             return Response(
                 {"error": "No hay un código de verificación activo. Solicita uno nuevo."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Verificar OTP
@@ -529,8 +524,7 @@ class PlatformVerifyResetOTPView(APIView):
         # Validar fortaleza de la nueva contraseña
         if len(new_password) < 8:
             return Response(
-                {"error": "La contraseña debe tener al menos 8 caracteres"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "La contraseña debe tener al menos 8 caracteres"}, status=status.HTTP_400_BAD_REQUEST
             )
         has_upper = any(c.isupper() for c in new_password)
         has_lower = any(c.islower() for c in new_password)
@@ -538,16 +532,18 @@ class PlatformVerifyResetOTPView(APIView):
         if not (has_upper and has_lower and has_digit):
             return Response(
                 {"error": "La contraseña debe incluir mayúsculas, minúsculas y números"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Cambiar contraseña (sin generar tokens — el usuario debe iniciar sesión manualmente)
         user.set_password(new_password)
         user.save()
 
-        return Response({
-            "message": "Contraseña restablecida exitosamente. Inicia sesión con tu nueva contraseña.",
-        })
+        return Response(
+            {
+                "message": "Contraseña restablecida exitosamente. Inicia sesión con tu nueva contraseña.",
+            }
+        )
 
 
 class LogoutView(APIView):
@@ -556,17 +552,11 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request=inline_serializer(
-            name="LogoutRequest",
-            fields={"refresh": drf_serializers.CharField()}
-        ),
+        request=inline_serializer(name="LogoutRequest", fields={"refresh": drf_serializers.CharField()}),
         responses={
-            200: inline_serializer(
-                name="LogoutResponse",
-                fields={"message": drf_serializers.CharField()}
-            ),
+            200: inline_serializer(name="LogoutResponse", fields={"message": drf_serializers.CharField()}),
             400: OpenApiResponse(description="Token inválido"),
-        }
+        },
     )
     def post(self, request):
         try:
@@ -574,7 +564,7 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
             return Response({"message": "Logout exitoso"})
-        except:
+        except Exception:
             return Response({"error": "Token inválido"}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -590,14 +580,14 @@ class CurrentUserView(APIView):
                 fields={
                     "user": UserSerializer(),
                     "tenant": TenantSerializer(),
-                }
+                },
             ),
         }
     )
     def get(self, request):
         # Usar request.user.tenant para obtener el tenant del usuario autenticado
         # (más confiable que request.tenant del middleware)
-        tenant = getattr(request.user, 'tenant', None)
+        tenant = getattr(request.user, "tenant", None)
         tenant_data = TenantSerializer(tenant).data if tenant else None
         return Response({"user": UserSessionSerializer(request.user).data, "tenant": tenant_data})
 
@@ -610,9 +600,7 @@ class ProfileView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(
-        responses={200: UserSerializer}
-    )
+    @extend_schema(responses={200: UserSerializer})
     def get(self, request):
         """Obtener perfil completo del usuario"""
         return Response(UserSerializer(request.user).data)
@@ -625,10 +613,10 @@ class ProfileView(APIView):
                 fields={
                     "message": drf_serializers.CharField(),
                     "user": UserSerializer(),
-                }
+                },
             ),
             400: OpenApiResponse(description="Datos inválidos"),
-        }
+        },
     )
     def put(self, request):
         """Actualizar perfil del usuario"""
@@ -651,12 +639,9 @@ class ChangePasswordView(APIView):
     @extend_schema(
         request=ChangePasswordSerializer,
         responses={
-            200: inline_serializer(
-                name="ChangePasswordResponse",
-                fields={"message": drf_serializers.CharField()}
-            ),
+            200: inline_serializer(name="ChangePasswordResponse", fields={"message": drf_serializers.CharField()}),
             400: OpenApiResponse(description="Contraseña actual incorrecta"),
-        }
+        },
     )
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
@@ -666,10 +651,7 @@ class ChangePasswordView(APIView):
 
         # Verificar contraseña actual
         if not user.check_password(serializer.validated_data["current_password"]):
-            return Response(
-                {"error": "La contraseña actual es incorrecta"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "La contraseña actual es incorrecta"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Cambiar contraseña
         user.set_password(serializer.validated_data["new_password"])
@@ -706,10 +688,10 @@ class SetPasswordView(APIView):
                     "valid": drf_serializers.BooleanField(),
                     "email": drf_serializers.EmailField(),
                     "first_name": drf_serializers.CharField(),
-                }
+                },
             ),
             400: OpenApiResponse(description="Token inválido o expirado"),
-        }
+        },
     )
     def get(self, request):
         """
@@ -720,30 +702,23 @@ class SetPasswordView(APIView):
         token_str = request.query_params.get("token")
 
         if not token_str:
-            return Response(
-                {"error": "Token requerido"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Token requerido"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             token = PasswordSetToken.objects.get(token=token_str)
         except PasswordSetToken.DoesNotExist:
-            return Response(
-                {"error": "Token inválido o expirado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Token inválido o expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
         if not token.is_valid:
-            return Response(
-                {"error": "Token inválido o expirado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Token inválido o expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({
-            "valid": True,
-            "email": token.user.email,
-            "first_name": token.user.first_name,
-        })
+        return Response(
+            {
+                "valid": True,
+                "email": token.user.email,
+                "first_name": token.user.first_name,
+            }
+        )
 
     @extend_schema(
         request=SetPasswordSerializer,
@@ -758,12 +733,12 @@ class SetPasswordView(APIView):
                         fields={
                             "refresh": drf_serializers.CharField(),
                             "access": drf_serializers.CharField(),
-                        }
+                        },
                     ),
-                }
+                },
             ),
             400: OpenApiResponse(description="Token inválido o expirado"),
-        }
+        },
     )
     def post(self, request):
         """
@@ -781,17 +756,11 @@ class SetPasswordView(APIView):
         try:
             token = PasswordSetToken.objects.get(token=token_str)
         except PasswordSetToken.DoesNotExist:
-            return Response(
-                {"error": "Token inválido o expirado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Token inválido o expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar validez
         if not token.is_valid:
-            return Response(
-                {"error": "Token inválido o expirado"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Token inválido o expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Establecer contraseña
         user = token.user
@@ -808,14 +777,16 @@ class SetPasswordView(APIView):
         refresh["tenant_slug"] = user.tenant.slug
         refresh["role"] = user.role
 
-        return Response({
-            "message": "Contraseña establecida exitosamente",
-            "user": UserSessionSerializer(user).data,
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-        })
+        return Response(
+            {
+                "message": "Contraseña establecida exitosamente",
+                "user": UserSessionSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+            }
+        )
 
 
 # Vistas de testing (mantener)
@@ -826,7 +797,7 @@ class SetPasswordView(APIView):
             fields={
                 "tenant": TenantSerializer(),
                 "users_count": drf_serializers.IntegerField(),
-            }
+            },
         ),
     }
 )
@@ -910,35 +881,25 @@ class DeleteAccountView(APIView):
     throttle_classes = [PasswordResetThrottle]
 
     @extend_schema(
-        request=inline_serializer(
-            name="DeleteAccountRequest",
-            fields={"password": drf_serializers.CharField()}
-        ),
+        request=inline_serializer(name="DeleteAccountRequest", fields={"password": drf_serializers.CharField()}),
         responses={
-            200: inline_serializer(
-                name="DeleteAccountResponse",
-                fields={"message": drf_serializers.CharField()}
-            ),
+            200: inline_serializer(name="DeleteAccountResponse", fields={"message": drf_serializers.CharField()}),
             400: OpenApiResponse(description="Contraseña incorrecta"),
-        }
+        },
     )
     def post(self, request):
         password = request.data.get("password")
 
         if not password:
             return Response(
-                {"error": "Debes ingresar tu contraseña para confirmar"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Debes ingresar tu contraseña para confirmar"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         user = request.user
 
         # Verificar contraseña
         if not user.check_password(password):
-            return Response(
-                {"error": "La contraseña es incorrecta"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "La contraseña es incorrecta"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Eliminar usuario
         user.is_active = False
@@ -958,10 +919,7 @@ class ReactivateAccountView(APIView):
     @extend_schema(
         request=inline_serializer(
             name="ReactivateAccountRequest",
-            fields={
-                "email": drf_serializers.EmailField(),
-                "password": drf_serializers.CharField()
-            }
+            fields={"email": drf_serializers.EmailField(), "password": drf_serializers.CharField()},
         ),
         responses={
             200: inline_serializer(
@@ -973,13 +931,13 @@ class ReactivateAccountView(APIView):
                         fields={
                             "refresh": drf_serializers.CharField(),
                             "access": drf_serializers.CharField(),
-                        }
+                        },
                     ),
-                    "message": drf_serializers.CharField()
-                }
+                    "message": drf_serializers.CharField(),
+                },
             ),
             400: OpenApiResponse(description="Error en reactivación"),
-        }
+        },
     )
     def post(self, request):
         email = request.data.get("email")
@@ -987,26 +945,19 @@ class ReactivateAccountView(APIView):
         tenant = request.tenant
 
         if not email or not password:
-            return Response(
-                {"error": "Email y contraseña son requeridos"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Email y contraseña son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar usuario inactivo
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant, is_active=False)
         except User.DoesNotExist:
             return Response(
-                {"error": "No se encontró una cuenta inactiva con este email"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "No se encontró una cuenta inactiva con este email"}, status=status.HTTP_404_NOT_FOUND
             )
 
         # Verificar contraseña
         if not user.check_password(password):
-            return Response(
-                {"error": "Contraseña incorrecta"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Contraseña incorrecta"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Reactivar cuenta
         user.is_active = True
@@ -1069,16 +1020,21 @@ class ActiveBannersView(generics.ListAPIView):
         now = timezone.now()
 
         # Filtrar banners activos considerando fechas
-        queryset = Banner.objects.filter(
-            tenant=tenant,
-            is_active=True,
-        ).filter(
-            # start_date es null O ya pasó
-            Q(start_date__isnull=True) | Q(start_date__lte=now)
-        ).filter(
-            # end_date es null O aún no llegó
-            Q(end_date__isnull=True) | Q(end_date__gte=now)
-        ).order_by("-priority", "-created_at")
+        queryset = (
+            Banner.objects.filter(
+                tenant=tenant,
+                is_active=True,
+            )
+            .filter(
+                # start_date es null O ya pasó
+                Q(start_date__isnull=True) | Q(start_date__lte=now)
+            )
+            .filter(
+                # end_date es null O aún no llegó
+                Q(end_date__isnull=True) | Q(end_date__gte=now)
+            )
+            .order_by("-priority", "-created_at")
+        )
 
         # Filtrar por posición si se especifica
         position = self.request.query_params.get("position")
@@ -1106,51 +1062,50 @@ class RequestPasswordResetOTPView(APIView):
     throttle_classes = [OTPRequestThrottle]
 
     @extend_schema(
-        request=inline_serializer(
-            name="RequestPasswordResetRequest",
-            fields={"email": drf_serializers.EmailField()}
-        ),
+        request=inline_serializer(name="RequestPasswordResetRequest", fields={"email": drf_serializers.EmailField()}),
         responses={
             200: inline_serializer(
                 name="RequestPasswordResetResponse",
                 fields={
                     "message": drf_serializers.CharField(),
                     "email": drf_serializers.EmailField(),
-                }
+                },
             ),
-        }
+        },
     )
     def post(self, request):
         email = request.data.get("email")
         tenant = request.tenant
 
         if not email:
-            return Response(
-                {"error": "El email es requerido"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "El email es requerido"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar usuario (activo o inactivo)
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant)
         except User.DoesNotExist:
             # Por seguridad, no revelar si el email existe o no
-            return Response({
-                "message": "Si el email existe, recibirás un código de verificación",
-                "email": email,
-            })
+            return Response(
+                {
+                    "message": "Si el email existe, recibirás un código de verificación",
+                    "email": email,
+                }
+            )
 
         # Crear OTP
-        otp = OTPToken.create_for_user(user, purpose='password_reset')
+        otp = OTPToken.create_for_user(user, purpose="password_reset")
 
         # Enviar email con OTP (async con Celery)
         from notifications.tasks import send_otp_email
-        send_otp_email.delay(user.id, otp.code, 'password_reset')
 
-        return Response({
-            "message": "Si el email existe, recibirás un código de verificación",
-            "email": email,
-        })
+        send_otp_email.delay(user.id, otp.code, "password_reset")
+
+        return Response(
+            {
+                "message": "Si el email existe, recibirás un código de verificación",
+                "email": email,
+            }
+        )
 
 
 class VerifyPasswordResetOTPView(APIView):
@@ -1171,7 +1126,7 @@ class VerifyPasswordResetOTPView(APIView):
                 "email": drf_serializers.EmailField(),
                 "code": drf_serializers.CharField(),
                 "new_password": drf_serializers.CharField(),
-            }
+            },
         ),
         responses={
             200: inline_serializer(
@@ -1184,12 +1139,12 @@ class VerifyPasswordResetOTPView(APIView):
                         fields={
                             "refresh": drf_serializers.CharField(),
                             "access": drf_serializers.CharField(),
-                        }
+                        },
                     ),
-                }
+                },
             ),
             400: OpenApiResponse(description="Código inválido o expirado"),
-        }
+        },
     )
     def post(self, request):
         email = request.data.get("email")
@@ -1199,30 +1154,22 @@ class VerifyPasswordResetOTPView(APIView):
 
         if not all([email, code, new_password]):
             return Response(
-                {"error": "Email, código y nueva contraseña son requeridos"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Email, código y nueva contraseña son requeridos"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         # Buscar usuario
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant)
         except User.DoesNotExist:
-            return Response(
-                {"error": "Usuario no encontrado"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
         # Buscar OTP válido
         try:
-            otp = OTPToken.objects.get(
-                user=user,
-                purpose='password_reset',
-                used_at__isnull=True
-            )
+            otp = OTPToken.objects.get(user=user, purpose="password_reset", used_at__isnull=True)
         except OTPToken.DoesNotExist:
             return Response(
                 {"error": "No hay un código de verificación activo. Solicita uno nuevo."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Verificar OTP
@@ -1233,8 +1180,7 @@ class VerifyPasswordResetOTPView(APIView):
         # Validar fortaleza de la nueva contraseña
         if len(new_password) < 8:
             return Response(
-                {"error": "La contraseña debe tener al menos 8 caracteres"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "La contraseña debe tener al menos 8 caracteres"}, status=status.HTTP_400_BAD_REQUEST
             )
         has_upper = any(c.isupper() for c in new_password)
         has_lower = any(c.islower() for c in new_password)
@@ -1242,16 +1188,18 @@ class VerifyPasswordResetOTPView(APIView):
         if not (has_upper and has_lower and has_digit):
             return Response(
                 {"error": "La contraseña debe incluir mayúsculas, minúsculas y números"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Cambiar contraseña (sin generar tokens — el usuario debe iniciar sesión manualmente)
         user.set_password(new_password)
         user.save()
 
-        return Response({
-            "message": "Contraseña restablecida exitosamente. Inicia sesión con tu nueva contraseña.",
-        })
+        return Response(
+            {
+                "message": "Contraseña restablecida exitosamente. Inicia sesión con tu nueva contraseña.",
+            }
+        )
 
 
 class RequestReactivationOTPView(APIView):
@@ -1272,7 +1220,7 @@ class RequestReactivationOTPView(APIView):
             fields={
                 "email": drf_serializers.EmailField(),
                 "password": drf_serializers.CharField(),
-            }
+            },
         ),
         responses={
             200: inline_serializer(
@@ -1280,11 +1228,11 @@ class RequestReactivationOTPView(APIView):
                 fields={
                     "message": drf_serializers.CharField(),
                     "email": drf_serializers.EmailField(),
-                }
+                },
             ),
             401: OpenApiResponse(description="Contraseña incorrecta"),
             404: OpenApiResponse(description="Cuenta no encontrada"),
-        }
+        },
     )
     def post(self, request):
         email = request.data.get("email")
@@ -1292,38 +1240,34 @@ class RequestReactivationOTPView(APIView):
         tenant = request.tenant
 
         if not email or not password:
-            return Response(
-                {"error": "Email y contraseña son requeridos"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Email y contraseña son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar usuario inactivo
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant, is_active=False)
         except User.DoesNotExist:
             return Response(
-                {"error": "No se encontró una cuenta inactiva con este email"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "No se encontró una cuenta inactiva con este email"}, status=status.HTTP_404_NOT_FOUND
             )
 
         # Verificar contraseña
         if not user.check_password(password):
-            return Response(
-                {"error": "Contraseña incorrecta"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({"error": "Contraseña incorrecta"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Crear OTP
-        otp = OTPToken.create_for_user(user, purpose='account_reactivation')
+        otp = OTPToken.create_for_user(user, purpose="account_reactivation")
 
         # Enviar email con OTP (async con Celery)
         from notifications.tasks import send_otp_email
-        send_otp_email.delay(user.id, otp.code, 'account_reactivation')
 
-        return Response({
-            "message": "Te hemos enviado un código de verificación a tu email",
-            "email": email,
-        })
+        send_otp_email.delay(user.id, otp.code, "account_reactivation")
+
+        return Response(
+            {
+                "message": "Te hemos enviado un código de verificación a tu email",
+                "email": email,
+            }
+        )
 
 
 class VerifyReactivationOTPView(APIView):
@@ -1343,7 +1287,7 @@ class VerifyReactivationOTPView(APIView):
             fields={
                 "email": drf_serializers.EmailField(),
                 "code": drf_serializers.CharField(),
-            }
+            },
         ),
         responses={
             200: inline_serializer(
@@ -1356,12 +1300,12 @@ class VerifyReactivationOTPView(APIView):
                         fields={
                             "refresh": drf_serializers.CharField(),
                             "access": drf_serializers.CharField(),
-                        }
+                        },
                     ),
-                }
+                },
             ),
             400: OpenApiResponse(description="Código inválido o expirado"),
-        }
+        },
     )
     def post(self, request):
         email = request.data.get("email")
@@ -1369,31 +1313,21 @@ class VerifyReactivationOTPView(APIView):
         tenant = request.tenant
 
         if not email or not code:
-            return Response(
-                {"error": "Email y código son requeridos"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Email y código son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Buscar usuario inactivo
         try:
             user = User.objects.get(email__iexact=email, tenant=tenant, is_active=False)
         except User.DoesNotExist:
-            return Response(
-                {"error": "Usuario no encontrado o ya está activo"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "Usuario no encontrado o ya está activo"}, status=status.HTTP_404_NOT_FOUND)
 
         # Buscar OTP válido
         try:
-            otp = OTPToken.objects.get(
-                user=user,
-                purpose='account_reactivation',
-                used_at__isnull=True
-            )
+            otp = OTPToken.objects.get(user=user, purpose="account_reactivation", used_at__isnull=True)
         except OTPToken.DoesNotExist:
             return Response(
                 {"error": "No hay un código de verificación activo. Solicita uno nuevo."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Verificar OTP
@@ -1411,35 +1345,38 @@ class VerifyReactivationOTPView(APIView):
         refresh["tenant_slug"] = user.tenant.slug
         refresh["role"] = user.role
 
-        return Response({
-            "message": "Cuenta reactivada exitosamente",
-            "user": UserSessionSerializer(user).data,
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-        })
+        return Response(
+            {
+                "message": "Cuenta reactivada exitosamente",
+                "user": UserSessionSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+            }
+        )
 
 
 # ===================================
 # CONFIGURACIÓN DEL TENANT
 # ===================================
 
+
 @extend_schema(
     summary="Obtener configuración del tenant",
     description="Devuelve la configuración de módulos activos y personalización del tenant actual",
     responses={
         200: inline_serializer(
-            name='TenantConfigResponse',
+            name="TenantConfigResponse",
             fields={
-                'tenant': drf_serializers.DictField(),
-                'modules': drf_serializers.DictField(),
-                'config': drf_serializers.DictField(),
-            }
+                "tenant": drf_serializers.DictField(),
+                "modules": drf_serializers.DictField(),
+                "config": drf_serializers.DictField(),
+            },
         )
-    }
+    },
 )
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([AllowAny])  # Público para que el frontend pueda cargarlo sin autenticación
 def get_tenant_config(request):
     """
@@ -1467,12 +1404,12 @@ def get_tenant_config(request):
     }
     """
     # Obtener tenant desde el middleware o desde el slug en el header
-    tenant = getattr(request, 'tenant', None)
+    tenant = getattr(request, "tenant", None)
 
     if not tenant:
         # Si no hay tenant en el request (puede pasar en desarrollo)
         # intentar obtenerlo desde el slug en los headers o query params
-        tenant_slug = request.headers.get('X-Tenant-Slug') or request.GET.get('tenant_slug')
+        tenant_slug = request.headers.get("X-Tenant-Slug") or request.GET.get("tenant_slug")
         if tenant_slug:
             try:
                 tenant = Tenant.objects.get(slug=tenant_slug)
@@ -1480,50 +1417,59 @@ def get_tenant_config(request):
                 pass
 
     if not tenant:
-        return Response({
-            "error": "No se pudo determinar el tenant"
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "No se pudo determinar el tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response({
-        'tenant': {
-            'name': tenant.name,
-            'slug': tenant.slug,
-            'logo': tenant.logo.url if tenant.logo else None,
-        },
-        'modules': {
-            'shop': tenant.has_shop,
-            'bookings': tenant.has_bookings,
-            'services': tenant.has_services,
-            'marketing': tenant.has_marketing,
-        },
-        'config': {
-            'primary_color': tenant.primary_color,
-            'secondary_color': tenant.secondary_color,
-            'currency': tenant.currency,
-            'timezone': tenant.timezone,
-            'language': tenant.language,
-        },
-        'contact': {
-            'email': tenant.email,
-            'phone': tenant.phone,
-            'address': tenant.address,
-            'city': tenant.city,
-            'state': tenant.state,
-            'country': tenant.country,
-        },
-        'metrics': {
-            'years_experience': tenant.years_experience,
-            'clients_count': tenant.clients_count,
-            'treatments_count': tenant.treatments_count,
-            'average_rating': float(tenant.average_rating),
-        },
-        'images': {
-            'hero_home': tenant.hero_image_home.url if tenant.hero_image_home else None,
-            'hero_services': tenant.hero_image_services.url if tenant.hero_image_services else None,
-        },
-        'pages': _get_enabled_pages(tenant),
-        'theme': _get_tenant_theme(tenant),
-    })
+    return Response(
+        {
+            "tenant": {
+                "name": tenant.name,
+                "slug": tenant.slug,
+                "logo": tenant.logo.url if tenant.logo else None,
+            },
+            "modules": {
+                "shop": tenant.has_shop,
+                "bookings": tenant.has_bookings,
+                "services": tenant.has_services,
+                "marketing": tenant.has_marketing,
+            },
+            "config": {
+                "primary_color": tenant.primary_color,
+                "secondary_color": tenant.secondary_color,
+                "currency": tenant.currency,
+                "timezone": tenant.timezone,
+                "language": tenant.language,
+            },
+            "contact": {
+                "email": tenant.email,
+                "phone": tenant.phone,
+                "address": tenant.address,
+                "city": tenant.city,
+                "state": tenant.state,
+                "country": tenant.country,
+            },
+            "metrics": {
+                "years_experience": tenant.years_experience,
+                "clients_count": tenant.clients_count,
+                "treatments_count": tenant.treatments_count,
+                "average_rating": float(tenant.average_rating),
+            },
+            "images": {
+                "hero_home": tenant.hero_image_home.url if tenant.hero_image_home else None,
+                "hero_services": tenant.hero_image_services.url if tenant.hero_image_services else None,
+            },
+            "pages": _get_enabled_pages(tenant),
+            "theme": _get_tenant_theme(tenant),
+            "subscription": _get_tenant_subscription_features(tenant),
+        }
+    )
+
+
+def _get_tenant_subscription_features(tenant):
+    """Devuelve features de la suscripción relevantes para el frontend."""
+    try:
+        return {"is_subscribed": tenant.subscription.status != "trial"}
+    except Exception:
+        return {"is_subscribed": False}
 
 
 def _get_tenant_theme(tenant):
@@ -1532,14 +1478,20 @@ def _get_tenant_theme(tenant):
     Prioridad: WebsiteConfig.theme_data > Tenant.primary/secondary > defaults.
     """
     theme = {
-        'primary_color': tenant.primary_color,
-        'secondary_color': tenant.secondary_color,
+        "primary_color": tenant.primary_color,
+        "secondary_color": tenant.secondary_color,
     }
     try:
         from websites.models import WebsiteConfig
-        config = WebsiteConfig.objects.filter(
-            tenant=tenant, status__in=['review', 'published'],
-        ).select_related('template').first()
+
+        config = (
+            WebsiteConfig.objects.filter(
+                tenant=tenant,
+                status__in=["review", "published"],
+            )
+            .select_related("template")
+            .first()
+        )
         if config and config.theme_data:
             full_theme = {**(config.template.default_theme or {}), **config.theme_data}
             theme.update(full_theme)
@@ -1552,22 +1504,23 @@ def _get_enabled_pages(tenant):
     """Retorna las páginas habilitadas del website del tenant."""
     try:
         from websites.models import WebsiteConfig
+
         config = WebsiteConfig.objects.filter(tenant=tenant).first()
-        return {'enabled': config.enabled_pages if config else []}
+        return {"enabled": config.enabled_pages if config else []}
     except Exception:
-        return {'enabled': []}
+        return {"enabled": []}
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([AllowAny])
 def get_tenant_website_content(request):
     """
     Endpoint público que retorna el contenido IA del sitio web del tenant.
     Usado por las páginas públicas para mostrar contenido generado.
     """
-    tenant = getattr(request, 'tenant', None)
+    tenant = getattr(request, "tenant", None)
     if not tenant:
-        tenant_slug = request.headers.get('X-Tenant-Slug') or request.GET.get('tenant_slug')
+        tenant_slug = request.headers.get("X-Tenant-Slug") or request.GET.get("tenant_slug")
         if tenant_slug:
             try:
                 tenant = Tenant.objects.get(slug=tenant_slug)
@@ -1579,35 +1532,38 @@ def get_tenant_website_content(request):
 
     try:
         from websites.models import WebsiteConfig
-        config = WebsiteConfig.objects.select_related('template').get(tenant=tenant)
+
+        config = WebsiteConfig.objects.select_related("template").get(tenant=tenant)
     except Exception:
-        return Response({
-            'has_website': False,
-            'content': {},
-            'enabled_pages': [],
-        })
+        return Response(
+            {
+                "has_website": False,
+                "content": {},
+                "enabled_pages": [],
+            }
+        )
 
     response_data = {
-        'has_website': True,
-        'status': config.status,
-        'content': config.content_data or {},
-        'enabled_pages': config.enabled_pages or [],
+        "has_website": True,
+        "status": config.status,
+        "content": config.content_data or {},
+        "enabled_pages": config.enabled_pages or [],
     }
 
     # Para sitios en review o publicados, incluir theme, seo, media
-    if config.status in ('review', 'published') and config.template:
+    if config.status in ("review", "published") and config.template:
         # Theme: merge default del template + customizaciones del tenant
         default_theme = config.template.default_theme or {}
         theme_data = config.theme_data or {}
-        response_data['theme'] = {**default_theme, **theme_data}
+        response_data["theme"] = {**default_theme, **theme_data}
 
         # SEO metadata
-        response_data['seo'] = config.seo_data or {}
+        response_data["seo"] = config.seo_data or {}
 
         # Media (logo, favicon, og_image)
-        response_data['media'] = config.media_data or {}
+        response_data["media"] = config.media_data or {}
 
         # Template slug para referencia
-        response_data['template_slug'] = config.template.slug
+        response_data["template_slug"] = config.template.slug
 
     return Response(response_data)

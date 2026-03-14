@@ -3,12 +3,11 @@
 Middlewares personalizados para el sistema multi-tenant.
 """
 
-from django.shortcuts import redirect
-from django.urls import reverse
-from django.http import HttpResponseForbidden
-from django.utils import timezone as django_timezone
-import zoneinfo
 import re
+import zoneinfo
+
+from django.shortcuts import redirect
+from django.utils import timezone as django_timezone
 
 
 class TimezoneMiddleware:
@@ -20,7 +19,7 @@ class TimezoneMiddleware:
     - Usuarios de tenant: ven la hora según el timezone configurado en su tenant
 
     Esto asegura que:
-    - El equipo GRAVITIFY (superusers) siempre trabaja en horario Colombia
+    - El equipo NERBIS (superusers) siempre trabaja en horario Colombia
     - Cada tenant ve su propia hora local según su configuración
     """
 
@@ -29,14 +28,14 @@ class TimezoneMiddleware:
 
     def __call__(self, request):
         # Solo procesar si el usuario está autenticado
-        if hasattr(request, 'user') and request.user.is_authenticated:
+        if hasattr(request, "user") and request.user.is_authenticated:
             # Superusuarios: usar timezone del servidor (no activar nada especial)
             if request.user.is_superuser:
                 # Dejar el timezone del servidor (settings.TIME_ZONE = America/Bogota)
                 django_timezone.deactivate()
             else:
                 # Usuarios normales: usar timezone del tenant
-                tenant = getattr(request.user, 'tenant', None)
+                tenant = getattr(request.user, "tenant", None)
                 if tenant and tenant.timezone:
                     try:
                         tz = zoneinfo.ZoneInfo(tenant.timezone)
@@ -76,16 +75,16 @@ class SubscriptionMiddleware:
 
     # URLs que siempre están permitidas (regex patterns)
     ALLOWED_URLS = [
-        r'^/admin/login/$',
-        r'^/admin/logout/$',
-        r'^/admin/password_change/',
-        r'^/api/auth/',
-        r'^/api/v1/auth/',
-        r'^/static/',
-        r'^/media/',
-        r'^/__reload__/',  # Django browser reload
-        r'^/subscription-expired/$',
-        r'^/favicon\.ico$',
+        r"^/admin/login/$",
+        r"^/admin/logout/$",
+        r"^/admin/password_change/",
+        r"^/api/auth/",
+        r"^/api/v1/auth/",
+        r"^/static/",
+        r"^/media/",
+        r"^/__reload__/",  # Django browser reload
+        r"^/subscription-expired/$",
+        r"^/favicon\.ico$",
     ]
 
     def __init__(self, get_response):
@@ -99,7 +98,7 @@ class SubscriptionMiddleware:
             return self.get_response(request)
 
         # Si el usuario no está autenticado, dejar pasar (el auth middleware se encarga)
-        if not hasattr(request, 'user') or not request.user.is_authenticated:
+        if not hasattr(request, "user") or not request.user.is_authenticated:
             return self.get_response(request)
 
         # Superusuarios siempre tienen acceso
@@ -107,7 +106,7 @@ class SubscriptionMiddleware:
             return self.get_response(request)
 
         # Verificar si el usuario tiene tenant
-        tenant = getattr(request.user, 'tenant', None)
+        tenant = getattr(request.user, "tenant", None)
         if not tenant:
             # Usuario sin tenant, dejar pasar (podría ser un superuser sin tenant asignado)
             return self.get_response(request)
@@ -115,21 +114,25 @@ class SubscriptionMiddleware:
         # Verificar si la suscripción está activa
         if not tenant.is_subscription_active:
             # Determinar si es una petición al admin o al frontend
-            if request.path.startswith('/admin/'):
+            if request.path.startswith("/admin/"):
                 # En el admin, redirigir a página de suscripción expirada
-                return redirect('subscription_expired')
-            elif request.path.startswith('/api/'):
+                return redirect("subscription_expired")
+            elif request.path.startswith("/api/"):
                 # En la API, retornar 403 con mensaje
                 from django.http import JsonResponse
-                return JsonResponse({
-                    'error': 'subscription_expired',
-                    'message': 'Tu suscripción ha expirado. Por favor, renueva tu plan para continuar.',
-                    'status': tenant.subscription_status,
-                    'plan': tenant.plan,
-                }, status=403)
+
+                return JsonResponse(
+                    {
+                        "error": "subscription_expired",
+                        "message": "Tu suscripción ha expirado. Por favor, renueva tu plan para continuar.",
+                        "status": tenant.subscription_status,
+                        "plan": tenant.plan,
+                    },
+                    status=403,
+                )
             else:
                 # En otras URLs (frontend), redirigir
-                return redirect('subscription_expired')
+                return redirect("subscription_expired")
 
         return self.get_response(request)
 

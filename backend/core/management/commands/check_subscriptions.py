@@ -84,11 +84,7 @@ class Command(BaseCommand):
         for tenant in trial_tenants:
             if tenant.is_expired:
                 stats["trial_expired"] += 1
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"\n❌ TRIAL EXPIRADO: {tenant.name} ({tenant.slug})"
-                    )
-                )
+                self.stdout.write(self.style.ERROR(f"\n❌ TRIAL EXPIRADO: {tenant.name} ({tenant.slug})"))
                 self.stdout.write(f"   Trial terminó: {tenant.subscription_ends_at}")
 
                 if execute:
@@ -99,14 +95,8 @@ class Command(BaseCommand):
 
             elif tenant.days_remaining is not None and tenant.days_remaining <= days_warning:
                 stats["trial_expiring_soon"] += 1
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"\n⚠️  TRIAL POR EXPIRAR: {tenant.name} ({tenant.slug})"
-                    )
-                )
-                self.stdout.write(
-                    f"   Expira: {tenant.subscription_ends_at} ({tenant.days_remaining} días restantes)"
-                )
+                self.stdout.write(self.style.WARNING(f"\n⚠️  TRIAL POR EXPIRAR: {tenant.name} ({tenant.slug})"))
+                self.stdout.write(f"   Expira: {tenant.subscription_ends_at} ({tenant.days_remaining} días restantes)")
 
                 if notify:
                     # TODO: Enviar email de recordatorio
@@ -121,14 +111,8 @@ class Command(BaseCommand):
         for tenant in paid_tenants:
             if tenant.is_expired:
                 stats["subscription_expired"] += 1
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"\n❌ SUSCRIPCIÓN EXPIRADA: {tenant.name} ({tenant.slug})"
-                    )
-                )
-                self.stdout.write(
-                    f"   Plan: {tenant.get_plan_display()}, Terminó: {tenant.subscription_ends_at}"
-                )
+                self.stdout.write(self.style.ERROR(f"\n❌ SUSCRIPCIÓN EXPIRADA: {tenant.name} ({tenant.slug})"))
+                self.stdout.write(f"   Plan: {tenant.get_plan_display()}, Terminó: {tenant.subscription_ends_at}")
 
                 if execute:
                     tenant.is_active = False
@@ -138,11 +122,7 @@ class Command(BaseCommand):
 
             elif tenant.days_remaining is not None and tenant.days_remaining <= days_warning:
                 stats["subscription_expiring_soon"] += 1
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"\n⚠️  SUSCRIPCIÓN POR EXPIRAR: {tenant.name} ({tenant.slug})"
-                    )
-                )
+                self.stdout.write(self.style.WARNING(f"\n⚠️  SUSCRIPCIÓN POR EXPIRAR: {tenant.name} ({tenant.slug})"))
                 self.stdout.write(
                     f"   Plan: {tenant.get_plan_display()}, Expira: {tenant.subscription_ends_at} "
                     f"({tenant.days_remaining} días restantes)"
@@ -168,21 +148,18 @@ class Command(BaseCommand):
         self.stdout.write(f"  ├─ Por expirar (próximos {days_warning} días):")
         self.stdout.write(f"  │  ├─ Trials: {stats['trial_expiring_soon']}")
         self.stdout.write(f"  │  └─ Suscripciones: {stats['subscription_expiring_soon']}")
-        self.stdout.write(f"  ├─ Expirados:")
+        self.stdout.write("  ├─ Expirados:")
         self.stdout.write(f"  │  ├─ Trials: {stats['trial_expired']}")
         self.stdout.write(f"  │  └─ Suscripciones: {stats['subscription_expired']}")
         self.stdout.write(f"  └─ Ya inactivos: {stats['inactive']}")
 
         if execute and stats["deactivated"] > 0:
-            self.stdout.write(
-                self.style.SUCCESS(f"\n✓ {stats['deactivated']} tenant(s) desactivado(s)")
-            )
+            self.stdout.write(self.style.SUCCESS(f"\n✓ {stats['deactivated']} tenant(s) desactivado(s)"))
         elif not execute and (stats["trial_expired"] + stats["subscription_expired"]) > 0:
             total_expired = stats["trial_expired"] + stats["subscription_expired"]
             self.stdout.write(
                 self.style.WARNING(
-                    f"\n⚠️  {total_expired} tenant(s) expirado(s). "
-                    f"Ejecutar con --execute para desactivarlos."
+                    f"\n⚠️  {total_expired} tenant(s) expirado(s). Ejecutar con --execute para desactivarlos."
                 )
             )
 

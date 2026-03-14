@@ -1,7 +1,8 @@
 # backend/core/backends.py
 
-from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
+
 from .context import get_current_tenant
 
 User = get_user_model()
@@ -32,7 +33,7 @@ class TenantEmailBackend(ModelBackend):
         Returns:
             User si las credenciales son válidas, None en caso contrario
         """
-        email = kwargs.get('email') or username
+        email = kwargs.get("email") or username
 
         if email is None or password is None:
             return None

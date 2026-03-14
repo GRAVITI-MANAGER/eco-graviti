@@ -1,14 +1,15 @@
 # backend/cart/serializers.py
 
-from rest_framework import serializers
 from django.utils import timezone
-from django.contrib.contenttypes.models import ContentType
+from rest_framework import serializers
+
+from bookings.models import Appointment
+from bookings.serializers import AppointmentListSerializer
 from ecommerce.models import Product
 from ecommerce.serializers import ProductListSerializer
 from services.models import Service
 from services.serializers import ServiceListSerializer
-from bookings.models import Appointment
-from bookings.serializers import AppointmentListSerializer
+
 from .models import Cart, CartItem
 
 
@@ -98,17 +99,19 @@ class CartSerializer(serializers.ModelSerializer):
 
             discount_amount = obj.coupon.calculate_discount(obj.subtotal)
 
-            return AppliedCouponSerializer({
-                'code': obj.coupon.code,
-                'discount_type': obj.coupon.discount_type,
-                'discount_value': obj.coupon.discount_value,
-                'discount_display': obj.coupon.get_discount_display(),
-                'discount_amount': discount_amount,
-            }).data
+            return AppliedCouponSerializer(
+                {
+                    "code": obj.coupon.code,
+                    "discount_type": obj.coupon.discount_type,
+                    "discount_value": obj.coupon.discount_value,
+                    "discount_display": obj.coupon.get_discount_display(),
+                    "discount_amount": discount_amount,
+                }
+            ).data
         except Exception:
             # Si hay error con el cupón, removerlo del carrito
             obj.coupon = None
-            obj.save(update_fields=['coupon'])
+            obj.save(update_fields=["coupon"])
             return None
 
 
@@ -126,10 +129,12 @@ class AddProductToCartSerializer(serializers.Serializer):
             raise serializers.ValidationError("Producto no encontrado")
 
         # Verificar stock si tiene inventario
-        if hasattr(product, 'inventory') and product.inventory:
+        if hasattr(product, "inventory") and product.inventory:
             if product.inventory.track_inventory:
                 if not product.inventory.can_purchase(self.initial_data.get("quantity", 1)):
-                    raise serializers.ValidationError(f"Stock insuficiente. Solo quedan {product.inventory.stock} unidades")
+                    raise serializers.ValidationError(
+                        f"Stock insuficiente. Solo quedan {product.inventory.stock} unidades"
+                    )
 
         return value
 
