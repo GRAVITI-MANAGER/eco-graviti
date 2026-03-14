@@ -40,11 +40,15 @@ Lee `docs/SDD.md` antes de cambios arquitectónicos.
 
 ## Skills
 
-Para tareas de frontend, leer los skills instalados en `.claude/skills/` antes de actuar:
+Leer los skills relevantes en `.claude/skills/` antes de actuar:
 
+**Frontend:**
 - `.claude/skills/web-design-guidelines` — diseño web, UI/UX, layouts, accesibilidad
 - `.claude/skills/shadcn` — uso correcto de shadcn/ui + Radix UI
 - `.claude/skills/vercel-react-best-practices` — patrones React 19 + Next.js performance
+
+**Backend:**
+- `.claude/skills/multi-tenancy` — patrones multi-tenant (modelos, views, serializers, permisos, tests)
 
 ## Código (específico Claude)
 
