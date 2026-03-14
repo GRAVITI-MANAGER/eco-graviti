@@ -39,6 +39,14 @@ Plataforma SaaS multi-tenant multi-industria. Lee `docs/SDD.md` antes de hacer c
 - **Release Please:** Versionamiento semántico automático en push a main
 - Correr lint local antes de push: `ruff check backend/` y `cd frontend && npm run lint`
 
+## Skills
+
+Para tareas de frontend, leer los skills instalados en `.claude/skills/` antes de actuar:
+
+- `.claude/skills/web-design-guidelines` — diseño web, UI/UX, layouts, accesibilidad
+- `.claude/skills/shadcn` — uso correcto de shadcn/ui + Radix UI
+- `.claude/skills/vercel-react-best-practices` — patrones React 19 + Next.js performance
+
 ## Código
 
 - No modificar migraciones existentes de Django (son registros inmutables)
