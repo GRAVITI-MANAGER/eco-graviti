@@ -280,6 +280,8 @@ class DoubleBookingPreventionTest(BookingsTestMixin, TenantAwareTestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+        errors = response.json()
+        self.assertIn("start_datetime", errors)
 
 
 # ============================================================
@@ -338,13 +340,8 @@ class OutsideBusinessHoursTest(BookingsTestMixin, TenantAwareTestCase):
         weekday = _next_weekday(days_ahead=5, hour=10)
 
         time_off_start = _next_weekday(days_ahead=5, hour=10)
-        time_off_end = _next_weekday(days_ahead=5, hour=14)
-        # Asegurar misma fecha que time_off_start
-        time_off_end = time_off_end.replace(
-            year=time_off_start.year,
-            month=time_off_start.month,
-            day=time_off_start.day,
-        )
+        naive_end = datetime.combine(time_off_start.date(), time(14, 0))
+        time_off_end = timezone.make_aware(naive_end)
 
         TimeOff.objects.create(
             tenant=self.tenant,
@@ -462,6 +459,9 @@ class ValidAppointmentCreationTest(BookingsTestMixin, TenantAwareTestCase):
         self.assertEqual(response.status_code, 201)
         data = response.json()
         self.assertEqual(data["duration_minutes"], self.service.duration_minutes)
+        expected_end = start + timedelta(minutes=self.service.duration_minutes)
+        actual_end = datetime.fromisoformat(data["end_datetime"])
+        self.assertEqual(actual_end, expected_end)
 
     @patch("bookings.views.send_appointment_confirmation_email")
     def test_appointment_has_expires_at(self, _mock_email):
@@ -647,6 +647,7 @@ class CancelAppointmentFreesSlotTest(BookingsTestMixin, TenantAwareTestCase):
             for s in before_slots
             if datetime.fromisoformat(s["start_time"]) >= start and datetime.fromisoformat(s["start_time"]) < end
         ]
+        self.assertGreater(len(occupied), 0, "Debe haber al menos un slot en el rango ocupado")
         for slot in occupied:
             self.assertFalse(slot["is_available"])
 
