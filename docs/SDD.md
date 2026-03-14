@@ -85,7 +85,7 @@ NERBIS es una plataforma SaaS multi-tenant y multi-industria que permite a negoc
 
 Todos los tenants comparten la misma base de datos. El aislamiento se logra mediante:
 
-1. **Middleware de detección:** Identifica el tenant por subdomain, header o query param
+1. **Middleware de detección:** Identifica el tenant por header `X-Tenant-Slug` o subdominio
 2. **TenantAwareModel:** Modelo base con FK a Tenant + timestamps
 3. **TenantAwareManager:** Manager que auto-filtra queries por tenant activo
 4. **Thread-local storage:** Almacena el tenant del request actual
@@ -94,7 +94,6 @@ Todos los tenants comparten la misma base de datos. El aislamiento se logra medi
 Prioridad de detección:
 1. Header X-Tenant-Slug (API requests)
 2. Subdomain (web: mi-negocio.nerbis.com)
-3. Query param ?tenant= (solo desarrollo)
 ```
 
 ### 2.3 Estructura del monorepo
