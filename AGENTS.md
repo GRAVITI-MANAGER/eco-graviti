@@ -44,7 +44,7 @@ docs/       → Documentación técnica (SDD.md)
 
 ## Arquitectura multi-tenant (CRÍTICO)
 
-- Cada tenant se identifica por: header `X-Tenant-Slug` > subdominio > query param (solo dev)
+- Cada tenant se identifica por: header `X-Tenant-Slug` > subdominio (middleware)
 - **TODOS** los modelos de negocio extienden `TenantAwareModel`
 - **NUNCA** hacer queries sin filtro de tenant
 - El middleware `TenantMiddleware` setea `request.tenant` automáticamente
