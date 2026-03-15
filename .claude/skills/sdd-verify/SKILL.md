@@ -177,6 +177,10 @@ mem_save(
 )
 ```
 
+If mode is `openspec` or `hybrid`: Write the report to `openspec/changes/{change-name}/verify-report.md`.
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
+
 ### Step 9: Return Report
 
 ```markdown

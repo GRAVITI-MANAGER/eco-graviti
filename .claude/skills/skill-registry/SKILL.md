@@ -35,7 +35,7 @@ You generate or update the **skill registry** — a catalog of all available ski
 2. **SKIP `sdd-*` and `_shared`** — those are SDD workflow skills, not coding/task skills
 3. Also **SKIP `skill-registry`** — that's this skill
 4. **Deduplicate** — if the same skill name appears in multiple locations, keep the project-level version (more specific)
-5. For each skill found, read only the frontmatter (first 10 lines) to extract:
+5. For each skill found, read the YAML frontmatter block (from the opening `---` to the closing `---`) to extract:
    - `name` field
    - `description` field → extract the trigger text (after "Trigger:" in the description)
 6. Build a table of: Trigger | Skill Name | Full Path
@@ -132,7 +132,7 @@ To update after installing/removing skills, run this again.
 - ALWAYS write `.atl/skill-registry.md` regardless of any SDD persistence mode
 - ALWAYS save to engram if the `mem_save` tool is available
 - SKIP `sdd-*`, `_shared`, and `skill-registry` directories when scanning
-- Only read frontmatter (first 10 lines) — do NOT read full skill files
+- Only read frontmatter (from `---` to closing `---`) — do NOT read full skill files
 - Include ALL convention files found (not just the first)
 - If no skills or conventions are found, write an empty registry
 - Add `.atl/` to the project's `.gitignore` if it exists and `.atl` is not already listed

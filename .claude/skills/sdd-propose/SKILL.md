@@ -153,6 +153,10 @@ mem_save(
 )
 ```
 
+If mode is `openspec` or `hybrid`: Write the proposal content to `openspec/changes/{change-name}/proposal.md` (directory was created in Step 2).
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
+
 If you skip this step, the next phase (sdd-spec) will NOT be able to find your proposal and the pipeline BREAKS.
 
 ### Step 6: Return Summary

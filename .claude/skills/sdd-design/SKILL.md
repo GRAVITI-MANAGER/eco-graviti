@@ -72,7 +72,9 @@ Before designing, read the actual code that will be affected:
 
 ### Step 3: Write Design Document
 
-**IF mode is `engram` or `none`:** Compose the design content in memory.
+**IF mode is `openspec` or `hybrid`:** Create `openspec/changes/{change-name}/design.md` with the content below.
+
+**IF mode is `engram` or `none`:** Compose the design content in memory — you will persist it in Step 4.
 
 #### Design Document Format
 
@@ -156,6 +158,10 @@ mem_save(
   content: "{your full design markdown from Step 3}"
 )
 ```
+
+If mode is `openspec` or `hybrid`: the file was already written in Step 3.
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
 
 If you skip this step, sdd-tasks will NOT be able to find your design and the pipeline BREAKS.
 

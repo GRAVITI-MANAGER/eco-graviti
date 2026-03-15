@@ -68,7 +68,9 @@ From the proposal's "Affected Areas", determine which spec domains are touched. 
 
 ### Step 3: Write Delta Specs
 
-**IF mode is `engram` or `none`:** Compose the spec content in memory.
+**IF mode is `openspec` or `hybrid`:** Create `openspec/changes/{change-name}/spec.md` with the content below.
+
+**IF mode is `engram` or `none`:** Compose the spec content in memory — you will persist it in Step 4.
 
 #### Delta Spec Format
 
@@ -137,6 +139,10 @@ mem_save(
   content: "{your full spec markdown — all domains concatenated}"
 )
 ```
+
+If mode is `openspec` or `hybrid`: the file was already written in Step 3.
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
 
 If you skip this step, sdd-tasks will NOT be able to find your specs and the pipeline BREAKS.
 

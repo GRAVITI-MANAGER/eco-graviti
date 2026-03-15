@@ -71,7 +71,9 @@ From the design document, identify:
 
 ### Step 3: Write Tasks
 
-**IF mode is `engram` or `none`:** Compose tasks in memory.
+**IF mode is `openspec` or `hybrid`:** Create `openspec/changes/{change-name}/tasks.md` with the content below.
+
+**IF mode is `engram` or `none`:** Compose tasks in memory — you will persist them in Step 4.
 
 #### Task File Format
 
@@ -150,6 +152,10 @@ mem_save(
   content: "{your full tasks markdown from Step 3}"
 )
 ```
+
+If mode is `openspec` or `hybrid`: the file was already written in Step 3.
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
 
 If you skip this step, sdd-apply will NOT be able to find your tasks and the pipeline BREAKS.
 

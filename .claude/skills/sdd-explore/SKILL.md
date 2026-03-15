@@ -125,11 +125,15 @@ mem_save(
 )
 ```
 
+If mode is `openspec` or `hybrid`: Create `openspec/changes/{change-name}/explore.md` with the exploration content.
+
+If mode is `hybrid`: also call `mem_save` as above (write to BOTH backends).
+
 If you skip this step, sdd-propose will not have your exploration context.
 
 ### Step 6: Return Structured Analysis
 
-Return EXACTLY this format to the orchestrator:
+Return your analysis using this format:
 
 ```markdown
 ## Exploration: {topic}
