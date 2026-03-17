@@ -55,7 +55,7 @@ export function RegisterForm({
 
   // ── Step navigation
   const handleNextStep = useCallback(async () => {
-    const result = await form.trigger(['business_name', 'industry', 'country']);
+    const result = await form.trigger(['business_name', 'country']);
     if (result) {
       setStep(2);
       onStepChange?.(2);

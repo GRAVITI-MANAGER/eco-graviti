@@ -182,7 +182,7 @@ export function RegisterStep1({
                   field.onChange(val);
                   onPhoneCountryChange(val);
                 }}
-                defaultValue={field.value}
+                value={field.value}
               >
                 <FormControl>
                   <SelectTrigger

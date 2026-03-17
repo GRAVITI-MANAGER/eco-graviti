@@ -24,8 +24,13 @@ function getServerSnapshot(): boolean {
 export function useReducedMotion(): boolean {
   const subscribe = useCallback((callback: () => void) => {
     const mql = window.matchMedia(QUERY);
-    mql.addEventListener('change', callback);
-    return () => mql.removeEventListener('change', callback);
+    if (mql.addEventListener) {
+      mql.addEventListener('change', callback);
+      return () => mql.removeEventListener('change', callback);
+    }
+    // Fallback for Safari/iOS <=13
+    mql.addListener(callback);
+    return () => mql.removeListener(callback);
   }, []);
 
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);

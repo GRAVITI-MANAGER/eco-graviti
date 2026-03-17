@@ -382,7 +382,7 @@ Use permanent visible labels above each field. Reserve placeholder text for form
 ### 9. Full WCAG 2.2 AA Compliance
 - **3.3.7 Accessible Authentication:** offer non-cognitive alternatives (passkeys, magic links)
 - **3.3.8 Redundant Entry:** auto-fill support, never clear fields on error
-- **3.2.6 Consistent Help:** help link always in the same position
+- **3.2.6 Consistent Help:** help link is always in the same position
 - **2.4.11 Focus Not Obscured:** visible focus ring on all interactive elements (minimum 2px, high contrast)
 - **1.4.3 Contrast:** 4.5:1 for normal text, 3:1 for large text and UI components
 - Keyboard navigation: full tab flow through all form elements
@@ -420,6 +420,7 @@ Use permanent visible labels above each field. Reserve placeholder text for form
 ## 7. Color Recommendations
 
 ### Primary Palette
+
 | Use | Color | Ratio | Notes |
 |---|---|---|---|
 | Background | #FFFFFF or #FAFAFA | -- | Clean, premium feel |

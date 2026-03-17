@@ -37,7 +37,7 @@ The orchestrator persists DAG state after each phase transition. This enables SD
 
 | Mode | Persist State | Recover State |
 |------|--------------|---------------|
-| `engram` | `mem_save(topic_key: "sdd/{change-name}/state")` | `mem_search("sdd/*/state")` → `mem_get_observation(id)` |
+| `engram` | `mem_save(topic_key: "sdd/{change-name}/state")` | `mem_search("sdd/{change-name}/state")` → `mem_get_observation(id)` |
 | `openspec` | Write `openspec/changes/{change-name}/state.yaml` | Read `openspec/changes/{change-name}/state.yaml` |
 | `hybrid` | Both: `mem_save` AND write `state.yaml` | Engram first; filesystem fallback |
 | `none` | Not possible — state lives only in context | Not possible — warn user |
@@ -49,7 +49,7 @@ The orchestrator persists DAG state after each phase transition. This enables SD
 - If mode is `openspec`, write files ONLY to the paths defined in `openspec-convention.md`.
 - If mode is `hybrid`, persist to BOTH Engram AND filesystem. Follow both conventions.
 - NEVER force `openspec/` creation unless the orchestrator explicitly passed `openspec` or `hybrid` mode.
-- If you are unsure which mode to use, default to `none`.
+- If you are unsure which mode to use, follow the default resolution at the top of this document (engram if available, else none).
 
 ## Sub-Agent Context Rules
 
@@ -85,7 +85,7 @@ Do NOT return without saving what you learned.
 
 **SDD (with dependencies)**:
 ```
-Artifact store mode: engram
+Artifact store mode: {artifact_store.mode}
 Read these artifacts before starting (two-step — search returns truncated previews):
   mem_search(query: "sdd/{change-name}/{type}", project: "nerbis-platform") → get ID
   mem_get_observation(id: {id}) → full content (REQUIRED for SDD dependencies)
@@ -105,7 +105,7 @@ and the pipeline BREAKS.
 
 **SDD (no dependencies)**:
 ```
-Artifact store mode: engram
+Artifact store mode: {artifact_store.mode}
 
 PERSISTENCE (MANDATORY — do NOT skip):
 After completing your work, you MUST call:

@@ -70,7 +70,7 @@ export function useAuthForm<T extends FieldValues>({
           await onSubmit(data as T);
         } catch (error: unknown) {
           const message =
-            error instanceof Error ? error.message : 'Ocurrio un error inesperado';
+            error instanceof Error ? error.message : 'Ocurrió un error inesperado';
           toast.error(message);
         } finally {
           setIsLoading(false);
