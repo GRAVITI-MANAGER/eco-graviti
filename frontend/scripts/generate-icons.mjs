@@ -7,7 +7,7 @@
  *
  * Source: public/Isotipo_color_NERBIS.png (2598x2480)
  * Outputs:
- *   - src/app/favicon.ico   (48x48 PNG — browsers accept PNG as favicon)
+ *   - src/app/favicon.ico   (ICO, contains 48x48 icon)
  *   - src/app/apple-icon.png (180x180)
  *   - src/app/opengraph-image.png (1200x630, brand background + centered isotipo)
  */
