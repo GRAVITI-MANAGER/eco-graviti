@@ -3,9 +3,15 @@
 
 'use client';
 
+import { useState, useCallback } from 'react';
 import { features } from '@/lib/features';
 import { toast } from 'sonner';
+import { useGoogleLogin } from '@react-oauth/google';
+import { useAuth } from '@/contexts/AuthContext';
 import type { SocialLoginButtonsProps } from './types';
+import type { SocialProvider } from '@/types';
+import { SocialLinkDialog } from './SocialLinkDialog';
+import { AxiosError } from 'axios';
 
 // ─── SVG Icons (inline to avoid extra dependencies) ─────────────
 
@@ -51,6 +57,16 @@ function FacebookIcon() {
   );
 }
 
+// ─── Types ──────────────────────────────────────────────────────
+
+interface LinkingState {
+  open: boolean;
+  provider: SocialProvider;
+  token: string;
+  email: string;
+  extra?: { first_name?: string; last_name?: string };
+}
+
 // ─── Component ──────────────────────────────────────────────────
 
 export function SocialLoginButtons({
@@ -61,57 +77,240 @@ export function SocialLoginButtons({
 }: SocialLoginButtonsProps) {
   if (!features.socialLogin) return null;
 
-  const comingSoon = (provider: string) => {
-    toast.info('Estamos trabajando en esto', {
-      description: `Pronto podrás acceder con ${provider}. Por ahora, usa tu email y contraseña.`,
+  return <SocialLoginButtonsInner mode={mode} onGoogleClick={onGoogleClick} onAppleClick={onAppleClick} onFacebookClick={onFacebookClick} />;
+}
+
+/** Inner component — hooks are safe here because parent already checked feature flag. */
+function SocialLoginButtonsInner({
+  mode,
+  onGoogleClick,
+  onAppleClick,
+  onFacebookClick,
+}: SocialLoginButtonsProps) {
+  const { socialLogin } = useAuth();
+  const [isLoading, setIsLoading] = useState<SocialProvider | null>(null);
+  const [linkingState, setLinkingState] = useState<LinkingState>({
+    open: false,
+    provider: 'google',
+    token: '',
+    email: '',
+  });
+
+  const handleSocialError = useCallback((error: unknown, provider: string) => {
+    if (error instanceof AxiosError && error.response?.data?.code === 'LINKING_REQUIRED') {
+      // The linking dialog will be shown — don't toast
+      return;
+    }
+    const message = error instanceof AxiosError
+      ? error.response?.data?.error || error.response?.data?.message
+      : null;
+    toast.error(message || `Error al iniciar sesión con ${provider}`);
+  }, []);
+
+  const handleSocialSuccess = useCallback(async (
+    provider: SocialProvider,
+    token: string,
+    extra?: { first_name?: string; last_name?: string }
+  ) => {
+    setIsLoading(provider);
+    try {
+      await socialLogin(provider, token, extra);
+    } catch (error) {
+      // Handle linking required
+      if (error instanceof AxiosError && error.response?.data?.code === 'LINKING_REQUIRED') {
+        setLinkingState({
+          open: true,
+          provider,
+          token,
+          email: error.response.data.email || '',
+          extra,
+        });
+        return;
+      }
+      handleSocialError(error, provider);
+    } finally {
+      setIsLoading(null);
+    }
+  }, [socialLogin, handleSocialError]);
+
+  // ─── Google ───────────────────────────────────────────────
+  const googleLogin = useGoogleLogin({
+    onSuccess: (response) => {
+      // useGoogleLogin with implicit flow returns access_token
+      // We need id_token, so we use the 'code' flow or credential response
+      // Actually, for id_token we should use the One Tap / credential flow
+      // Let's use the access_token and exchange on server side
+      handleSocialSuccess('google', response.access_token);
+    },
+    onError: () => {
+      toast.error('Error al conectar con Google');
+    },
+    flow: 'implicit',
+  });
+
+  const handleGoogle = () => {
+    if (onGoogleClick) return onGoogleClick();
+    if (!process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID) {
+      toast.info('Google login no está configurado');
+      return;
+    }
+    googleLogin();
+  };
+
+  // ─── Apple ────────────────────────────────────────────────
+  const handleApple = () => {
+    if (onAppleClick) return onAppleClick();
+    if (!process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) {
+      toast.info('Apple login no está configurado');
+      return;
+    }
+
+    const clientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
+    const redirectUri = `${window.location.origin}/auth/apple/callback`;
+
+    // Load Apple JS SDK dynamically
+    if (!(window as unknown as Record<string, unknown>).AppleID) {
+      const script = document.createElement('script');
+      script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+      script.onload = () => initAppleLogin(clientId, redirectUri);
+      document.head.appendChild(script);
+    } else {
+      initAppleLogin(clientId, redirectUri);
+    }
+  };
+
+  const initAppleLogin = (clientId: string, redirectUri: string) => {
+    const AppleID = (window as unknown as Record<string, unknown>).AppleID as {
+      auth: {
+        init: (config: Record<string, unknown>) => void;
+        signIn: () => Promise<{ authorization: { id_token: string; code: string }; user?: { name?: { firstName?: string; lastName?: string } } }>;
+      };
+    };
+
+    AppleID.auth.init({
+      clientId,
+      scope: 'name email',
+      redirectURI: redirectUri,
+      usePopup: true,
+    });
+
+    AppleID.auth.signIn().then((response) => {
+      const idToken = response.authorization.id_token;
+      const firstName = response.user?.name?.firstName || '';
+      const lastName = response.user?.name?.lastName || '';
+      handleSocialSuccess('apple', idToken, { first_name: firstName, last_name: lastName });
+    }).catch(() => {
+      // User cancelled or error — don't show error for cancellation
     });
   };
 
-  const handleGoogle = () => onGoogleClick ? onGoogleClick() : comingSoon('Google');
-  const handleApple = () => onAppleClick ? onAppleClick() : comingSoon('Apple');
-  const handleFacebook = () => onFacebookClick ? onFacebookClick() : comingSoon('Facebook');
+  // ─── Facebook ─────────────────────────────────────────────
+  const handleFacebook = () => {
+    if (onFacebookClick) return onFacebookClick();
+    if (!process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) {
+      toast.info('Facebook login no está configurado');
+      return;
+    }
+
+    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+
+    const initFB = () => {
+      const FB = (window as unknown as Record<string, unknown>).FB as {
+        init: (config: Record<string, unknown>) => void;
+        login: (
+          callback: (response: { authResponse?: { accessToken: string } }) => void,
+          options: Record<string, unknown>
+        ) => void;
+      };
+
+      FB.init({ appId, version: 'v19.0', cookie: true, xfbml: false });
+      FB.login(
+        (response) => {
+          if (response.authResponse?.accessToken) {
+            handleSocialSuccess('facebook', response.authResponse.accessToken);
+          }
+        },
+        { scope: 'email,public_profile' }
+      );
+    };
+
+    if (!(window as unknown as Record<string, unknown>).FB) {
+      const script = document.createElement('script');
+      script.src = 'https://connect.facebook.net/en_US/sdk.js';
+      script.onload = initFB;
+      document.head.appendChild(script);
+    } else {
+      initFB();
+    }
+  };
 
   const actionLabel = mode === 'login' ? 'Iniciar sesión' : 'Registrarse';
+  const appleAvailable = !!process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
 
   const btnClass =
-    'flex h-11 flex-1 items-center justify-center gap-2 rounded-[var(--auth-radius-button)] border border-[var(--auth-border)] bg-white text-[0.75rem] font-medium transition-[background-color,border-color] duration-[var(--auth-duration-fast)] ease-out hover:bg-[#F9FAFB] hover:border-[var(--auth-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 active:scale-[0.98] cursor-pointer';
+    'flex h-11 flex-1 items-center justify-center gap-2 rounded-[var(--auth-radius-button)] border border-[var(--auth-border)] bg-white text-[0.75rem] font-medium transition-[background-color,border-color] duration-[var(--auth-duration-fast)] ease-out hover:bg-[#F9FAFB] hover:border-[var(--auth-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
-    <section
-      aria-label={`${actionLabel} con redes sociales`}
-      className="flex gap-2.5"
-      data-auth-animated
-    >
-      <button
-        type="button"
-        onClick={handleGoogle}
-        aria-label={`${actionLabel} con Google`}
-        className={btnClass}
-        style={{ color: 'var(--auth-text)', fontFamily: 'var(--auth-font-body)' }}
+    <>
+      <section
+        aria-label={`${actionLabel} con redes sociales`}
+        className="flex gap-2.5"
+        data-auth-animated
       >
-        <GoogleIcon />
-        <span>Google</span>
-      </button>
-      <button
-        type="button"
-        onClick={handleApple}
-        aria-label={`${actionLabel} con Apple`}
-        className={btnClass}
-        style={{ color: 'var(--auth-text)', fontFamily: 'var(--auth-font-body)' }}
-      >
-        <AppleIcon />
-        <span>Apple</span>
-      </button>
-      <button
-        type="button"
-        onClick={handleFacebook}
-        aria-label={`${actionLabel} con Facebook`}
-        className={btnClass}
-        style={{ color: 'var(--auth-text)', fontFamily: 'var(--auth-font-body)' }}
-      >
-        <FacebookIcon />
-        <span>Facebook</span>
-      </button>
-    </section>
+        <button
+          type="button"
+          onClick={handleGoogle}
+          disabled={isLoading !== null}
+          aria-label={`${actionLabel} con Google`}
+          className={btnClass}
+          style={{ color: 'var(--auth-text)', fontFamily: 'var(--auth-font-body)' }}
+        >
+          <GoogleIcon />
+          <span>{isLoading === 'google' ? '...' : 'Google'}</span>
+        </button>
+        <div className="relative flex-1" title={!appleAvailable ? 'Próximamente' : undefined}>
+          <button
+            type="button"
+            onClick={appleAvailable ? handleApple : undefined}
+            disabled={!appleAvailable || isLoading !== null}
+            aria-label={appleAvailable ? `${actionLabel} con Apple` : 'Apple — Próximamente'}
+            className={btnClass}
+            style={{
+              color: 'var(--auth-text)',
+              fontFamily: 'var(--auth-font-body)',
+              ...(!appleAvailable ? { opacity: 0.4, cursor: 'default' } : {}),
+            }}
+          >
+            <AppleIcon />
+            <span>{isLoading === 'apple' ? '...' : 'Apple'}</span>
+          </button>
+          {!appleAvailable && (
+            <span className="absolute -top-2 -right-1 rounded-full bg-[var(--auth-accent,#3B82F6)] px-1.5 py-0.5 text-[0.55rem] font-semibold leading-none text-white">
+              Pronto
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleFacebook}
+          disabled={isLoading !== null}
+          aria-label={`${actionLabel} con Facebook`}
+          className={btnClass}
+          style={{ color: 'var(--auth-text)', fontFamily: 'var(--auth-font-body)' }}
+        >
+          <FacebookIcon />
+          <span>{isLoading === 'facebook' ? '...' : 'Facebook'}</span>
+        </button>
+      </section>
+
+      <SocialLinkDialog
+        open={linkingState.open}
+        email={linkingState.email}
+        provider={linkingState.provider}
+        token={linkingState.token}
+        extra={linkingState.extra}
+        onClose={() => setLinkingState((s) => ({ ...s, open: false }))}
+      />
+    </>
   );
 }

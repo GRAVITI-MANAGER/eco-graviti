@@ -3,7 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { User, RegisterData, RegisterTenantData, Tenant } from '@/types';
+import { User, RegisterData, RegisterTenantData, Tenant, SocialProvider } from '@/types';
 import * as authApi from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
 
@@ -20,6 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   platformLogin: (credentials: { email: string; password: string }, redirectTo?: string) => Promise<void>;
+  socialLogin: (provider: SocialProvider, token: string, extra?: { first_name?: string; last_name?: string }) => Promise<void>;
   register: (data: RegisterData, redirectTo?: string) => Promise<{ message: string }>;
   registerTenant: (data: RegisterTenantData) => Promise<{ message: string }>;
   logout: (redirectTo?: string) => Promise<void>;
@@ -84,6 +85,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const socialLogin = async (
+    provider: SocialProvider,
+    token: string,
+    extra?: { first_name?: string; last_name?: string }
+  ) => {
+    const response = await authApi.platformSocialLogin(provider, token, extra);
+    setUser(response.user);
+    if (response.tenant) {
+      setTenant(response.tenant);
+    }
+    // Misma lógica de redireccion que platformLogin
+    if (response.tenant && !response.tenant.modules_configured) {
+      router.push('/dashboard/setup');
+    } else if (
+      response.tenant?.has_website &&
+      response.tenant.website_status !== 'published'
+    ) {
+      router.push('/dashboard/website-builder');
+    } else {
+      router.push('/dashboard');
+    }
+  };
+
   const register = async (data: RegisterData, redirectTo?: string) => {
     const response = await authApi.register(data);
     setUser(response.user);
@@ -117,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     platformLogin,
+    socialLogin,
     register,
     registerTenant,
     logout,

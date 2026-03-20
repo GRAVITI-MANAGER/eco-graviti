@@ -1,0 +1,317 @@
+# backend/core/social_auth.py
+# Verificación de tokens OAuth y lógica de social login/create.
+
+import logging
+from dataclasses import dataclass, field
+
+import jwt
+import requests
+from django.conf import settings
+from google.auth.transport.requests import Request as GoogleRequest
+from google.oauth2 import id_token as google_id_token
+
+from .models import SocialAccount, Tenant, User
+
+logger = logging.getLogger(__name__)
+
+
+class SocialAuthError(Exception):
+    """Error durante la verificación de token social."""
+
+
+class LinkingRequired(Exception):
+    """El email ya existe con contraseña — requiere vinculación manual."""
+
+    def __init__(self, email: str, provider: str):
+        self.email = email
+        self.provider = provider
+        super().__init__(f"Account linking required for {email}")
+
+
+@dataclass
+class SocialUserInfo:
+    """Datos del usuario extraídos del token del proveedor."""
+
+    provider: str
+    provider_uid: str
+    email: str
+    first_name: str = ""
+    last_name: str = ""
+    avatar_url: str = ""
+    extra_data: dict = field(default_factory=dict)
+
+
+# ===================================
+# VERIFICADORES POR PROVEEDOR
+# ===================================
+
+
+def verify_google_token(token: str) -> SocialUserInfo:
+    """Verificar Google id_token y extraer datos del usuario."""
+    client_id = settings.GOOGLE_OAUTH_CLIENT_ID
+    if not client_id:
+        raise SocialAuthError("Google OAuth no está configurado")
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(token, GoogleRequest(), client_id)
+    except ValueError as e:
+        raise SocialAuthError(f"Token de Google inválido: {e}")
+
+    email = idinfo.get("email")
+    if not email:
+        raise SocialAuthError("El token de Google no contiene email")
+
+    if not idinfo.get("email_verified", False):
+        raise SocialAuthError("El email de Google no está verificado")
+
+    return SocialUserInfo(
+        provider="google",
+        provider_uid=idinfo["sub"],
+        email=email.lower(),
+        first_name=idinfo.get("given_name", ""),
+        last_name=idinfo.get("family_name", ""),
+        avatar_url=idinfo.get("picture", ""),
+        extra_data={
+            "name": idinfo.get("name", ""),
+            "picture": idinfo.get("picture", ""),
+            "locale": idinfo.get("locale", ""),
+        },
+    )
+
+
+def _get_apple_public_keys() -> list[dict]:
+    """Fetch Apple's public keys for JWT verification."""
+    resp = requests.get("https://appleid.apple.com/auth/keys", timeout=10)
+    resp.raise_for_status()
+    return resp.json()["keys"]
+
+
+def verify_apple_token(token: str, first_name: str = "", last_name: str = "") -> SocialUserInfo:
+    """Verificar Apple id_token y extraer datos del usuario."""
+    client_id = settings.APPLE_CLIENT_ID
+    if not client_id:
+        raise SocialAuthError("Apple OAuth no está configurado")
+
+    try:
+        # Decode header to get kid
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+
+        # Fetch Apple public keys
+        apple_keys = _get_apple_public_keys()
+        matching_key = next((k for k in apple_keys if k["kid"] == kid), None)
+        if not matching_key:
+            raise SocialAuthError("No se encontró la clave pública de Apple")
+
+        # Build public key and decode
+        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(matching_key)
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer="https://appleid.apple.com",
+        )
+    except jwt.ExpiredSignatureError:
+        raise SocialAuthError("Token de Apple expirado")
+    except jwt.InvalidTokenError as e:
+        raise SocialAuthError(f"Token de Apple inválido: {e}")
+    except requests.RequestException as e:
+        raise SocialAuthError(f"Error al verificar con Apple: {e}")
+
+    email = payload.get("email", "")
+    if not email:
+        raise SocialAuthError("El token de Apple no contiene email")
+
+    return SocialUserInfo(
+        provider="apple",
+        provider_uid=payload["sub"],
+        email=email.lower(),
+        first_name=first_name,
+        last_name=last_name,
+        extra_data={
+            "is_private_email": payload.get("is_private_email", False),
+        },
+    )
+
+
+def verify_facebook_token(token: str) -> SocialUserInfo:
+    """Verificar Facebook access_token y extraer datos del usuario."""
+    app_id = settings.FACEBOOK_APP_ID
+    app_secret = settings.FACEBOOK_APP_SECRET
+    if not app_id or not app_secret:
+        raise SocialAuthError("Facebook OAuth no está configurado")
+
+    try:
+        # Debug token to verify it's valid
+        debug_resp = requests.get(
+            "https://graph.facebook.com/debug_token",
+            params={"input_token": token, "access_token": f"{app_id}|{app_secret}"},
+            timeout=10,
+        )
+        debug_resp.raise_for_status()
+        debug_data = debug_resp.json().get("data", {})
+
+        if not debug_data.get("is_valid"):
+            raise SocialAuthError("Token de Facebook inválido")
+
+        if str(debug_data.get("app_id")) != str(app_id):
+            raise SocialAuthError("Token de Facebook no corresponde a esta aplicación")
+
+        # Get user info
+        me_resp = requests.get(
+            "https://graph.facebook.com/me",
+            params={"fields": "id,email,first_name,last_name,picture.type(large)", "access_token": token},
+            timeout=10,
+        )
+        me_resp.raise_for_status()
+        me_data = me_resp.json()
+    except requests.RequestException as e:
+        raise SocialAuthError(f"Error al verificar con Facebook: {e}")
+
+    email = me_data.get("email", "")
+    if not email:
+        raise SocialAuthError("No se pudo obtener el email de Facebook. Verifica los permisos de la app.")
+
+    picture_url = ""
+    picture_data = me_data.get("picture", {}).get("data", {})
+    if picture_data and not picture_data.get("is_silhouette"):
+        picture_url = picture_data.get("url", "")
+
+    return SocialUserInfo(
+        provider="facebook",
+        provider_uid=me_data["id"],
+        email=email.lower(),
+        first_name=me_data.get("first_name", ""),
+        last_name=me_data.get("last_name", ""),
+        avatar_url=picture_url,
+        extra_data={
+            "name": f"{me_data.get('first_name', '')} {me_data.get('last_name', '')}".strip(),
+            "picture": picture_url,
+        },
+    )
+
+
+# Map provider name → verifier function
+PROVIDER_VERIFIERS = {
+    "google": verify_google_token,
+    "apple": verify_apple_token,
+    "facebook": verify_facebook_token,
+}
+
+
+def verify_social_token(provider: str, token: str, **kwargs) -> SocialUserInfo:
+    """Dispatch to the correct provider verifier."""
+    verifier = PROVIDER_VERIFIERS.get(provider)
+    if not verifier:
+        raise SocialAuthError(f"Proveedor no soportado: {provider}")
+
+    if provider == "apple":
+        return verifier(token, first_name=kwargs.get("first_name", ""), last_name=kwargs.get("last_name", ""))
+    return verifier(token)
+
+
+# ===================================
+# LÓGICA CORE: LOGIN O CREAR USUARIO
+# ===================================
+
+
+def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
+    """
+    Flujo principal de social auth:
+    1. Si existe SocialAccount → retornar user
+    2. Si existe User con mismo email:
+       - Con password → raise LinkingRequired
+       - Guest → auto-vincular
+    3. No existe → crear User + SocialAccount
+    """
+    # 1. Buscar SocialAccount existente
+    try:
+        social_account = SocialAccount.objects.select_related("user").get(
+            tenant=tenant,
+            provider=social_info.provider,
+            provider_uid=social_info.provider_uid,
+        )
+        # Actualizar extra_data si cambió
+        social_account.extra_data = social_info.extra_data
+        social_account.save(update_fields=["extra_data", "updated_at"])
+        return social_account.user
+    except SocialAccount.DoesNotExist:
+        pass
+
+    # 2. Buscar User con mismo email en el tenant
+    try:
+        existing_user = User.objects.get(email__iexact=social_info.email, tenant=tenant)
+
+        if existing_user.is_guest:
+            # Auto-vincular guest user
+            if social_info.first_name and not existing_user.first_name:
+                existing_user.first_name = social_info.first_name
+            if social_info.last_name and not existing_user.last_name:
+                existing_user.last_name = social_info.last_name
+            existing_user.is_guest = False
+            existing_user.save()
+
+            SocialAccount.objects.create(
+                user=existing_user,
+                tenant=tenant,
+                provider=social_info.provider,
+                provider_uid=social_info.provider_uid,
+                email=social_info.email,
+                extra_data=social_info.extra_data,
+            )
+            return existing_user
+
+        if existing_user.has_usable_password():
+            # Tiene password → requiere vinculación manual
+            raise LinkingRequired(email=social_info.email, provider=social_info.provider)
+
+        # Tiene unusable password (creado via otro social) → vincular
+        SocialAccount.objects.create(
+            user=existing_user,
+            tenant=tenant,
+            provider=social_info.provider,
+            provider_uid=social_info.provider_uid,
+            email=social_info.email,
+            extra_data=social_info.extra_data,
+        )
+        return existing_user
+
+    except User.DoesNotExist:
+        pass
+
+    # 3. Crear nuevo usuario + SocialAccount
+    username = _generate_username(social_info.email, tenant)
+    user = User.objects.create_user(
+        tenant=tenant,
+        username=username,
+        email=social_info.email,
+        password=None,  # set_unusable_password
+        first_name=social_info.first_name,
+        last_name=social_info.last_name,
+        role="customer",
+    )
+    user.set_unusable_password()
+    user.save()
+
+    SocialAccount.objects.create(
+        user=user,
+        tenant=tenant,
+        provider=social_info.provider,
+        provider_uid=social_info.provider_uid,
+        email=social_info.email,
+        extra_data=social_info.extra_data,
+    )
+
+    return user
+
+
+def _generate_username(email: str, tenant: Tenant) -> str:
+    """Generar username único desde el email dentro del tenant."""
+    base_username = email.split("@")[0].lower()
+    username = base_username
+    counter = 1
+    while User.objects.filter(tenant=tenant, username=username).exists():
+        username = f"{base_username}{counter}"
+        counter += 1
+    return username
