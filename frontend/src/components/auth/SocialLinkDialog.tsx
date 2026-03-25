@@ -4,6 +4,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,7 @@ import { toast } from 'sonner';
 import * as authApi from '@/lib/api/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import type { SocialProvider } from '@/types';
-import { AxiosError } from 'axios';
+import { ApiError } from '@/lib/api/client';
 
 interface SocialLinkDialogProps {
   open: boolean;
@@ -45,8 +46,14 @@ export function SocialLinkDialog({
   onClose,
 }: SocialLinkDialogProps) {
   const { setUser, setTenant } = useAuth();
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleClose = () => {
+    setPassword('');
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +67,22 @@ export function SocialLinkDialog({
         setTenant(response.tenant);
       }
       toast.success(`Cuenta de ${providerLabels[provider]} vinculada exitosamente`);
+      setPassword('');
       onClose();
-      // Redirect will happen via AuthContext state update
+      // Redirigir según estado del tenant (misma lógica que AuthContext)
+      if (response.tenant && !response.tenant.modules_configured) {
+        router.push('/dashboard/setup');
+      } else if (
+        response.tenant?.has_website &&
+        response.tenant.website_status !== 'published'
+      ) {
+        router.push('/dashboard/website-builder');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error) {
-      const message = error instanceof AxiosError
-        ? error.response?.data?.error || 'Error al vincular cuenta'
+      const message = error instanceof ApiError
+        ? error.message
         : 'Error al vincular cuenta';
       toast.error(message);
     } finally {
@@ -73,7 +91,7 @@ export function SocialLinkDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Vincular cuenta de {providerLabels[provider]}</DialogTitle>
@@ -97,7 +115,7 @@ export function SocialLinkDialog({
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading || !password.trim()}>

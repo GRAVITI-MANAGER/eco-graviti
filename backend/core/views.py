@@ -1830,14 +1830,19 @@ class PlatformSocialLoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Vincular automáticamente
-        SocialAccount.objects.create(
-            user=user,
-            tenant=user.tenant,
-            provider=social_info.provider,
-            provider_uid=social_info.provider_uid,
-            email=social_info.email,
-            extra_data=social_info.extra_data,
-        )
+        # Vincular automáticamente (get_or_create para manejar concurrencia)
+        from django.db import transaction
+
+        with transaction.atomic():
+            SocialAccount.objects.get_or_create(
+                tenant=user.tenant,
+                provider=social_info.provider,
+                provider_uid=social_info.provider_uid,
+                defaults={
+                    "user": user,
+                    "email": social_info.email,
+                    "extra_data": social_info.extra_data,
+                },
+            )
 
         return Response(_build_social_auth_response(user, user.tenant))

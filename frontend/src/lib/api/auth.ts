@@ -222,6 +222,21 @@ export async function platformSocialLogin(
   return data;
 }
 
+/**
+ * Social Link (solo vincula, no toca tokens/localStorage).
+ * Usado post-registro para vincular la cuenta social sin re-autenticar.
+ */
+export async function socialLinkOnly(
+  provider: SocialProvider,
+  token: string,
+  extra?: { first_name?: string; last_name?: string }
+): Promise<void> {
+  await apiClient.post(`/auth/social/${provider}/`, {
+    token,
+    ...extra,
+  });
+}
+
 // reactivateAccount() fue eliminada — usamos flujo OTP (requestReactivationOTP + verifyReactivationOTP)
 
 // ===================================

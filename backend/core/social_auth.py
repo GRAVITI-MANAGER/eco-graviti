@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import jwt
 import requests
 from django.conf import settings
+from django.db import transaction
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token as google_id_token
 
@@ -278,61 +279,56 @@ def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
     try:
         existing_user = User.objects.get(email__iexact=social_info.email, tenant=tenant)
 
-        if existing_user.is_guest:
-            # Auto-vincular guest user
-            if social_info.first_name and not existing_user.first_name:
-                existing_user.first_name = social_info.first_name
-            if social_info.last_name and not existing_user.last_name:
-                existing_user.last_name = social_info.last_name
-            existing_user.is_guest = False
-            existing_user.save()
+        with transaction.atomic():
+            if existing_user.is_guest:
+                if social_info.first_name and not existing_user.first_name:
+                    existing_user.first_name = social_info.first_name
+                if social_info.last_name and not existing_user.last_name:
+                    existing_user.last_name = social_info.last_name
+                existing_user.is_guest = False
+                existing_user.save()
 
-            SocialAccount.objects.create(
-                user=existing_user,
+            # Auto-vincular (get_or_create para manejar concurrencia)
+            SocialAccount.objects.get_or_create(
                 tenant=tenant,
                 provider=social_info.provider,
                 provider_uid=social_info.provider_uid,
-                email=social_info.email,
-                extra_data=social_info.extra_data,
+                defaults={
+                    "user": existing_user,
+                    "email": social_info.email,
+                    "extra_data": social_info.extra_data,
+                },
             )
-            return existing_user
-
-        # Auto-vincular: el proveedor social ya verificó la identidad del usuario
-        SocialAccount.objects.create(
-            user=existing_user,
-            tenant=tenant,
-            provider=social_info.provider,
-            provider_uid=social_info.provider_uid,
-            email=social_info.email,
-            extra_data=social_info.extra_data,
-        )
         return existing_user
 
     except User.DoesNotExist:
         pass
 
     # 3. Crear nuevo usuario + SocialAccount
-    username = _generate_username(social_info.email, tenant)
-    user = User.objects.create_user(
-        tenant=tenant,
-        username=username,
-        email=social_info.email,
-        password=None,  # set_unusable_password
-        first_name=social_info.first_name,
-        last_name=social_info.last_name,
-        role="customer",
-    )
-    user.set_unusable_password()
-    user.save()
+    with transaction.atomic():
+        username = _generate_username(social_info.email, tenant)
+        user = User.objects.create_user(
+            tenant=tenant,
+            username=username,
+            email=social_info.email,
+            password=None,  # set_unusable_password
+            first_name=social_info.first_name,
+            last_name=social_info.last_name,
+            role="customer",
+        )
+        user.set_unusable_password()
+        user.save()
 
-    SocialAccount.objects.create(
-        user=user,
-        tenant=tenant,
-        provider=social_info.provider,
-        provider_uid=social_info.provider_uid,
-        email=social_info.email,
-        extra_data=social_info.extra_data,
-    )
+        SocialAccount.objects.get_or_create(
+            tenant=tenant,
+            provider=social_info.provider,
+            provider_uid=social_info.provider_uid,
+            defaults={
+                "user": user,
+                "email": social_info.email,
+                "extra_data": social_info.extra_data,
+            },
+        )
 
     return user
 

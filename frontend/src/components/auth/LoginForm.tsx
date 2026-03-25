@@ -28,6 +28,7 @@ import { SocialLoginButtons } from './SocialLoginButtons';
 import { FormDivider } from './FormDivider';
 import { PasskeyButton } from './PasskeyButton';
 import { ReactivateDialog } from './ReactivateDialog';
+import type { AuthPrefill } from './types';
 
 // ─── Props ──────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ interface LoginFormComponentProps {
   onToggleMode: () => void;
   onForgotPassword: () => void;
   redirectTo?: string | null;
-  onSwitchToRegister?: (prefill: { email: string; first_name: string; last_name: string }) => void;
+  onSwitchToRegister?: (prefill: AuthPrefill) => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────

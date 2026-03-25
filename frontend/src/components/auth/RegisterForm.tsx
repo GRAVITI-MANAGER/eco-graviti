@@ -9,7 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { socialLogin as apiSocialLogin } from '@/lib/api/auth';
+import { socialLinkOnly } from '@/lib/api/auth';
 import type { SocialProvider } from '@/types';
 import {
   registerBusinessSchema,
@@ -18,7 +18,7 @@ import {
 import { DEFAULT_PHONE_COUNTRY } from './constants';
 import { RegisterStep1 } from './RegisterStep1';
 import { RegisterStep2 } from './RegisterStep2';
-import type { RegisterStep } from './types';
+import type { AuthPrefill, RegisterStep } from './types';
 
 // ─── Props ──────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ interface RegisterFormComponentProps {
   /** Called when step changes (for brand panel content sync). */
   onStepChange?: (step: RegisterStep) => void;
   /** Pre-fill data from social login (USER_NOT_FOUND flow). Includes provider/token to auto-link after registration. */
-  initialPrefill?: { email: string; first_name: string; last_name: string; provider?: string; token?: string } | null;
+  initialPrefill?: AuthPrefill | null;
 }
 
 // ─── Component ──────────────────────────────────────────────────
@@ -59,13 +59,14 @@ export function RegisterForm({
   });
 
   // ── Pre-fill from social login data
+  const { setValue } = form;
   useEffect(() => {
     if (initialPrefill) {
-      if (initialPrefill.email) form.setValue('email', initialPrefill.email);
-      if (initialPrefill.first_name) form.setValue('first_name', initialPrefill.first_name);
-      if (initialPrefill.last_name) form.setValue('last_name', initialPrefill.last_name);
+      if (initialPrefill.email) setValue('email', initialPrefill.email);
+      if (initialPrefill.first_name) setValue('first_name', initialPrefill.first_name);
+      if (initialPrefill.last_name) setValue('last_name', initialPrefill.last_name);
     }
-  }, [initialPrefill, form]);
+  }, [initialPrefill, setValue]);
 
   // ── Step navigation
   const handleNextStep = useCallback(async () => {
@@ -97,9 +98,9 @@ export function RegisterForm({
           phone: data.phone,
         });
 
-        // Si el registro viene desde social login, vincular la cuenta en segundo plano (no bloquea)
+        // Si el registro viene desde social login, vincular sin tocar tokens (no bloquea)
         if (initialPrefill?.provider && initialPrefill?.token) {
-          apiSocialLogin(
+          socialLinkOnly(
             initialPrefill.provider as SocialProvider,
             initialPrefill.token,
           ).catch(() => {
