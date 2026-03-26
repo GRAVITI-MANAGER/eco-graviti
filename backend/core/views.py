@@ -1830,6 +1830,12 @@ class PlatformSocialLoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        if not user.tenant.is_active:
+            return Response(
+                {"error": "El negocio asociado a esta cuenta no está activo."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Vincular automáticamente (get_or_create para manejar concurrencia)
         from django.db import transaction
 

@@ -99,12 +99,18 @@ export function RegisterForm({
         });
 
         // Si el registro viene desde social login, vincular sin tocar tokens (no bloquea)
-        if (initialPrefill?.provider && initialPrefill?.token) {
+        const VALID_PROVIDERS: SocialProvider[] = ['google', 'apple', 'facebook'];
+        const provider = initialPrefill?.provider;
+        if (
+          provider &&
+          VALID_PROVIDERS.includes(provider as SocialProvider) &&
+          initialPrefill?.token
+        ) {
           socialLinkOnly(
-            initialPrefill.provider as SocialProvider,
+            provider as SocialProvider,
             initialPrefill.token,
           ).catch(() => {
-            // Silenciar: token puede haber expirado, el usuario puede vincular después
+            toast.info('No se pudo vincular tu cuenta social automáticamente. Puedes hacerlo después desde tu perfil.');
           });
         }
 

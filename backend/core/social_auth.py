@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import jwt
 import requests
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token as google_id_token
 
@@ -48,8 +48,23 @@ class SocialUserInfo:
 
 
 def _verify_google_access_token(token: str) -> SocialUserInfo:
-    """Verificar Google access_token via userinfo endpoint."""
+    """Verificar Google access_token via tokeninfo + userinfo endpoints."""
+    client_id = settings.GOOGLE_OAUTH_CLIENT_ID
     try:
+        # Validar que el token fue emitido para nuestra app (audience)
+        tokeninfo_resp = requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"access_token": token},
+            timeout=10,
+        )
+        tokeninfo_resp.raise_for_status()
+        tokeninfo = tokeninfo_resp.json()
+
+        token_aud = tokeninfo.get("aud", "")
+        if token_aud != client_id:
+            raise SocialAuthError("El token de Google no corresponde a esta aplicación")
+
+        # Obtener datos del usuario
         resp = requests.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",
             headers={"Authorization": f"Bearer {token}"},
@@ -118,7 +133,7 @@ def verify_google_token(token: str) -> SocialUserInfo:
 
 
 def _get_apple_public_keys() -> list[dict]:
-    """Fetch Apple's public keys for JWT verification."""
+    """Obtener las claves públicas de Apple para verificación JWT."""
     resp = requests.get("https://appleid.apple.com/auth/keys", timeout=10)
     resp.raise_for_status()
     return resp.json()["keys"]
@@ -131,17 +146,17 @@ def verify_apple_token(token: str, first_name: str = "", last_name: str = "") ->
         raise SocialAuthError("Apple OAuth no está configurado")
 
     try:
-        # Decode header to get kid
+        # Decodificar header para obtener kid
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
 
-        # Fetch Apple public keys
+        # Obtener claves públicas de Apple
         apple_keys = _get_apple_public_keys()
         matching_key = next((k for k in apple_keys if k["kid"] == kid), None)
         if not matching_key:
             raise SocialAuthError("No se encontró la clave pública de Apple")
 
-        # Build public key and decode
+        # Construir clave pública y decodificar
         public_key = jwt.algorithms.RSAAlgorithm.from_jwk(matching_key)
         payload = jwt.decode(
             token,
@@ -181,7 +196,7 @@ def verify_facebook_token(token: str) -> SocialUserInfo:
         raise SocialAuthError("Facebook OAuth no está configurado")
 
     try:
-        # Debug token to verify it's valid
+        # Verificar validez del token con debug endpoint
         debug_resp = requests.get(
             "https://graph.facebook.com/debug_token",
             params={"input_token": token, "access_token": f"{app_id}|{app_secret}"},
@@ -196,7 +211,7 @@ def verify_facebook_token(token: str) -> SocialUserInfo:
         if str(debug_data.get("app_id")) != str(app_id):
             raise SocialAuthError("Token de Facebook no corresponde a esta aplicación")
 
-        # Get user info
+        # Obtener datos del usuario
         me_resp = requests.get(
             "https://graph.facebook.com/me",
             params={"fields": "id,email,first_name,last_name,picture.type(large)", "access_token": token},
@@ -230,7 +245,7 @@ def verify_facebook_token(token: str) -> SocialUserInfo:
     )
 
 
-# Map provider name → verifier function
+# Mapa de proveedor → función verificadora
 PROVIDER_VERIFIERS = {
     "google": verify_google_token,
     "apple": verify_apple_token,
@@ -239,7 +254,7 @@ PROVIDER_VERIFIERS = {
 
 
 def verify_social_token(provider: str, token: str, **kwargs) -> SocialUserInfo:
-    """Dispatch to the correct provider verifier."""
+    """Despachar al verificador del proveedor correspondiente."""
     verifier = PROVIDER_VERIFIERS.get(provider)
     if not verifier:
         raise SocialAuthError(f"Proveedor no soportado: {provider}")
@@ -279,6 +294,10 @@ def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
     try:
         existing_user = User.objects.get(email__iexact=social_info.email, tenant=tenant)
 
+        # No vincular ni promover cuentas inactivas
+        if not existing_user.is_active:
+            raise SocialAuthError("Tu cuenta está desactivada")
+
         with transaction.atomic():
             if existing_user.is_guest:
                 if social_info.first_name and not existing_user.first_name:
@@ -304,21 +323,36 @@ def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
     except User.DoesNotExist:
         pass
 
-    # 3. Crear nuevo usuario + SocialAccount
-    with transaction.atomic():
-        username = _generate_username(social_info.email, tenant)
-        user = User.objects.create_user(
-            tenant=tenant,
-            username=username,
-            email=social_info.email,
-            password=None,  # set_unusable_password
-            first_name=social_info.first_name,
-            last_name=social_info.last_name,
-            role="customer",
-        )
-        user.set_unusable_password()
-        user.save()
+    # 3. Crear nuevo usuario + SocialAccount (con retry por concurrencia)
+    try:
+        with transaction.atomic():
+            username = _generate_username(social_info.email, tenant)
+            user = User.objects.create_user(
+                tenant=tenant,
+                username=username,
+                email=social_info.email,
+                password=None,
+                first_name=social_info.first_name,
+                last_name=social_info.last_name,
+                role="customer",
+            )
+            user.set_unusable_password()
+            user.save()
 
+            SocialAccount.objects.get_or_create(
+                tenant=tenant,
+                provider=social_info.provider,
+                provider_uid=social_info.provider_uid,
+                defaults={
+                    "user": user,
+                    "email": social_info.email,
+                    "extra_data": social_info.extra_data,
+                },
+            )
+        return user
+    except IntegrityError:
+        # Concurrencia: otro request creó el usuario primero, reconsultar
+        user = User.objects.get(email__iexact=social_info.email, tenant=tenant)
         SocialAccount.objects.get_or_create(
             tenant=tenant,
             provider=social_info.provider,
@@ -329,8 +363,7 @@ def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
                 "extra_data": social_info.extra_data,
             },
         )
-
-    return user
+        return user
 
 
 def _generate_username(email: str, tenant: Tenant) -> str:
