@@ -81,7 +81,7 @@ fi
 **Verificación post-setup** (OBLIGATORIO — no continuar si falla):
 ```bash
 WT_ROOT="$(git rev-parse --show-toplevel)"
-[ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || echo "❌ node_modules FALTA"
+[ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || { echo "❌ node_modules FALTA — DETENERSE"; exit 1; }
 [ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ .env.local OK" || echo "⚠️  .env.local no existe (puede ser normal)"
 ```
 
