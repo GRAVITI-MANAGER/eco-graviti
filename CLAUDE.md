@@ -51,37 +51,38 @@ Lee `docs/SDD.md` antes de cambios arquitectónicos.
 Al detectar que estás trabajando en un worktree, ejecutar este setup **ANTES de cualquier otro trabajo**:
 
 ```bash
-# 1. Detectar el repo principal (funciona desde cualquier profundidad de worktree)
+# 1. Detectar paths absolutos (funciona desde cualquier subdirectorio del worktree)
 MAIN_REPO="$(git rev-parse --git-common-dir | sed 's|/\.git$||')"
+WT_ROOT="$(git rev-parse --show-toplevel)"
 
 # 2. Symlink de node_modules (evita duplicar ~500MB de dependencias)
 if [ -d "$MAIN_REPO/frontend/node_modules" ]; then
-  if [ -d "frontend/node_modules" ] && [ ! -L "frontend/node_modules" ]; then
+  if [ -d "$WT_ROOT/frontend/node_modules" ] && [ ! -L "$WT_ROOT/frontend/node_modules" ]; then
     echo "⚠️  frontend/node_modules es un directorio real. Eliminándolo para crear symlink..."
-    rm -rf frontend/node_modules
+    rm -rf "$WT_ROOT/frontend/node_modules"
   fi
-  ln -sfn "$MAIN_REPO/frontend/node_modules" frontend/node_modules
+  ln -sfn "$MAIN_REPO/frontend/node_modules" "$WT_ROOT/frontend/node_modules"
   echo "✅ Symlink node_modules → repo principal"
 fi
 
 # 3. Symlink de .env.local (variables de entorno compartidas)
 if [ -f "$MAIN_REPO/frontend/.env.local" ]; then
-  ln -sfn "$MAIN_REPO/frontend/.env.local" frontend/.env.local
+  ln -sfn "$MAIN_REPO/frontend/.env.local" "$WT_ROOT/frontend/.env.local"
   echo "✅ Symlink .env.local → repo principal"
 fi
 
 # 4. Symlink de backend .env si existe
 if [ -f "$MAIN_REPO/.env" ]; then
-  ln -sfn "$MAIN_REPO/.env" .env
+  ln -sfn "$MAIN_REPO/.env" "$WT_ROOT/.env"
   echo "✅ Symlink .env → repo principal"
 fi
 ```
 
 **Verificación post-setup** (OBLIGATORIO — no continuar si falla):
 ```bash
-# Verificar que los symlinks se crearon correctamente
-[ -L "frontend/node_modules" ] && echo "✅ node_modules OK" || echo "❌ node_modules FALTA"
-[ -L "frontend/.env.local" ] && echo "✅ .env.local OK" || echo "⚠️  .env.local no existe (puede ser normal)"
+WT_ROOT="$(git rev-parse --show-toplevel)"
+[ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || echo "❌ node_modules FALTA"
+[ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ .env.local OK" || echo "⚠️  .env.local no existe (puede ser normal)"
 ```
 
 **Dev server** (solo si el usuario lo pide o la tarea requiere preview):
