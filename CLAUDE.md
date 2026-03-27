@@ -234,7 +234,7 @@ Si el usuario referencia un issue:
 #### Paso 5 — Confirmar al usuario
 
 Mostrar un resumen antes de continuar:
-```
+```text
 🚀 SDD Bootstrap completo:
   Branch: {branch-name}
   Base: develop (commit {short-hash})
