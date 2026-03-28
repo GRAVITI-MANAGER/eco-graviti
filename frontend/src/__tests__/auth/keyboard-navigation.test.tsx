@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
@@ -233,7 +233,8 @@ describe('Keyboard navigation', () => {
 // ─── Screen reader announcements ────────────────────────────────
 
 describe('Screen reader announcements', () => {
-  it('LoginForm has accessible region landmark', () => {
+  it('LoginForm announces validation errors via aria-live', async () => {
+    const user = userEvent.setup();
     render(
       <LoginForm
         onToggleMode={vi.fn()}
@@ -243,13 +244,34 @@ describe('Screen reader announcements', () => {
 
     const section = screen.getByRole('region', { name: 'Iniciar sesión' });
     expect(section).toBeInTheDocument();
+
+    // Submit empty form to trigger validation errors
+    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
+    await waitFor(() => {
+      const alerts = within(section).getAllByRole('alert');
+      expect(alerts.length).toBeGreaterThan(0);
+      for (const alert of alerts) {
+        expect(alert).toHaveAttribute('aria-live', 'polite');
+      }
+    });
   });
 
-  it('ForgotPasswordForm has accessible region landmark', () => {
+  it('ForgotPasswordForm announces validation errors via aria-live', async () => {
+    const user = userEvent.setup();
     render(<ForgotPasswordForm onGoToLogin={vi.fn()} />);
 
     const section = screen.getByRole('region', { name: 'Recuperar contraseña' });
     expect(section).toBeInTheDocument();
+
+    // Submit empty form to trigger validation error
+    await user.click(screen.getByRole('button', { name: 'Enviar código' }));
+
+    await waitFor(() => {
+      const alert = within(section).getByRole('alert');
+      expect(alert).toBeInTheDocument();
+      expect(alert).toHaveAttribute('aria-live', 'polite');
+    });
   });
 
   it('OtpInput digits have individual aria-labels', () => {
