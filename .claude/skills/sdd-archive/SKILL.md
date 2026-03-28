@@ -177,15 +177,21 @@ WT_PATH=$(git rev-parse --show-toplevel)
 **8.3 — Execute cleanup**
 
 ```bash
+# Verify working tree is clean before switching
+if ! git diff-index --quiet HEAD --; then
+  echo "⚠️ You have uncommitted changes. Please commit or stash them before cleanup."
+  exit 1
+fi
+
 # Switch to develop first (required before deleting the current branch)
 git checkout develop
 git pull origin develop
 
 # Delete remote branch (may already be deleted if "Automatically delete head branches" is enabled)
-git push origin --delete {branch-name} 2>/dev/null || echo "Remote branch already deleted (auto-delete may be enabled)"
+git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Remote branch already deleted (auto-delete may be enabled)"
 
 # Delete local branch (use -d for safe delete — fails if not fully merged)
-git branch -d {branch-name}
+git branch -d "$BRANCH_NAME"
 ```
 
 **8.4 — Worktree cleanup (if applicable)**
@@ -194,15 +200,15 @@ If `IS_WORKTREE` was "yes":
 ```bash
 # From the MAIN repo (not from inside the worktree)
 MAIN_REPO="$(git rev-parse --git-common-dir | sed 's|/\.git$||')"
-git -C "$MAIN_REPO" worktree remove {worktree-path}
+git -C "$MAIN_REPO" worktree remove "$WT_PATH"
 ```
 
 **8.5 — Verify cleanup**
 
 ```bash
 # Confirm branch is gone
-git branch | grep -q "{branch-name}" && echo "⚠️ Local branch still exists" || echo "✅ Local branch deleted"
-git ls-remote --heads origin {branch-name} | grep -q "{branch-name}" && echo "⚠️ Remote branch still exists" || echo "✅ Remote branch deleted"
+git branch | grep -q "$BRANCH_NAME" && echo "⚠️ Local branch still exists" || echo "✅ Local branch deleted"
+git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME" && echo "⚠️ Remote branch still exists" || echo "✅ Remote branch deleted"
 echo "✅ On branch: $(git branch --show-current)"
 ```
 
