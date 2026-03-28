@@ -1,22 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 describe('features', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('defaults all flags to false when env vars are unset', async () => {
     vi.stubEnv('NEXT_PUBLIC_FEATURE_SOCIAL_LOGIN', '');
     vi.stubEnv('NEXT_PUBLIC_FEATURE_PASSKEYS', '');
     vi.stubEnv('NEXT_PUBLIC_FEATURE_REMEMBER_ME', '');
-    vi.stubEnv('NEXT_PUBLIC_USE_NEW_AUTH', '');
 
     const { features } = await import('@/lib/features');
 
     expect(features.socialLogin).toBe(false);
     expect(features.passkeys).toBe(false);
     expect(features.rememberMe).toBe(false);
-    expect(features.useNewAuth).toBe(false);
   });
 
   it('enables socialLogin when env var is "true"', async () => {
@@ -43,11 +45,11 @@ describe('features', () => {
     expect(features.passkeys).toBe(true);
   });
 
-  it('enables useNewAuth when env var is "true"', async () => {
-    vi.stubEnv('NEXT_PUBLIC_USE_NEW_AUTH', 'true');
+  it('enables rememberMe when env var is "true"', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FEATURE_REMEMBER_ME', 'true');
 
     const { features } = await import('@/lib/features');
 
-    expect(features.useNewAuth).toBe(true);
+    expect(features.rememberMe).toBe(true);
   });
 });

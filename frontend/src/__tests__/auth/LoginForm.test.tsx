@@ -37,7 +37,6 @@ vi.mock('@/lib/features', () => ({
     socialLogin: false,
     passkeys: false,
     rememberMe: false,
-    useNewAuth: true,
   },
 }));
 

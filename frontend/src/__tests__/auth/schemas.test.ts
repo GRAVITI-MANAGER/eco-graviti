@@ -186,6 +186,14 @@ describe('forgotResetSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects non-numeric code', () => {
+    const result = forgotResetSchema.safeParse({
+      ...validData,
+      code: 'abcdef',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects mismatched passwords', () => {
     const result = forgotResetSchema.safeParse({
       ...validData,

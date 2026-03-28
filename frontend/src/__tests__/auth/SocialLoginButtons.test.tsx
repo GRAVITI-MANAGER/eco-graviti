@@ -3,14 +3,35 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
 
+// Mock next/navigation
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 // Mock features module
 vi.mock('@/lib/features', () => ({
   features: {
     socialLogin: true,
     passkeys: false,
     rememberMe: false,
-    useNewAuth: true,
   },
+}));
+
+// Mock Google OAuth
+vi.mock('@react-oauth/google', () => ({
+  useGoogleLogin: () => vi.fn(),
+  GoogleOAuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Mock auth context
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    socialLogin: vi.fn(),
+    platformLogin: vi.fn(),
+    user: null,
+    isAuthenticated: false,
+  }),
 }));
 
 // Mock sonner
@@ -40,7 +61,8 @@ describe('SocialLoginButtons', () => {
     render(<SocialLoginButtons mode="login" />);
 
     expect(screen.getByLabelText('Iniciar sesión con Google')).toBeInTheDocument();
-    expect(screen.getByLabelText('Iniciar sesión con Apple')).toBeInTheDocument();
+    // Apple shows "Próximamente" label when env var is unset
+    expect(screen.getByLabelText('Apple — Próximamente')).toBeInTheDocument();
     expect(screen.getByLabelText('Iniciar sesión con Facebook')).toBeInTheDocument();
   });
 
@@ -48,22 +70,17 @@ describe('SocialLoginButtons', () => {
     render(<SocialLoginButtons mode="register" />);
 
     expect(screen.getByLabelText('Registrarse con Google')).toBeInTheDocument();
-    expect(screen.getByLabelText('Registrarse con Apple')).toBeInTheDocument();
+    expect(screen.getByLabelText('Apple — Próximamente')).toBeInTheDocument();
     expect(screen.getByLabelText('Registrarse con Facebook')).toBeInTheDocument();
   });
 
-  it('shows "coming soon" toast when no custom handler provided', async () => {
+  it('shows info toast when Google env var is not configured', async () => {
     const user = userEvent.setup();
     render(<SocialLoginButtons mode="login" />);
 
     await user.click(screen.getByText('Google'));
 
-    expect(mockToastInfo).toHaveBeenCalledWith(
-      'Estamos trabajando en esto',
-      expect.objectContaining({
-        description: expect.stringContaining('Google'),
-      }),
-    );
+    expect(mockToastInfo).toHaveBeenCalledWith('Google login no está configurado');
   });
 
   it('calls custom onGoogleClick handler when provided', async () => {
@@ -77,14 +94,11 @@ describe('SocialLoginButtons', () => {
     expect(mockToastInfo).not.toHaveBeenCalled();
   });
 
-  it('calls custom onAppleClick handler when provided', async () => {
-    const user = userEvent.setup();
-    const onAppleClick = vi.fn();
-    render(<SocialLoginButtons mode="login" onAppleClick={onAppleClick} />);
+  it('disables Apple button when env var is not set', () => {
+    render(<SocialLoginButtons mode="login" />);
 
-    await user.click(screen.getByText('Apple'));
-
-    expect(onAppleClick).toHaveBeenCalled();
+    const appleBtn = screen.getByLabelText('Apple — Próximamente');
+    expect(appleBtn).toBeDisabled();
   });
 
   it('has accessible section label', () => {
@@ -104,7 +118,6 @@ describe('SocialLoginButtons (feature flag off)', () => {
         socialLogin: false,
         passkeys: false,
         rememberMe: false,
-        useNewAuth: true,
       },
     }));
 

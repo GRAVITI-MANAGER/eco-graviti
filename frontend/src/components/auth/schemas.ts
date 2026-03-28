@@ -65,7 +65,7 @@ export type ForgotEmailFormValues = z.infer<typeof forgotEmailSchema>;
 
 export const forgotResetSchema = z
   .object({
-    code: z.string().length(6, 'El código debe tener 6 dígitos'),
+    code: z.string().length(6, 'El código debe tener 6 dígitos').regex(/^\d+$/, 'El código solo debe contener números'),
     newPassword: z
       .string()
       .min(8, 'La contraseña debe tener al menos 8 caracteres')

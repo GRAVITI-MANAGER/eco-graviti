@@ -5,7 +5,7 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { PasswordField } from '@/components/auth/PasswordField';
-import { useForm, type Control } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { Form } from '@/components/ui/form';
 
 // ─── Mocks ──────────────────────────────────────────────────────
@@ -44,14 +44,13 @@ vi.mock('@/lib/features', () => ({
     socialLogin: false,
     passkeys: false,
     rememberMe: false,
-    useNewAuth: true,
   },
 }));
 
 // ─── Helpers ────────────────────────────────────────────────────
 
 function PasswordFieldWrapper() {
-  const form = useForm({ defaultValues: { password: '' } });
+  const form = useForm<Record<string, string>>({ defaultValues: { password: '' } });
   return (
     <Form {...form}>
       <form>
@@ -59,7 +58,7 @@ function PasswordFieldWrapper() {
           name="password"
           label="Contraseña"
           placeholder="••••••••"
-          control={form.control as unknown as Control<Record<string, string>>}
+          control={form.control}
         />
       </form>
     </Form>
@@ -179,9 +178,10 @@ describe('Keyboard navigation', () => {
       const input = screen.getByPlaceholderText('••••••••');
       expect(input).toHaveAttribute('type', 'password');
 
-      // Tab to toggle button and press Enter
+      // Focus toggle button and press Enter
       const toggleButton = screen.getByRole('button', { name: 'Mostrar contraseña' });
-      await user.click(toggleButton);
+      toggleButton.focus();
+      await user.keyboard('{Enter}');
 
       expect(input).toHaveAttribute('type', 'text');
     });
@@ -233,7 +233,7 @@ describe('Keyboard navigation', () => {
 // ─── Screen reader announcements ────────────────────────────────
 
 describe('Screen reader announcements', () => {
-  it('LoginForm has aria-live region for form errors', () => {
+  it('LoginForm has accessible region landmark', () => {
     render(
       <LoginForm
         onToggleMode={vi.fn()}
@@ -241,12 +241,11 @@ describe('Screen reader announcements', () => {
       />,
     );
 
-    // FormMessage elements have role="alert" and aria-live="polite"
     const section = screen.getByRole('region', { name: 'Iniciar sesión' });
     expect(section).toBeInTheDocument();
   });
 
-  it('ForgotPasswordForm has aria-live region for step content', () => {
+  it('ForgotPasswordForm has accessible region landmark', () => {
     render(<ForgotPasswordForm onGoToLogin={vi.fn()} />);
 
     const section = screen.getByRole('region', { name: 'Recuperar contraseña' });

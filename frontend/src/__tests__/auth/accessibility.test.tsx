@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { LoginForm } from '@/components/auth/LoginForm';
@@ -37,12 +37,16 @@ vi.mock('@/lib/api/auth', () => ({
   platformVerifyPasswordResetOTP: vi.fn(),
 }));
 
+vi.mock('@react-oauth/google', () => ({
+  useGoogleLogin: () => vi.fn(),
+  GoogleOAuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('@/lib/features', () => ({
   features: {
     socialLogin: true,
     passkeys: false,
     rememberMe: false,
-    useNewAuth: true,
   },
 }));
 
