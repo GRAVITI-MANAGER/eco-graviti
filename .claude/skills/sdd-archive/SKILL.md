@@ -201,8 +201,12 @@ fi
 git checkout develop
 git pull origin develop
 
-# Delete remote branch (may already be deleted if "Automatically delete head branches" is enabled)
-git push origin --delete "$BRANCH_NAME" 2>/dev/null || echo "Remote branch already deleted (auto-delete may be enabled)"
+# Delete remote branch (check if it exists first to avoid hiding real errors)
+if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+  git push origin --delete "$BRANCH_NAME" || echo "⚠️ Failed to delete remote branch (check permissions/network)"
+else
+  echo "✅ Remote branch already deleted (auto-delete may be enabled)"
+fi
 
 # Delete local branch (use -d for safe delete — fails if not fully merged)
 git branch -d "$BRANCH_NAME"
@@ -210,16 +214,22 @@ git branch -d "$BRANCH_NAME"
 
 **8.4 — Worktree cleanup (if applicable)**
 
-If `IS_WORKTREE` was "yes":
 ```bash
-# From the MAIN repo (not from inside the worktree)
-MAIN_REPO="$(git rev-parse --git-common-dir | sed 's|/\.git$||')"
-git -C "$MAIN_REPO" worktree remove "$WT_PATH"
+if [ "$IS_WORKTREE" = "yes" ]; then
+  # From the MAIN repo (not from inside the worktree)
+  MAIN_REPO="$(git rev-parse --show-toplevel 2>/dev/null || git rev-parse --git-common-dir | sed 's|/\.git$||')"
+  git -C "$MAIN_REPO" worktree remove "$WT_PATH"
+else
+  echo "ℹ️ Not a worktree, skipping worktree cleanup"
+fi
 ```
 
 **8.5 — Verify cleanup**
 
 ```bash
+# Ensure we're in a valid git directory (not in a deleted worktree)
+cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
+
 # Confirm branch is gone
 git branch | grep -q "$BRANCH_NAME" && echo "⚠️ Local branch still exists" || echo "✅ Local branch deleted"
 git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME" && echo "⚠️ Remote branch still exists" || echo "✅ Remote branch deleted"
