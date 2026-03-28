@@ -188,7 +188,7 @@ ejecutar estos pasos **en orden, sin saltar ninguno, sin preguntar**. Si un paso
 ```bash
 CURRENT_BRANCH=$(git branch --show-current)
 IS_WORKTREE=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ "$(git rev-parse --git-common-dir)" != "$(git rev-parse --git-dir)" ] && echo "yes" || echo "no")
-BRANCH_EXISTS=$(git show-ref --verify --quiet "refs/heads/{branch-name}" && echo "yes" || echo "no")
+BRANCH_EXISTS=$( (git show-ref --verify --quiet "refs/heads/{branch-name}" || git show-ref --verify --quiet "refs/remotes/origin/{branch-name}") && echo "yes" || echo "no")
 ```
 
 **Selección automática de caso:**
