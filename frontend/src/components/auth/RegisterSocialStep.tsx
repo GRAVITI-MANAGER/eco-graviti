@@ -1,9 +1,11 @@
-// src/components/auth/RegisterStep1.tsx
-// First step of business registration: social signup, business name, industry, country.
+// src/components/auth/RegisterSocialStep.tsx
+// Combined single-step registration when user authenticates via social login.
+// Shows confirmed social profile + business fields + password in one form.
 
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import {
   FormControl,
@@ -19,51 +21,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import { ArrowRight, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { RegisterBusinessFormValues } from './schemas';
-import { countries, industries, DEBOUNCE_DELAY_MS, LABEL_CLASS, LABEL_STYLE } from './constants';
-import { useDebounce } from './hooks';
-import { SocialLoginButtons } from './SocialLoginButtons';
-import { FormDivider } from './FormDivider';
-import { features } from '@/lib/features';
 import type { AuthPrefill } from './types';
-import { cn } from '@/lib/utils';
+import { countries, DEBOUNCE_DELAY_MS, LABEL_CLASS, LABEL_STYLE } from './constants';
+import { useDebounce } from './hooks';
+import { PasswordField } from './PasswordField';
+import { SubmitButton } from './SubmitButton';
 
 // ─── Props ──────────────────────────────────────────────────────
 
-interface RegisterStep1Props {
+interface RegisterSocialStepProps {
   form: UseFormReturn<RegisterBusinessFormValues>;
-  onNextStep: () => void;
+  isLoading: boolean;
+  prefill: AuthPrefill;
   onToggleMode: () => void;
-  onSocialPrefill?: (prefill: AuthPrefill) => void;
 }
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+const providerLabels: Record<string, string> = {
+  google: 'Google',
+  apple: 'Apple',
+  facebook: 'Facebook',
+};
 
 // ─── Component ──────────────────────────────────────────────────
 
-export function RegisterStep1({
+export function RegisterSocialStep({
   form,
-  onNextStep,
+  isLoading,
+  prefill,
   onToggleMode,
-  onSocialPrefill,
-}: RegisterStep1Props) {
+}: RegisterSocialStepProps) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-  // Industry combobox
-  const [industryOpen, setIndustryOpen] = useState(false);
 
   // Business name existence check
   const [businessNameExists, setBusinessNameExists] = useState(false);
@@ -107,15 +99,14 @@ export function RegisterStep1({
     return () => controller.abort();
   }, [debouncedName, checkBusinessName]);
 
-  // Block "Continuar" if name is duplicate or still checking
-  const continueDisabled = businessNameExists || checkingName;
+  const providerName = providerLabels[prefill.provider || ''] || 'tu cuenta social';
 
   return (
     <div data-auth-animated>
-      {/* Step + Title */}
+      {/* Title */}
       <div className="mb-6">
         <h2
-          className="text-[1.5rem] tracking-[-0.02em] mb-2 mt-4"
+          className="text-[1.5rem] tracking-[-0.02em]"
           tabIndex={-1}
           style={{
             color: 'var(--auth-primary)',
@@ -123,29 +114,116 @@ export function RegisterStep1({
             fontFamily: 'var(--auth-font-heading)',
           }}
         >
-          Cuéntanos de tu negocio
+          Ya casi estamos
         </h2>
-        <p
-          className="text-[0.85rem] leading-relaxed"
-          style={{
-            color: 'var(--auth-text-muted)',
-            fontFamily: 'var(--auth-font-body)',
-          }}
-        >
-          Queremos conocerte para personalizar tu experiencia.
-        </p>
       </div>
 
-      {/* Social signup buttons (feature flagged) */}
-      {features.socialLogin && (
-        <>
-          <SocialLoginButtons mode="register" onSwitchToRegister={onSocialPrefill} />
-          <FormDivider text="o continúa con email" />
-        </>
-      )}
+      {/* Social profile confirmation */}
+      <div
+        className="flex items-center gap-3 rounded-[var(--auth-radius-input)] border px-4 py-3 mb-6"
+        style={{
+          borderColor: 'var(--auth-accent)',
+          background: 'var(--auth-accent-bg, #E2F3F1)',
+        }}
+      >
+        {prefill.avatar ? (
+          <img
+            src={prefill.avatar}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="h-9 w-9 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold shrink-0"
+            style={{
+              background: 'var(--auth-primary)',
+              color: 'white',
+            }}
+          >
+            {(prefill.first_name?.[0] || prefill.email?.[0] || '?').toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[0.85rem] font-medium truncate"
+            style={{
+              color: 'var(--auth-text)',
+              fontFamily: 'var(--auth-font-body)',
+            }}
+          >
+            {prefill.email}
+          </p>
+          <p
+            className="text-[0.75rem] truncate"
+            style={{
+              color: 'var(--auth-text-muted)',
+              fontFamily: 'var(--auth-font-body)',
+            }}
+          >
+            Conectado con {providerName}
+          </p>
+        </div>
+        <Check
+          className="h-4 w-4 shrink-0"
+          style={{ color: 'var(--auth-success)' }}
+          aria-hidden="true"
+        />
+      </div>
 
       {/* Fields */}
       <div className="space-y-5">
+        {/* First name + Last name (editable — social providers may return incomplete data) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField
+            control={form.control}
+            name="first_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
+                  Nombre
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Tu nombre"
+                    disabled={isLoading}
+                    aria-required="true"
+                    aria-invalid={!!form.formState.errors.first_name}
+                    className="h-[var(--auth-input-height)] rounded-[var(--auth-radius-input)] border-[var(--auth-border)] bg-[var(--auth-bg-input)] text-[var(--auth-text)] placeholder:text-[var(--auth-text-placeholder)] transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 aria-[invalid=true]:border-[var(--auth-border-error)]"
+                    style={{ fontFamily: 'var(--auth-font-body)' }}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage role="alert" aria-live="polite" />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="last_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
+                  Apellido
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Tu apellido"
+                    disabled={isLoading}
+                    aria-required="true"
+                    aria-invalid={!!form.formState.errors.last_name}
+                    className="h-[var(--auth-input-height)] rounded-[var(--auth-radius-input)] border-[var(--auth-border)] bg-[var(--auth-bg-input)] text-[var(--auth-text)] placeholder:text-[var(--auth-text-placeholder)] transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 aria-[invalid=true]:border-[var(--auth-border-error)]"
+                    style={{ fontFamily: 'var(--auth-font-body)' }}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage role="alert" aria-live="polite" />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Business name */}
         <FormField
           control={form.control}
           name="business_name"
@@ -158,6 +236,8 @@ export function RegisterStep1({
                 <div className="relative">
                   <Input
                     placeholder="Ej: Mi Negocio"
+                    disabled={isLoading}
+                    autoFocus
                     aria-required="true"
                     aria-invalid={!!form.formState.errors.business_name}
                     className="h-[var(--auth-input-height)] rounded-[var(--auth-radius-input)] border-[var(--auth-border)] bg-[var(--auth-bg-input)] text-[var(--auth-text)] placeholder:text-[var(--auth-text-placeholder)] transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 aria-[invalid=true]:border-[var(--auth-border-error)]"
@@ -195,104 +275,7 @@ export function RegisterStep1({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="industry"
-          render={({ field }) => {
-            const selectedIndustry = industries.find((i) => i.value === field.value);
-            return (
-              <FormItem className="flex flex-col">
-                <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
-                  Industria{' '}
-                  <span
-                    className="font-normal"
-                    style={{ color: 'var(--auth-text-placeholder)' }}
-                  >
-                    opcional
-                  </span>
-                </FormLabel>
-                <Popover open={industryOpen} onOpenChange={setIndustryOpen}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <button
-                        type="button"
-                        role="combobox"
-                        aria-expanded={industryOpen}
-                        className={cn(
-                          'flex h-[var(--auth-input-height)] w-full items-center justify-between rounded-[var(--auth-radius-input)] border border-[var(--auth-border)] bg-[var(--auth-bg-input)] px-3 text-sm transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 focus-visible:outline-none',
-                          !field.value && 'text-[var(--auth-text-placeholder)]',
-                          field.value && 'text-[var(--auth-text)]',
-                        )}
-                        style={{ fontFamily: 'var(--auth-font-body)' }}
-                      >
-                        {selectedIndustry?.label || 'Selecciona tu industria'}
-                        <ChevronsUpDown
-                          className="ml-2 h-4 w-4 shrink-0"
-                          style={{ color: 'var(--auth-text-muted)' }}
-                        />
-                      </button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-0"
-                    align="start"
-                    style={
-                      {
-                        '--accent': '#E2F3F1',
-                        '--accent-foreground': 'var(--auth-primary)',
-                      } as React.CSSProperties
-                    }
-                  >
-                    <Command>
-                      <CommandInput
-                        placeholder="Buscar industria..."
-                        className="text-sm"
-                      />
-                      <CommandList>
-                        <CommandEmpty className="py-3 text-center text-sm text-[var(--auth-text-muted)]">
-                          No encontrada.
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {industries.map((ind) => (
-                            <CommandItem
-                              key={ind.value}
-                              value={ind.label}
-                              onSelect={() => {
-                                field.onChange(ind.value);
-                                setIndustryOpen(false);
-                              }}
-                              className="text-sm"
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-3.5 w-3.5',
-                                  field.value === ind.value
-                                    ? 'opacity-100 text-[var(--auth-accent)]'
-                                    : 'opacity-0',
-                                )}
-                              />
-                              {ind.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <p
-                  className="text-[0.7rem] mt-1"
-                  style={{
-                    color: 'var(--auth-text-placeholder)',
-                    fontFamily: 'var(--auth-font-body)',
-                  }}
-                >
-                  Esto nos ayuda a personalizar tu plataforma.
-                </p>
-              </FormItem>
-            );
-          }}
-        />
-
+        {/* Country */}
         <FormField
           control={form.control}
           name="country"
@@ -347,24 +330,53 @@ export function RegisterStep1({
           )}
         />
 
-        <button
-          type="button"
-          onClick={onNextStep}
-          disabled={continueDisabled}
-          aria-label="Continuar al paso 2: Tu cuenta"
-          className="w-full h-12 mt-6 rounded-[var(--auth-radius-button)] text-white text-[0.9375rem] font-medium transition-[background-color,transform,opacity] duration-[var(--auth-duration-fast)] ease-out hover:bg-[var(--auth-primary-hover)] hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+        {/* Password */}
+        <PasswordField
+          name="password"
+          label="Contraseña"
+          placeholder="Crea una contraseña segura"
+          control={form.control as unknown as import('react-hook-form').Control<Record<string, string>>}
+          disabled={isLoading}
+          showStrength
+          autoComplete="new-password"
+        />
+
+        {/* Terms */}
+        <p
+          className="text-[0.75rem] leading-relaxed text-center pt-1"
           style={{
-            background: 'var(--auth-primary)',
+            color: 'var(--auth-text-muted)',
             fontFamily: 'var(--auth-font-body)',
           }}
-          data-auth-animated
         >
-          Continuar
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </button>
+          Al crear tu cuenta aceptas los{' '}
+          <Link
+            href="/terms"
+            className="underline underline-offset-2 hover:text-[var(--auth-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
+          >
+            Términos de Servicio
+          </Link>{' '}
+          y la{' '}
+          <Link
+            href="/privacy"
+            className="underline underline-offset-2 hover:text-[var(--auth-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
+          >
+            Política de Privacidad
+          </Link>
+          .
+        </p>
+
+        {/* Submit */}
+        <SubmitButton
+          isLoading={isLoading}
+          disabled={businessNameExists || checkingName}
+          loadingLabel="Creando tu negocio..."
+        >
+          Crear mi negocio
+        </SubmitButton>
       </div>
 
-      {/* Toggle link */}
+      {/* Footer */}
       <div className="mt-6 pt-5 border-t border-gray-100 text-center">
         <p
           className="text-[0.8rem]"

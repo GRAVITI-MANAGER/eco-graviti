@@ -121,7 +121,7 @@ function SocialLoginButtonsInner({
       if (code === 'LINKING_REQUIRED') return;
       // No account found — switch to register with pre-filled data + social token
       if (code === 'USER_NOT_FOUND') {
-        const suggested = data?.suggested_user as { email?: string; first_name?: string; last_name?: string } | undefined;
+        const suggested = data?.suggested_user as { email?: string; first_name?: string; last_name?: string; avatar_url?: string } | undefined;
         if (onSwitchToRegister && suggested) {
           toast.info('No encontramos una cuenta con este email', {
             description: 'Te llevamos al registro con tus datos pre-llenados.',
@@ -130,6 +130,7 @@ function SocialLoginButtonsInner({
             email: suggested.email || '',
             first_name: suggested.first_name || '',
             last_name: suggested.last_name || '',
+            avatar: suggested.avatar_url || '',
             provider,
             token,
           });

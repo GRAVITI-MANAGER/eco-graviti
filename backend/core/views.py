@@ -1813,6 +1813,7 @@ class PlatformSocialLoginView(APIView):
                         "email": social_info.email,
                         "first_name": social_info.first_name,
                         "last_name": social_info.last_name,
+                        "avatar_url": social_info.avatar_url,
                     },
                 },
                 status=status.HTTP_404_NOT_FOUND,

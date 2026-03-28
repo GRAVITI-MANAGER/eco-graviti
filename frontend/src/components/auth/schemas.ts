@@ -23,31 +23,26 @@ export type LoginFormValues = z.infer<typeof loginSchema>;
 
 // ─── Register Business ──────────────────────────────────────────
 
-export const registerBusinessSchema = z
-  .object({
-    business_name: z
-      .string()
-      .min(2, 'El nombre del negocio debe tener al menos 2 caracteres'),
-    industry: z.string().optional(),
-    country: z.string().min(1, 'Selecciona tu país'),
-    first_name: z
-      .string()
-      .min(2, 'El nombre debe tener al menos 2 caracteres'),
-    last_name: z
-      .string()
-      .min(2, 'El apellido debe tener al menos 2 caracteres'),
-    email: z.string().email('Email inválido'),
-    phone: z
-      .string()
-      .regex(/^[\d\s]*$/, 'Solo números')
-      .optional(),
-    password: passwordRules,
-    password2: z.string().min(1, 'Confirma tu contraseña'),
-  })
-  .refine((data) => data.password === data.password2, {
-    message: 'Las contraseñas no coinciden',
-    path: ['password2'],
-  });
+export const registerBusinessSchema = z.object({
+  business_name: z
+    .string()
+    .min(2, 'El nombre del negocio debe tener al menos 2 caracteres')
+    .max(100, 'El nombre no puede superar los 100 caracteres'),
+  industry: z.string().optional(),
+  country: z.string().min(1, 'Selecciona tu país'),
+  first_name: z
+    .string()
+    .min(2, 'El nombre debe tener al menos 2 caracteres'),
+  last_name: z
+    .string()
+    .min(2, 'El apellido debe tener al menos 2 caracteres'),
+  email: z.string().email('Email inválido'),
+  phone: z
+    .string()
+    .regex(/^[\d\s]*$/, 'Solo números')
+    .optional(),
+  password: passwordRules,
+});
 
 export type RegisterBusinessFormValues = z.infer<
   typeof registerBusinessSchema
