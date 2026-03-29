@@ -115,9 +115,13 @@
                 {% if tenant_phone %}{{ tenant_phone }}{% endif %}
             </p>
             {% endif %}
+            {% if social_facebook or social_instagram %}
             <p style="margin-top: 12px;">
-                <a href="#">Facebook</a> | <a href="#">Instagram</a>
+                {% if social_facebook %}<a href="{{ social_facebook }}">Facebook</a>{% endif %}
+                {% if social_facebook and social_instagram %} | {% endif %}
+                {% if social_instagram %}<a href="{{ social_instagram }}">Instagram</a>{% endif %}
             </p>
+            {% endif %}
         </div>
         {% endblock %}
     </div>
