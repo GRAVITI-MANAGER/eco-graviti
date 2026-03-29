@@ -82,25 +82,27 @@ interface PasswordStrengthRulesProps {
 }
 
 const PASSWORD_RULES = [
-  { test: (p: string) => p.length >= 8, label: 'Mínimo 8 caracteres' },
-  { test: (p: string) => /[a-z]/.test(p), label: 'Una letra minúscula' },
-  { test: (p: string) => /[A-Z]/.test(p), label: 'Una letra mayúscula' },
-  { test: (p: string) => /[0-9]/.test(p), label: 'Un número' },
+  { test: (p: string) => p.length >= 8, label: '8+ caracteres' },
+  { test: (p: string) => /[A-Z]/.test(p), label: 'Mayúscula' },
+  { test: (p: string) => /[a-z]/.test(p), label: 'Minúscula' },
+  { test: (p: string) => /[0-9]/.test(p), label: 'Número' },
 ] as const;
 
 function PasswordStrengthRules({ password }: PasswordStrengthRulesProps) {
   return (
-    <ul
-      className="mt-1.5 space-y-0.5 text-[0.75rem]"
+    <div
+      className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[0.7rem]"
+      role="list"
       aria-label="Requisitos de contraseña"
       style={{ fontFamily: 'var(--auth-font-body)' }}
     >
       {PASSWORD_RULES.map((rule) => {
         const passed = rule.test(password);
         return (
-          <li
+          <span
             key={rule.label}
-            className={`flex items-center gap-1.5 transition-colors duration-[var(--auth-duration-fast)] ${
+            role="listitem"
+            className={`flex items-center gap-1 transition-colors duration-[var(--auth-duration-fast)] ${
               passed
                 ? 'text-[var(--auth-success)]'
                 : 'text-[var(--auth-text-muted)]'
@@ -108,9 +110,9 @@ function PasswordStrengthRules({ password }: PasswordStrengthRulesProps) {
           >
             <span className="inline-block h-1 w-1 rounded-full bg-current" aria-hidden="true" />
             {rule.label}
-          </li>
+          </span>
         );
       })}
-    </ul>
+    </div>
   );
 }

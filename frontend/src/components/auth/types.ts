@@ -94,6 +94,7 @@ export interface AuthPrefill {
   email: string;
   first_name: string;
   last_name: string;
+  avatar?: string;
   provider?: string;
   token?: string;
 }

@@ -114,7 +114,7 @@ export function ForgotPasswordForm({
       {/* ── Step: Email ── */}
       {forgotStep === 'email' && (
         <>
-          <div className="mb-10">
+          <div className="mb-6">
             <h2
               className="text-[1.5rem] tracking-[-0.02em] mb-2"
               style={{
@@ -123,7 +123,7 @@ export function ForgotPasswordForm({
                 fontFamily: 'var(--auth-font-heading)',
               }}
             >
-              Recupera tu contraseña
+              No te preocupes
             </h2>
             <p
               className="text-[0.85rem] leading-relaxed"
@@ -132,7 +132,7 @@ export function ForgotPasswordForm({
                 fontFamily: 'var(--auth-font-body)',
               }}
             >
-              Ingresa tu email y te enviaremos un código de verificación.
+              Ingresa tu correo y te enviaremos un código para restablecer tu contraseña.
             </p>
           </div>
 
@@ -148,7 +148,7 @@ export function ForgotPasswordForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
-                      Email
+                      Correo electrónico
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -177,7 +177,7 @@ export function ForgotPasswordForm({
             </form>
           </Form>
 
-          <div className="mt-10 pt-6 border-t border-gray-100 text-center">
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center">
             <button
               type="button"
               onClick={onGoToLogin}
@@ -197,7 +197,7 @@ export function ForgotPasswordForm({
       {/* ── Step: Reset (OTP + New Password) ── */}
       {forgotStep === 'reset' && (
         <>
-          <div className="mb-10">
+          <div className="mb-6">
             <h2
               className="text-[1.5rem] tracking-[-0.02em] mb-2"
               style={{
@@ -206,7 +206,7 @@ export function ForgotPasswordForm({
                 fontFamily: 'var(--auth-font-heading)',
               }}
             >
-              Nueva contraseña
+              Elige tu nueva contraseña
             </h2>
             <p
               className="text-[0.85rem] leading-relaxed"
@@ -222,6 +222,15 @@ export function ForgotPasswordForm({
               >
                 {forgotEmail}
               </span>
+            </p>
+            <p
+              className="text-[0.75rem] leading-relaxed mt-2"
+              style={{
+                color: 'var(--auth-text-placeholder)',
+                fontFamily: 'var(--auth-font-body)',
+              }}
+            >
+              ¿No llega? Revisa tu carpeta de spam o verifica que el correo sea correcto.
             </p>
           </div>
 
@@ -315,7 +324,7 @@ export function ForgotPasswordForm({
           </Form>
 
           {/* Resend + back links */}
-          <div className="mt-8 pt-6 border-t border-gray-100 text-center space-y-3">
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center space-y-3">
             <button
               type="button"
               onClick={handleResendCode}
@@ -348,6 +357,15 @@ export function ForgotPasswordForm({
                 Volver a iniciar sesión
               </button>
             </div>
+            <p>
+              <a
+                href="mailto:soporte@nerbis.com"
+                className="text-[0.78rem] font-medium hover:underline underline-offset-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
+                style={{ color: 'var(--auth-text-muted)' }}
+              >
+                ¿Necesitas ayuda?
+              </a>
+            </p>
           </div>
         </>
       )}
@@ -355,7 +373,10 @@ export function ForgotPasswordForm({
       {/* ── Step: Success ── */}
       {forgotStep === 'success' && (
         <div className="text-center" role="status" data-auth-animated>
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+          <div
+            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full"
+            style={{ background: 'var(--auth-accent-bg, #E2F3F1)' }}
+          >
             <CheckCircle
               className="h-7 w-7"
               style={{ color: 'var(--auth-success)' }}
@@ -370,7 +391,7 @@ export function ForgotPasswordForm({
               fontFamily: 'var(--auth-font-heading)',
             }}
           >
-            Contraseña actualizada
+            ¡Listo, todo en orden!
           </h2>
 
           <p
@@ -380,7 +401,7 @@ export function ForgotPasswordForm({
               fontFamily: 'var(--auth-font-body)',
             }}
           >
-            Tu contraseña ha sido restablecida exitosamente
+            Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.
           </p>
 
           <SubmitButton
@@ -390,6 +411,16 @@ export function ForgotPasswordForm({
           >
             Iniciar sesión
           </SubmitButton>
+
+          <p className="mt-6">
+            <a
+              href="mailto:soporte@nerbis.com"
+              className="text-[0.78rem] font-medium hover:underline underline-offset-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
+              style={{ color: 'var(--auth-text-muted)' }}
+            >
+              ¿Necesitas ayuda?
+            </a>
+          </p>
         </div>
       )}
     </section>

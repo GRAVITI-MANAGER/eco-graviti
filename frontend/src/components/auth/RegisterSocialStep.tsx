@@ -1,9 +1,9 @@
-// src/components/auth/RegisterStep2.tsx
-// Second step of business registration: personal info, email, password.
+// src/components/auth/RegisterSocialStep.tsx
+// Combined single-step registration when user authenticates via social login.
+// Shows confirmed social profile + business fields + password in one form.
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,81 +13,58 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Check, Loader2 } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { RegisterBusinessFormValues } from './schemas';
-import { DEBOUNCE_DELAY_MS, LABEL_CLASS, LABEL_STYLE } from './constants';
-import { useDebounce } from './hooks';
+import type { AuthPrefill } from './types';
+import { countries, LABEL_CLASS, LABEL_STYLE } from './constants';
+import { useBusinessNameCheck } from './hooks';
 import { PasswordField } from './PasswordField';
 import { SubmitButton } from './SubmitButton';
 
 // ─── Props ──────────────────────────────────────────────────────
 
-interface RegisterStep2Props {
+interface RegisterSocialStepProps {
   form: UseFormReturn<RegisterBusinessFormValues>;
   isLoading: boolean;
-  onPrevStep: () => void;
+  prefill: AuthPrefill;
   onToggleMode: () => void;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────
+
+const providerLabels: Record<string, string> = {
+  google: 'Google',
+  apple: 'Apple',
+  facebook: 'Facebook',
+};
+
 // ─── Component ──────────────────────────────────────────────────
 
-export function RegisterStep2({
+export function RegisterSocialStep({
   form,
   isLoading,
-  onPrevStep,
+  prefill,
   onToggleMode,
-}: RegisterStep2Props) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+}: RegisterSocialStepProps) {
+  const businessName = form.watch('business_name');
+  const { exists: businessNameExists, checking: checkingName } = useBusinessNameCheck(businessName);
 
-  // Email existence check
-  const [emailExists, setEmailExists] = useState(false);
-  const [checkingEmail, setCheckingEmail] = useState(false);
-
-  const emailValue = form.watch('email');
-  const debouncedEmail = useDebounce(emailValue, DEBOUNCE_DELAY_MS);
-
-  const checkTenantEmail = useCallback(
-    async (email: string, signal: AbortSignal) => {
-      if (!email || !email.includes('@') || !email.includes('.')) {
-        setEmailExists(false);
-        return;
-      }
-      setCheckingEmail(true);
-      try {
-        const res = await fetch(
-          `${API_URL}/api/public/check-tenant-email/?email=${encodeURIComponent(email.trim())}`,
-          { signal },
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (!signal.aborted) setEmailExists(data.exists);
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-      } finally {
-        if (!signal.aborted) setCheckingEmail(false);
-      }
-    },
-    [API_URL],
-  );
-
-  useEffect(() => {
-    if (!debouncedEmail || !debouncedEmail.includes('@') || !debouncedEmail.includes('.')) {
-      setEmailExists(false);
-      return;
-    }
-    const controller = new AbortController();
-    checkTenantEmail(debouncedEmail, controller.signal);
-    return () => controller.abort();
-  }, [debouncedEmail, checkTenantEmail]);
+  const providerName = providerLabels[prefill.provider || ''] || 'tu cuenta social';
 
   return (
     <div data-auth-animated>
-      {/* Step + Title */}
+      {/* Title */}
       <div className="mb-6">
         <h2
-          className="text-[1.5rem] tracking-[-0.02em] mb-2 mt-4"
+          className="text-[1.5rem] tracking-[-0.02em]"
           tabIndex={-1}
           style={{
             color: 'var(--auth-primary)',
@@ -95,22 +72,66 @@ export function RegisterStep2({
             fontFamily: 'var(--auth-font-heading)',
           }}
         >
-          Crea tu cuenta
+          Ya casi estamos
         </h2>
-        <p
-          className="text-[0.85rem] leading-relaxed"
-          style={{
-            color: 'var(--auth-text-muted)',
-            fontFamily: 'var(--auth-font-body)',
-          }}
-        >
-          Tus datos personales y acceso.
-        </p>
+      </div>
+
+      {/* Social profile confirmation */}
+      <div
+        className="flex items-center gap-3 rounded-[var(--auth-radius-input)] border px-4 py-3 mb-6"
+        style={{
+          borderColor: 'var(--auth-accent)',
+          background: 'var(--auth-accent-bg, #E2F3F1)',
+        }}
+      >
+        {prefill.avatar ? (
+          <img
+            src={prefill.avatar}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="h-9 w-9 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold shrink-0"
+            style={{
+              background: 'var(--auth-primary)',
+              color: 'white',
+            }}
+          >
+            {(prefill.first_name?.[0] || prefill.email?.[0] || '?').toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[0.85rem] font-medium truncate"
+            style={{
+              color: 'var(--auth-text)',
+              fontFamily: 'var(--auth-font-body)',
+            }}
+          >
+            {prefill.email}
+          </p>
+          <p
+            className="text-[0.75rem] truncate"
+            style={{
+              color: 'var(--auth-text-muted)',
+              fontFamily: 'var(--auth-font-body)',
+            }}
+          >
+            Conectado con {providerName}
+          </p>
+        </div>
+        <Check
+          className="h-4 w-4 shrink-0"
+          style={{ color: 'var(--auth-success)' }}
+          aria-hidden="true"
+        />
       </div>
 
       {/* Fields */}
       <div className="space-y-5">
-        {/* First name + Last name */}
+        {/* First name + Last name (editable — social providers may return incomplete data) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FormField
             control={form.control}
@@ -160,45 +181,44 @@ export function RegisterStep2({
           />
         </div>
 
-        {/* Email */}
+        {/* Business name */}
         <FormField
           control={form.control}
-          name="email"
+          name="business_name"
           render={({ field }) => (
             <FormItem>
               <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
-                Correo electrónico
+                Nombre del negocio
               </FormLabel>
               <FormControl>
                 <div className="relative">
                   <Input
-                    type="email"
-                    placeholder="correo@tunegocio.com"
+                    placeholder="Ej: Mi Negocio"
                     disabled={isLoading}
-                    autoComplete="email"
+                    autoFocus
                     aria-required="true"
-                    aria-invalid={!!form.formState.errors.email}
+                    aria-invalid={!!form.formState.errors.business_name}
                     className="h-[var(--auth-input-height)] rounded-[var(--auth-radius-input)] border-[var(--auth-border)] bg-[var(--auth-bg-input)] text-[var(--auth-text)] placeholder:text-[var(--auth-text-placeholder)] transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 aria-[invalid=true]:border-[var(--auth-border-error)]"
                     style={{ fontFamily: 'var(--auth-font-body)' }}
                     {...field}
                   />
-                  {checkingEmail && (
+                  {checkingName && (
                     <Loader2
                       className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin"
                       style={{ color: 'var(--auth-text-muted)' }}
-                      aria-label="Verificando email..."
+                      aria-label="Verificando nombre..."
                     />
                   )}
                 </div>
               </FormControl>
               <FormMessage role="alert" aria-live="polite" />
-              {emailExists && !checkingEmail && (
+              {businessNameExists && !checkingName && (
                 <p
                   className="text-[0.75rem] mt-1"
                   role="alert"
                   style={{ color: 'var(--auth-warning, #D97706)' }}
                 >
-                  Este email ya está registrado.{' '}
+                  Este nombre ya está registrado.{' '}
                   <button
                     type="button"
                     onClick={onToggleMode}
@@ -213,11 +233,67 @@ export function RegisterStep2({
           )}
         />
 
+        {/* Country */}
+        <FormField
+          control={form.control}
+          name="country"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className={LABEL_CLASS} style={LABEL_STYLE}>
+                País
+              </FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={isLoading}
+              >
+                <FormControl>
+                  <SelectTrigger
+                    aria-required="true"
+                    aria-invalid={!!form.formState.errors.country}
+                    className="data-[size=default]:h-[var(--auth-input-height)] w-full rounded-[var(--auth-radius-input)] border-[var(--auth-border)] bg-[var(--auth-bg-input)] text-sm text-[var(--auth-text)] data-placeholder:text-[var(--auth-text-placeholder)] transition-[border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out focus-visible:border-[var(--auth-border-focus)] focus-visible:ring-[3px] focus-visible:ring-[var(--auth-accent)]/10 [&_svg]:text-[var(--auth-text-muted)]"
+                    style={{ fontFamily: 'var(--auth-font-body)' }}
+                  >
+                    <SelectValue placeholder="Selecciona tu país">
+                      {field.value && (
+                        <span className="flex items-center gap-2">
+                          <span className="text-base leading-none">
+                            {countries.find((c) => c.value === field.value)?.flag}
+                          </span>
+                          {countries.find((c) => c.value === field.value)?.label}
+                        </span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent
+                  style={
+                    {
+                      '--accent': '#E2F3F1',
+                      '--accent-foreground': 'var(--auth-primary)',
+                    } as React.CSSProperties
+                  }
+                >
+                  {countries.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      <span className="flex items-center gap-2">
+                        <span className="text-base leading-none">{c.flag}</span>
+                        {c.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage role="alert" aria-live="polite" />
+            </FormItem>
+          )}
+        />
+
         {/* Password */}
         <PasswordField
           name="password"
           label="Contraseña"
-          placeholder="••••••••"
+          placeholder="Crea una contraseña segura"
           control={form.control as unknown as import('react-hook-form').Control<Record<string, string>>}
           disabled={isLoading}
           showStrength
@@ -249,43 +325,35 @@ export function RegisterStep2({
           .
         </p>
 
-        {/* Motivational text above CTA */}
+        {/* Submit */}
+        <SubmitButton
+          isLoading={isLoading}
+          disabled={businessNameExists || checkingName}
+          loadingLabel="Creando tu negocio..."
+        >
+          Crear mi negocio
+        </SubmitButton>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-6 pt-5 border-t border-gray-100 text-center">
         <p
-          className="text-[0.75rem] text-center"
+          className="text-[0.8rem]"
           style={{
             color: 'var(--auth-text-muted)',
             fontFamily: 'var(--auth-font-body)',
           }}
         >
-          Tu sitio estará listo en menos de 2 minutos.
-        </p>
-
-        {/* Action buttons */}
-        <div className="flex gap-3 pt-1">
+          ¿Ya tienes cuenta?{' '}
           <button
             type="button"
-            onClick={onPrevStep}
-            disabled={isLoading}
-            className="h-12 px-5 rounded-[var(--auth-radius-button)] border border-[var(--auth-border)] text-[0.85rem] font-medium transition-all duration-[var(--auth-duration-fast)] hover:border-[var(--auth-text-muted)] active:scale-[0.98] flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2"
-            style={{
-              color: 'var(--auth-text-muted)',
-              fontFamily: 'var(--auth-font-body)',
-            }}
-            data-auth-animated
+            onClick={onToggleMode}
+            className="font-medium hover:underline underline-offset-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
+            style={{ color: 'var(--auth-primary)' }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Atrás
+            Inicia sesión
           </button>
-          <div className="flex-1">
-            <SubmitButton
-              isLoading={isLoading}
-              disabled={emailExists}
-              loadingLabel="Creando..."
-            >
-              Comenzar gratis
-            </SubmitButton>
-          </div>
-        </div>
+        </p>
       </div>
     </div>
   );

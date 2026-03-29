@@ -201,12 +201,37 @@ BRANCH_EXISTS=$( (git show-ref --verify --quiet "refs/heads/{branch-name}" || gi
 # Guardar el branch actual del usuario para no perderlo
 USER_BRANCH="$CURRENT_BRANCH"
 
-# Crear branch desde develop actualizado
 git fetch origin develop
-git checkout -b {branch-name} origin/develop
 
-echo "✅ Branch '{branch-name}' creado desde develop"
-echo "📌 Branch anterior del usuario: $USER_BRANCH"
+# Verificar si el branch ya existe (ej: pipeline reiniciado)
+if git show-ref --verify --quiet "refs/heads/{branch-name}"; then
+  # Branch existe — retomar trabajo previo
+  git checkout {branch-name} || {
+    echo "❌ ERROR: No se pudo hacer checkout de '{branch-name}' (¿en uso por otro worktree?). DETENERSE."
+    exit 1
+  }
+  echo "✅ Branch '{branch-name}' ya existía, retomando"
+  echo "📌 Branch anterior del usuario: $USER_BRANCH"
+
+  # Verificar si hay commits nuevos en develop
+  BEHIND=$(git rev-list --count {branch-name}..origin/develop)
+  if [ "$BEHIND" -gt 0 ]; then
+    echo "⚠️  develop tiene $BEHIND commits nuevos. Rebaseando..."
+    git rebase origin/develop || {
+      echo "❌ CONFLICTOS en rebase. Abortando pipeline."
+      git rebase --abort
+      exit 1
+    }
+  fi
+else
+  # Branch no existe — crear desde develop
+  git checkout -b {branch-name} origin/develop || {
+    echo "❌ ERROR: No se pudo crear branch '{branch-name}'. DETENERSE."
+    exit 1
+  }
+  echo "✅ Branch '{branch-name}' creado desde develop"
+  echo "📌 Branch anterior del usuario: $USER_BRANCH"
+fi
 ```
 
 **Caso B — Estás en un worktree:**
@@ -216,7 +241,17 @@ echo "📌 Branch anterior del usuario: $USER_BRANCH"
 if [ "$CURRENT_BRANCH" = "develop" ] || [ "$CURRENT_BRANCH" = "main" ]; then
   echo "❌ ERROR: El worktree está en '$CURRENT_BRANCH'. Creando branch desde develop..."
   git fetch origin develop
-  git checkout -b {branch-name} origin/develop
+  if git show-ref --verify --quiet "refs/heads/{branch-name}"; then
+    git checkout {branch-name} || {
+      echo "❌ ERROR: No se pudo hacer checkout de '{branch-name}' (¿en uso por otro worktree?). DETENERSE."
+      exit 1
+    }
+  else
+    git checkout -b {branch-name} origin/develop || {
+      echo "❌ ERROR: No se pudo crear branch '{branch-name}'. DETENERSE."
+      exit 1
+    }
+  fi
 fi
 echo "✅ Worktree en branch: $(git branch --show-current)"
 ```

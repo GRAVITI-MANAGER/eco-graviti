@@ -373,6 +373,7 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@nerbis.com")
+DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Nerbis")
 
 # URL base del frontend (para links en emails)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
