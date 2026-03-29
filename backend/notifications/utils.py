@@ -84,9 +84,7 @@ def send_email(user, subject, template_name, context=None, recipient_email=None)
                     logo.add_header("Content-Disposition", "inline", filename="nerbis-logo.png")
                     email.attach(logo)
             else:
-                logger.warning(
-                    f"Logo no encontrado en {logo_path} — el template referencia cid:nerbis-logo pero el archivo no existe"
-                )
+                logger.warning(f"Logo no encontrado en {logo_path} — el email se enviará sin logo")
 
         # Enviar
         email.send(fail_silently=False)
