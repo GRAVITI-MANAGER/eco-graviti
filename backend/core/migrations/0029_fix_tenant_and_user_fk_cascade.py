@@ -167,7 +167,7 @@ def reverse(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0026_add_has_website_field"),
+        ("core", "0028_fix_socialaccount_cascade"),
         # Depend on latest migration of each app so all tables exist when we run
         ("billing", "0015_add_trial_annual_ai_fields"),
         ("bookings", "0004_add_expires_at_to_appointment"),
