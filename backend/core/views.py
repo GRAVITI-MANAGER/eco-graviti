@@ -1797,8 +1797,7 @@ class SocialAccountDisconnectView(APIView):
             change_message=f"Desvinculación vía API de cuenta {social_account.get_provider_display()}",
         )
         logger.info(
-            f"Social account desvinculada vía API: {provider} "
-            f"(usuario_id: {user.pk}, tenant: {user.tenant.slug})"
+            f"Social account desvinculada vía API: {provider} (usuario_id: {user.pk}, tenant: {user.tenant.slug})"
         )
 
         social_account.delete()
