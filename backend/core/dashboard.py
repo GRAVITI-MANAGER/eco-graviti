@@ -380,6 +380,35 @@ def dashboard_callback(request, context):
     low_stock_data = get_low_stock_products(request, limit=10)
 
     # =====================
+    # ESTADÍSTICAS DE AUTENTICACIÓN (solo superusuarios)
+    # =====================
+    auth_stats = {}
+    if request.user.is_superuser:
+        from core.models import SocialAccount
+
+        all_users = User.objects.all()
+        users_with_social = all_users.filter(social_accounts__isnull=False).distinct()
+        users_without_social = all_users.exclude(pk__in=users_with_social)
+
+        # Usuarios con password + social (ambos métodos)
+        users_both = users_with_social.filter(password__startswith="pbkdf2_")
+        # Usuarios solo con social (sin password usable)
+        users_social_only = users_with_social.exclude(password__startswith="pbkdf2_")
+
+        auth_stats = {
+            "total_users": all_users.count(),
+            "email_only": users_without_social.filter(password__startswith="pbkdf2_").count(),
+            "social_only": users_social_only.count(),
+            "both_methods": users_both.count(),
+            "providers": {
+                "google": SocialAccount.objects.filter(provider="google").count(),
+                "apple": SocialAccount.objects.filter(provider="apple").count(),
+                "facebook": SocialAccount.objects.filter(provider="facebook").count(),
+            },
+            "total_social_accounts": SocialAccount.objects.count(),
+        }
+
+    # =====================
     # AGREGAR AL CONTEXTO
     # =====================
     context.update(
@@ -409,6 +438,8 @@ def dashboard_callback(request, context):
             "total_out_of_stock": low_stock_data["total_out_of_stock"],
             "total_low_stock": low_stock_data["total_low_stock"],
             "total_stock_alerts": low_stock_data["total_alerts"],
+            # Estadísticas de autenticación (solo superusuarios)
+            "auth_stats": auth_stats,
         }
     )
 

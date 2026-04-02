@@ -292,12 +292,12 @@ export default function SetupPage() {
             </span>
             <div className="flex items-center gap-1.5">
               <Link
-                href="/dashboard/profile"
+                href="/dashboard/settings"
                 className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-500 hover:text-[#1C3B57] hover:bg-gray-50 transition-colors"
-                aria-label="Mi Perfil"
+                aria-label="Mi Cuenta"
               >
                 <UserCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Mi Perfil</span>
+                <span className="hidden sm:inline">Mi Cuenta</span>
               </Link>
               <div className="w-px h-4 bg-gray-200" aria-hidden="true" />
               <button

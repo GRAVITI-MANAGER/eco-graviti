@@ -1472,11 +1472,26 @@ class SocialAccountAdmin(UnfoldModelAdmin):
     Permite ver y gestionar las vinculaciones sociales de los usuarios.
     """
 
-    list_display = ["user", "provider_badge", "email", "tenant", "created_at"]
+    list_display = [
+        "avatar_thumbnail",
+        "user",
+        "provider_badge",
+        "provider_name_display",
+        "email",
+        "tenant",
+        "created_at",
+    ]
     list_filter = ["provider", "tenant"]
     search_fields = ["user__email", "user__first_name", "user__last_name", "email"]
     search_help_text = "Buscar por email del usuario o email del proveedor"
-    readonly_fields = ["provider_uid", "extra_data", "created_at", "updated_at"]
+    readonly_fields = [
+        "provider_uid",
+        "provider_name_display",
+        "provider_avatar_display",
+        "extra_data",
+        "created_at",
+        "updated_at",
+    ]
     ordering = ["-created_at"]
     actions = ["disconnect_social_accounts"]
 
@@ -1486,13 +1501,34 @@ class SocialAccountAdmin(UnfoldModelAdmin):
             {"fields": ("user", "tenant", "provider", "email", "provider_uid")},
         ),
         (
-            "Datos adicionales",
+            "Datos del proveedor",
+            {
+                "fields": ("provider_name_display", "provider_avatar_display"),
+                "description": "Nombre y avatar obtenidos del proveedor OAuth al momento de la vinculación.",
+            },
+        ),
+        (
+            "Datos adicionales (JSON)",
             {
                 "fields": ("extra_data", "created_at", "updated_at"),
                 "classes": ("collapse",),
             },
         ),
     )
+
+    @admin.display(description="Avatar")
+    def avatar_thumbnail(self, obj):
+        """Miniatura del avatar del proveedor en la lista."""
+        picture = obj.extra_data.get("picture", "")
+        if picture:
+            return format_html(
+                '<img src="{}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="avatar" />',
+                picture,
+            )
+        return format_html(
+            '<span style="display:inline-block; width:28px; height:28px; border-radius:50%; '
+            'background:#e5e7eb; text-align:center; line-height:28px; font-size:14px; color:#6b7280;">—</span>'
+        )
 
     @admin.display(description="Proveedor")
     def provider_badge(self, obj):
@@ -1505,11 +1541,33 @@ class SocialAccountAdmin(UnfoldModelAdmin):
             obj.get_provider_display(),
         )
 
+    @admin.display(description="Nombre del proveedor")
+    def provider_name_display(self, obj):
+        """Nombre completo del usuario según el proveedor OAuth."""
+        name = obj.extra_data.get("name", "")
+        return name or "—"
+
+    @admin.display(description="Avatar del proveedor")
+    def provider_avatar_display(self, obj):
+        """Avatar del usuario según el proveedor OAuth."""
+        picture = obj.extra_data.get("picture", "")
+        if picture:
+            return format_html(
+                '<img src="{}" style="width:64px; height:64px; border-radius:50%; object-fit:cover;" alt="avatar" />',
+                picture,
+            )
+        return "Sin avatar"
+
     @admin.action(description="Desvincular cuentas sociales seleccionadas")
     def disconnect_social_accounts(self, request, queryset):
         """Elimina las vinculaciones seleccionadas verificando que el usuario no pierda acceso."""
+        from django.contrib.admin.models import DELETION, LogEntry
+        from django.contrib.contenttypes.models import ContentType
+
         disconnected = 0
         skipped = 0
+        ct = ContentType.objects.get_for_model(SocialAccount)
+
         for social_account in queryset:
             user = social_account.user
             has_password = user.has_usable_password()
@@ -1519,6 +1577,16 @@ class SocialAccountAdmin(UnfoldModelAdmin):
             if not has_password and other_social == 0:
                 skipped += 1
                 continue
+
+            # Registrar en audit log antes de eliminar
+            LogEntry.objects.log_action(
+                user_id=request.user.pk,
+                content_type_id=ct.pk,
+                object_id=str(social_account.pk),
+                object_repr=f"{social_account.get_provider_display()} - {social_account.email} ({user.get_full_name()})",
+                action_flag=DELETION,
+                change_message=f"Desvinculación de cuenta {social_account.get_provider_display()} del usuario {user.email}",
+            )
             social_account.delete()
             disconnected += 1
 

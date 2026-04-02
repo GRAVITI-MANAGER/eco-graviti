@@ -23,6 +23,7 @@ from .serializers import (
     SetPasswordSerializer,
     SocialLinkSerializer,
     SocialLoginSerializer,
+    TeamMemberSerializer,
     TenantRegisterSerializer,
     TenantSerializer,
     UpdateProfileSerializer,
@@ -1780,6 +1781,24 @@ class SocialAccountDisconnectView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Registrar desvinculación en audit log
+        from django.contrib.admin.models import DELETION, LogEntry
+        from django.contrib.contenttypes.models import ContentType
+
+        ct = ContentType.objects.get_for_model(SocialAccount)
+        LogEntry.objects.log_action(
+            user_id=user.pk,
+            content_type_id=ct.pk,
+            object_id=str(social_account.pk),
+            object_repr=f"{social_account.get_provider_display()} - {social_account.email}",
+            action_flag=DELETION,
+            change_message=f"Desvinculación vía API de cuenta {social_account.get_provider_display()}",
+        )
+        logger.info(
+            f"Social account desvinculada vía API: {provider} - {social_account.email} "
+            f"(usuario: {user.email}, tenant: {user.tenant.slug})"
+        )
+
         social_account.delete()
         return Response({"message": f"Cuenta de {provider} desvinculada correctamente"})
 
@@ -1901,3 +1920,159 @@ class PlatformSocialLoginView(APIView):
             )
 
         return Response(_build_social_auth_response(user, user.tenant))
+
+
+# ===================================
+# GESTIÓN DE EQUIPO (TEAM)
+# ===================================
+
+
+class TeamListView(generics.ListAPIView):
+    """
+    GET /api/team/ — Listar miembros del equipo del tenant.
+
+    Solo accesible para admins del tenant. Retorna todos los usuarios
+    del tenant con sus cuentas sociales y método de autenticación.
+
+    Query params:
+    - role: filtrar por rol (admin, staff, customer)
+    - auth_method: filtrar por método (email_only, social_only, both)
+    - search: buscar por nombre o email
+    - ordering: ordenar por campo (default: -date_joined)
+    """
+
+    serializer_class = TeamMemberSerializer
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="role", type=str, enum=["admin", "staff", "customer"]),
+            OpenApiParameter(name="auth_method", type=str, enum=["email_only", "social_only", "both"]),
+            OpenApiParameter(name="search", type=str),
+            OpenApiParameter(name="ordering", type=str),
+        ],
+        responses={200: TeamMemberSerializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role != "admin":
+            return User.objects.none()
+
+        qs = User.objects.filter(tenant=user.tenant).prefetch_related("social_accounts").order_by("-date_joined")
+
+        # Filtro por rol
+        role = self.request.query_params.get("role")
+        if role in ("admin", "staff", "customer"):
+            qs = qs.filter(role=role)
+
+        # Filtro por método de auth
+        auth_method = self.request.query_params.get("auth_method")
+        if auth_method == "email_only":
+            qs = qs.filter(social_accounts__isnull=True, password__startswith="pbkdf2_")
+        elif auth_method == "social_only":
+            qs = qs.filter(social_accounts__isnull=False).exclude(password__startswith="pbkdf2_").distinct()
+        elif auth_method == "both":
+            qs = qs.filter(social_accounts__isnull=False, password__startswith="pbkdf2_").distinct()
+
+        # Búsqueda
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search)
+            )
+
+        # Ordenamiento
+        ordering = self.request.query_params.get("ordering", "-date_joined")
+        allowed = ["date_joined", "-date_joined", "email", "-email", "role", "-role", "first_name", "-first_name"]
+        if ordering in allowed:
+            qs = qs.order_by(ordering)
+
+        return qs
+
+
+class TeamDisconnectSocialView(APIView):
+    """
+    DELETE /api/team/{user_id}/social/{provider}/ — Desvincular social account de un miembro.
+
+    Solo accesible para admins del tenant. Verifica que el usuario no pierda acceso.
+    Registra la acción en el audit log.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Cuenta social desvinculada"),
+            400: OpenApiResponse(description="No se puede desvincular (único método de acceso)"),
+            403: OpenApiResponse(description="No tienes permisos"),
+            404: OpenApiResponse(description="Usuario o social account no encontrada"),
+        },
+    )
+    def delete(self, request, user_id, provider):
+        # Solo admins del tenant
+        if request.user.role != "admin":
+            return Response(
+                {"error": "Solo administradores pueden gestionar el equipo"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        if provider not in ("google", "apple", "facebook"):
+            return Response({"error": "Proveedor no válido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Buscar usuario en el mismo tenant
+        try:
+            target_user = User.objects.get(id=user_id, tenant=request.user.tenant)
+        except User.DoesNotExist:
+            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Buscar social account
+        social_account = SocialAccount.objects.filter(
+            user=target_user, tenant=target_user.tenant, provider=provider
+        ).first()
+        if not social_account:
+            return Response(
+                {"error": f"El usuario no tiene una cuenta de {provider} vinculada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Verificar que no quede sin acceso
+        has_password = target_user.has_usable_password()
+        other_social_count = (
+            SocialAccount.objects.filter(user=target_user, tenant=target_user.tenant)
+            .exclude(id=social_account.id)
+            .count()
+        )
+
+        if not has_password and other_social_count == 0:
+            return Response(
+                {"error": "No se puede desvincular porque es el único método de acceso del usuario."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Audit log
+        from django.contrib.admin.models import DELETION, LogEntry
+        from django.contrib.contenttypes.models import ContentType
+
+        ct = ContentType.objects.get_for_model(SocialAccount)
+        LogEntry.objects.log_action(
+            user_id=request.user.pk,
+            content_type_id=ct.pk,
+            object_id=str(social_account.pk),
+            object_repr=f"{social_account.get_provider_display()} - {social_account.email}",
+            action_flag=DELETION,
+            change_message=(
+                f"Admin {request.user.email} desvinculó cuenta "
+                f"{social_account.get_provider_display()} del usuario {target_user.email}"
+            ),
+        )
+        logger.info(
+            f"Team disconnect: {provider} desvinculado de {target_user.email} "
+            f"por admin {request.user.email} (tenant: {request.user.tenant.slug})"
+        )
+
+        social_account.delete()
+        return Response(
+            {"message": f"Cuenta de {provider} desvinculada de {target_user.get_full_name() or target_user.email}"}
+        )

@@ -74,6 +74,24 @@ class SocialAccountSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class SocialAccountDetailSerializer(serializers.ModelSerializer):
+    """Serializer extendido para social accounts — incluye nombre y avatar del proveedor."""
+
+    provider_name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SocialAccount
+        fields = ["id", "provider", "email", "provider_name", "avatar_url", "created_at"]
+        read_only_fields = fields
+
+    def get_provider_name(self, obj) -> str:
+        return obj.extra_data.get("name", "")
+
+    def get_avatar_url(self, obj) -> str:
+        return obj.extra_data.get("picture", "")
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer para User (información completa)"""
 
@@ -110,6 +128,51 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_password(self, obj) -> bool:
         return obj.has_usable_password()
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    """Serializer para miembros del equipo — vista de admin con social accounts detalladas."""
+
+    full_name = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    has_password = serializers.SerializerMethodField()
+    social_accounts = SocialAccountDetailSerializer(many=True, read_only=True)
+    auth_method = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "phone",
+            "avatar",
+            "role",
+            "role_display",
+            "is_active",
+            "date_joined",
+            "has_password",
+            "social_accounts",
+            "auth_method",
+        ]
+        read_only_fields = fields
+
+    def get_full_name(self, obj) -> str:
+        return obj.get_full_name() or obj.username
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
+
+    def get_auth_method(self, obj) -> str:
+        has_password = obj.has_usable_password()
+        has_social = obj.social_accounts.exists()
+        if has_password and has_social:
+            return "both"
+        if has_social:
+            return "social_only"
+        return "email_only"
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
