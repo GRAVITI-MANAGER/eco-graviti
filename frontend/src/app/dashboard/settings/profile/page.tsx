@@ -179,7 +179,6 @@ export default function SettingsProfilePage() {
     onSuccess: () => {
       toast({ title: 'Cuenta eliminada', description: 'Tu cuenta ha sido eliminada correctamente' });
       logout();
-      router.push('/');
     },
     onError: (error: Error) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });

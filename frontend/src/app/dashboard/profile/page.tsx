@@ -1,15 +1,7 @@
 // src/app/dashboard/profile/page.tsx
-// Redirect to new settings location
 
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 export default function ProfileRedirect() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/dashboard/settings/profile');
-  }, [router]);
-  return null;
+  redirect('/dashboard/settings/profile');
 }

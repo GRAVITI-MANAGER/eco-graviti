@@ -43,6 +43,8 @@ from .throttles import (
 logger = logging.getLogger(__name__)
 from django.db.models import Q
 
+from .permissions import IsTenantAdmin
+
 # ===================================
 # VISTA DE SUSCRIPCION EXPIRADA
 # ===================================
@@ -1795,8 +1797,8 @@ class SocialAccountDisconnectView(APIView):
             change_message=f"Desvinculación vía API de cuenta {social_account.get_provider_display()}",
         )
         logger.info(
-            f"Social account desvinculada vía API: {provider} - {social_account.email} "
-            f"(usuario: {user.email}, tenant: {user.tenant.slug})"
+            f"Social account desvinculada vía API: {provider} "
+            f"(usuario_id: {user.pk}, tenant: {user.tenant.slug})"
         )
 
         social_account.delete()
@@ -1942,7 +1944,7 @@ class TeamListView(generics.ListAPIView):
     """
 
     serializer_class = TeamMemberSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
 
     @extend_schema(
         parameters=[
@@ -1968,14 +1970,20 @@ class TeamListView(generics.ListAPIView):
         if role in ("admin", "staff", "customer"):
             qs = qs.filter(role=role)
 
-        # Filtro por método de auth
+        # Filtro por método de auth (evaluación en Python para usar has_usable_password)
         auth_method = self.request.query_params.get("auth_method")
-        if auth_method == "email_only":
-            qs = qs.filter(social_accounts__isnull=True, password__startswith="pbkdf2_")
-        elif auth_method == "social_only":
-            qs = qs.filter(social_accounts__isnull=False).exclude(password__startswith="pbkdf2_").distinct()
-        elif auth_method == "both":
-            qs = qs.filter(social_accounts__isnull=False, password__startswith="pbkdf2_").distinct()
+        if auth_method in ("email_only", "social_only", "both"):
+            filtered_ids = []
+            for u in qs:
+                has_social = u.social_accounts.exists()
+                has_pw = u.has_usable_password()
+                if auth_method == "email_only" and not has_social and has_pw:
+                    filtered_ids.append(u.pk)
+                elif auth_method == "social_only" and has_social and not has_pw:
+                    filtered_ids.append(u.pk)
+                elif auth_method == "both" and has_social and has_pw:
+                    filtered_ids.append(u.pk)
+            qs = qs.filter(pk__in=filtered_ids)
 
         # Búsqueda
         search = self.request.query_params.get("search")

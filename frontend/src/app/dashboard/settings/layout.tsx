@@ -95,7 +95,7 @@ export default function SettingsLayout({
               <div className="w-px h-4 bg-gray-200" aria-hidden="true" />
               <button
                 type="button"
-                onClick={() => logout()}
+                onClick={() => void logout()}
                 className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" aria-hidden="true" />

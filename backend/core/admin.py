@@ -4,6 +4,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.db import models
+from django.db.models import Q
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from unfold.admin import ModelAdmin as UnfoldModelAdmin
@@ -981,13 +982,13 @@ class AuthMethodFilter(admin.SimpleListFilter):
         no_social = queryset.exclude(pk__in=has_social)
 
         if self.value() == "email_only":
-            return no_social
+            return no_social.exclude(password__startswith="!").exclude(password="")
         if self.value() == "social_only":
-            # Usuarios sin password usable (solo social)
-            return has_social.exclude(password__startswith="pbkdf2_")
+            # Usuarios sin password usable (password vacío o con prefijo !)
+            return has_social.filter(Q(password__startswith="!") | Q(password=""))
         if self.value() == "both":
-            # Usuarios con password Y social
-            return has_social.filter(password__startswith="pbkdf2_")
+            # Usuarios con password usable Y social
+            return has_social.exclude(password__startswith="!").exclude(password="")
         return queryset
 
 
@@ -1520,7 +1521,7 @@ class SocialAccountAdmin(UnfoldModelAdmin):
     def avatar_thumbnail(self, obj):
         """Miniatura del avatar del proveedor en la lista."""
         picture = obj.extra_data.get("picture", "")
-        if picture:
+        if picture and picture.startswith(("https://", "http://")):
             return format_html(
                 '<img src="{}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="avatar" />',
                 picture,

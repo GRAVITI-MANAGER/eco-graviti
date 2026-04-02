@@ -390,16 +390,15 @@ def dashboard_callback(request, context):
         users_with_social = all_users.filter(social_accounts__isnull=False).distinct()
         users_without_social = all_users.exclude(pk__in=users_with_social)
 
-        # Usuarios con password + social (ambos métodos)
-        users_both = users_with_social.filter(password__startswith="pbkdf2_")
-        # Usuarios solo con social (sin password usable)
-        users_social_only = users_with_social.exclude(password__startswith="pbkdf2_")
+        # Clasificar por has_usable_password (evita depender del hash prefix)
+        users_with_password = [u for u in users_with_social if u.has_usable_password()]
+        users_social_only = [u for u in users_with_social if not u.has_usable_password()]
 
         auth_stats = {
             "total_users": all_users.count(),
-            "email_only": users_without_social.filter(password__startswith="pbkdf2_").count(),
-            "social_only": users_social_only.count(),
-            "both_methods": users_both.count(),
+            "email_only": sum(1 for u in users_without_social if u.has_usable_password()),
+            "social_only": len(users_social_only),
+            "both_methods": len(users_with_password),
             "providers": {
                 "google": SocialAccount.objects.filter(provider="google").count(),
                 "apple": SocialAccount.objects.filter(provider="apple").count(),

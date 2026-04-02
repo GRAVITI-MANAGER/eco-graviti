@@ -135,19 +135,12 @@ export default function SettingsTeamPage() {
     social: SocialAccountDetail | null;
   }>({ open: false, member: null, social: null });
 
-  // Role guard — solo admins
-  if (user?.role !== 'admin') {
-    router.push('/dashboard');
-    return null;
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: members, isLoading } = useQuery({
     queryKey: ['team-members', filters],
     queryFn: () => getTeamMembers(filters),
+    enabled: user?.role === 'admin',
   });
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const disconnectMutation = useMutation({
     mutationFn: ({ userId, provider }: { userId: number; provider: string }) =>
       disconnectTeamSocial(userId, provider),
@@ -160,6 +153,12 @@ export default function SettingsTeamPage() {
       toast.error(error.response?.data?.error || 'Error al desvincular la cuenta');
     },
   });
+
+  // Role guard — solo admins (después de hooks para cumplir Rules of Hooks)
+  if (user?.role !== 'admin') {
+    router.push('/dashboard');
+    return null;
+  }
 
   const teamList = members || [];
 
@@ -416,7 +415,11 @@ export default function SettingsTeamPage() {
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={disconnectMutation.isPending}
+              disabled={
+                disconnectMutation.isPending ||
+                (!disconnectDialog.member?.has_password &&
+                  (disconnectDialog.member?.social_accounts.length ?? 0) <= 1)
+              }
             >
               {disconnectMutation.isPending ? 'Desvinculando...' : 'Desvincular'}
             </AlertDialogAction>
