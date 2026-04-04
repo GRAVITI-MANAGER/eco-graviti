@@ -255,7 +255,7 @@ export default function SettingsProfilePage() {
                 <p className="text-[0.75rem] text-gray-400 truncate">{!mounted ? 'Cargando\u2026' : user?.email}</p>
               </div>
             </div>
-            {profile?.has_password ? (
+            {!profile ? null : profile.has_password ? (
               <Badge variant="outline" className="gap-1 text-[0.7rem] text-emerald-600 border-emerald-200 bg-emerald-50/80">
                 <Check className="size-3" aria-hidden="true" />
                 Activo
@@ -271,7 +271,7 @@ export default function SettingsProfilePage() {
               </Button>
             )}
           </div>
-          {!profile?.has_password && (
+          {profile && !profile.has_password && (
             <div className="px-4 pb-3.5 -mt-1">
               <p className="text-[0.75rem] text-gray-400 leading-relaxed">
                 Crea una contraseña para acceder también por email, sin depender de redes sociales.

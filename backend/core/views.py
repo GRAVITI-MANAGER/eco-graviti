@@ -1960,9 +1960,6 @@ class TeamListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role != "admin":
-            return User.objects.none()
-
         qs = User.objects.filter(tenant=user.tenant).prefetch_related("social_accounts").order_by("-date_joined")
 
         # Filtro por rol
