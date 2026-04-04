@@ -20,6 +20,8 @@ export { ReactivateDialog } from './ReactivateDialog';
 
 // ─── Brand Panel ─────────────────────────────────────────────────
 export { BrandPanel } from './BrandPanel';
+export { TabletBrandPanel } from './TabletBrandPanel';
+export { MobileBrandHeader } from './MobileBrandHeader';
 export { BrandCarousel } from './BrandCarousel';
 export { BrandLogo } from './BrandLogo';
 export { brandSlides } from './brand-content';
