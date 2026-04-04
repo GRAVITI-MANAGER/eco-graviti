@@ -44,6 +44,11 @@ class SocialUserInfo:
 
 # ===================================
 # VERIFICADORES POR PROVEEDOR
+#
+# OAuth scopes requeridos por proveedor:
+#   Google:   email, profile  → sub, email, name, given_name, family_name, picture, locale
+#   Apple:    email, name     → sub, email, first_name, last_name (nombre solo en primer login)
+#   Facebook: email, public_profile → id, email, first_name, last_name, picture
 # ===================================
 
 

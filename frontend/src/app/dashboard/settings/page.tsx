@@ -1,7 +1,7 @@
-// src/app/dashboard/profile/page.tsx
+// src/app/dashboard/settings/page.tsx
 
 import { redirect } from 'next/navigation';
 
-export default function ProfileRedirect() {
+export default function SettingsPage() {
   redirect('/dashboard/settings/profile');
 }

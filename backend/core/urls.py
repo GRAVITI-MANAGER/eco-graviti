@@ -31,6 +31,13 @@ urlpatterns = [
         "auth/social/disconnect/<str:provider>/", views.SocialAccountDisconnectView.as_view(), name="social_disconnect"
     ),
     path("auth/social/<str:provider>/", views.SocialLoginView.as_view(), name="social_login"),
+    # Gestión de equipo (solo admins del tenant)
+    path("team/", views.TeamListView.as_view(), name="team_list"),
+    path(
+        "team/<int:user_id>/social/<str:provider>/",
+        views.TeamDisconnectSocialView.as_view(),
+        name="team_disconnect_social",
+    ),
     # Banners
     path("banners/", views.ActiveBannersView.as_view(), name="active_banners"),
     # Configuración del tenant
