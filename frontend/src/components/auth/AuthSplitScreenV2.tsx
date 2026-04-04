@@ -4,8 +4,9 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import { BrandPanel } from './BrandPanel';
+import { TabletBrandPanel } from './TabletBrandPanel';
+import { MobileBrandHeader } from './MobileBrandHeader';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
@@ -112,76 +113,115 @@ export default function AuthSplitScreenV2({
           : 'opacity 200ms ease-out, transform 200ms ease-out',
       };
 
+  // ── Shared form content (avoid duplication across layouts)
+  const formContent = (
+    <>
+      {mode === 'login' && (
+        <LoginForm
+          onToggleMode={goToRegister}
+          onForgotPassword={goToForgot}
+          redirectTo={redirectTo}
+          onSwitchToRegister={handleSwitchToRegister}
+        />
+      )}
+
+      {mode === 'register' && (
+        <RegisterForm
+          onToggleMode={goToLogin}
+          initialPrefill={registerPrefill}
+        />
+      )}
+
+      {mode === 'forgot' && (
+        <ForgotPasswordForm onGoToLogin={goToLogin} />
+      )}
+    </>
+  );
+
   return (
-    <div className="flex min-h-screen w-full" data-auth-animated>
+    <div data-auth-animated>
       {/* Screen reader announcements */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
       </div>
 
-      {/* ─── Left: Brand Panel (hidden on mobile) ─── */}
-      <aside
-        className="hidden lg:flex lg:w-[45%] xl:w-[42%]"
-        aria-hidden="true"
-      >
-        <BrandPanel />
-      </aside>
-
-      {/* ─── Right: Form Panel ─── */}
-      <main
-        role="main"
-        className="relative flex w-full flex-1 flex-col items-center justify-center lg:w-[55%] xl:w-[58%]"
-        style={{ background: 'var(--auth-bg, #FAFAFA)' }}
-      >
-        {/* Mobile branded header (visible only below lg) */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-center gap-2.5 py-6 lg:hidden">
-          <Image
-            src="/Isotipo_color_NERBIS.png"
-            alt=""
-            width={28}
-            height={28}
-            aria-hidden="true"
-            priority
-          />
-          <span
-            className="text-[1rem] tracking-[0.16em]"
-            style={{
-              fontFamily: 'var(--auth-font-brand)',
-              fontWeight: 800,
-              color: 'var(--auth-primary)',
-            }}
-          >
-            NERBIS
-          </span>
-        </div>
-
-        {/* Form container */}
-        <div
-          ref={formPanelRef}
-          className="w-full max-w-md px-5 py-8 sm:px-8 lg:px-12 lg:py-0"
-          style={formTransitionStyle}
+      {/* ═══════ DESKTOP (lg+) ═══════ */}
+      <div className="hidden lg:flex min-h-screen w-full">
+        {/* Left: Full brand panel */}
+        <aside
+          className="w-[45%] xl:w-[42%]"
+          aria-hidden="true"
         >
-          {mode === 'login' && (
-            <LoginForm
-              onToggleMode={goToRegister}
-              onForgotPassword={goToForgot}
-              redirectTo={redirectTo}
-              onSwitchToRegister={handleSwitchToRegister}
-            />
-          )}
+          <BrandPanel />
+        </aside>
 
-          {mode === 'register' && (
-            <RegisterForm
-              onToggleMode={goToLogin}
-              initialPrefill={registerPrefill}
-            />
-          )}
+        {/* Right: Form panel */}
+        <main
+          role="main"
+          className="relative flex w-[55%] flex-1 flex-col items-center justify-center xl:w-[58%]"
+          style={{ background: 'var(--auth-bg, #FAFAFA)' }}
+        >
+          <div
+            ref={formPanelRef}
+            className="w-full max-w-md px-12"
+            style={formTransitionStyle}
+          >
+            {formContent}
+          </div>
+        </main>
+      </div>
 
-          {mode === 'forgot' && (
-            <ForgotPasswordForm onGoToLogin={goToLogin} />
-          )}
+      {/* ═══════ TABLET (md–lg) ═══════ */}
+      <div className="hidden md:flex lg:hidden min-h-screen w-full">
+        {/* Left: Condensed brand panel */}
+        <aside
+          className="w-[38%]"
+          aria-hidden="true"
+        >
+          <TabletBrandPanel />
+        </aside>
+
+        {/* Right: Form panel */}
+        <main
+          role="main"
+          className="relative flex w-[62%] flex-1 flex-col items-center justify-center"
+          style={{ background: 'var(--auth-bg, #FAFAFA)' }}
+        >
+          <div
+            ref={formPanelRef}
+            className="w-full max-w-md px-8"
+            style={formTransitionStyle}
+          >
+            {formContent}
+          </div>
+        </main>
+      </div>
+
+      {/* ═══════ MOBILE (<md) ═══════ */}
+      <div className="flex flex-col h-screen md:hidden">
+        {/* Branded header — sticky at top */}
+        <div className="sticky top-0 z-20 shrink-0">
+          <MobileBrandHeader />
         </div>
-      </main>
+
+        {/* Form panel — scrollable */}
+        <main
+          role="main"
+          className="flex flex-1 flex-col items-center overflow-y-auto overscroll-contain"
+          style={{
+            background: 'linear-gradient(180deg, #F5F7FA 0%, var(--auth-bg, #FAFAFA) 100%)',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <div
+            ref={formPanelRef}
+            className="w-full max-w-md px-5 py-6 sm:px-8 sm:py-8"
+            style={formTransitionStyle}
+          >
+            {formContent}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
