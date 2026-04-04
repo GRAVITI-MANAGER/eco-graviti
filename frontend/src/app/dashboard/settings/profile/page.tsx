@@ -284,8 +284,23 @@ export default function SettingsProfilePage() {
         <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
           {(['google', 'apple', 'facebook'] as SocialProvider[]).map((provider) => {
             const config = PROVIDER_CONFIG[provider];
-            const linked = profile?.social_accounts?.find((sa) => sa.provider === provider);
-            const canDisconnect = (profile?.has_password) || ((profile?.social_accounts?.length ?? 0) > 1);
+
+            if (!profile) {
+              return (
+                <div key={provider} className="flex items-center gap-3 px-4 py-3.5">
+                  <div className="size-9 rounded-lg flex items-center justify-center shrink-0 bg-gray-100">
+                    {config.icon}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-20 bg-gray-100 rounded animate-pulse" />
+                    <div className="h-3 w-32 bg-gray-50 rounded animate-pulse" />
+                  </div>
+                </div>
+              );
+            }
+
+            const linked = profile.social_accounts?.find((sa) => sa.provider === provider);
+            const canDisconnect = profile.has_password || (profile.social_accounts?.length ?? 0) > 1;
 
             return (
               <div
