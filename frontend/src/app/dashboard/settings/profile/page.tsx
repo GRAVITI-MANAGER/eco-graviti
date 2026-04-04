@@ -203,12 +203,17 @@ export default function SettingsProfilePage() {
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordData.new_password !== passwordData.new_password2) {
+    const pw = passwordData.new_password;
+    if (pw !== passwordData.new_password2) {
       toast({ title: 'Error', description: 'Las contraseñas no coinciden', variant: 'destructive' });
       return;
     }
-    if (passwordData.new_password.length < 8) {
+    if (pw.length < 8) {
       toast({ title: 'Error', description: 'La contraseña debe tener al menos 8 caracteres', variant: 'destructive' });
+      return;
+    }
+    if (/^\d+$/.test(pw)) {
+      toast({ title: 'Error', description: 'La contraseña no puede ser completamente numérica', variant: 'destructive' });
       return;
     }
     changePasswordMutation.mutate(passwordData);
@@ -633,24 +638,30 @@ export default function SettingsProfilePage() {
                       Esta acción es irreversible. Se eliminarán todos tus datos de nuestros servidores.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <div className="py-3">
-                    <Label htmlFor="delete_password" className="mb-1.5 block text-[0.75rem] text-gray-500">
-                      Ingresa tu contraseña para confirmar
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="delete_password"
-                        name="delete_password"
-                        type={showDeletePassword ? 'text' : 'password'}
-                        placeholder="Tu contraseña…"
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        autoComplete="current-password"
-                        className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
-                      />
-                      <PasswordToggle show={showDeletePassword} onToggle={() => setShowDeletePassword(v => !v)} />
+                  {profile?.has_password ? (
+                    <div className="py-3">
+                      <Label htmlFor="delete_password" className="mb-1.5 block text-[0.75rem] text-gray-500">
+                        Ingresa tu contraseña para confirmar
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="delete_password"
+                          name="delete_password"
+                          type={showDeletePassword ? 'text' : 'password'}
+                          placeholder="Tu contraseña…"
+                          value={deletePassword}
+                          onChange={(e) => setDeletePassword(e.target.value)}
+                          autoComplete="current-password"
+                          className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
+                        />
+                        <PasswordToggle show={showDeletePassword} onToggle={() => setShowDeletePassword(v => !v)} />
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="py-3 text-[0.78rem] text-gray-500 leading-relaxed">
+                      Para eliminar tu cuenta, primero debes crear una contraseña desde la sección de métodos de acceso.
+                    </p>
+                  )}
                   <AlertDialogFooter className="flex-row gap-2 pt-2 border-t border-gray-100">
                     <AlertDialogCancel
                       onClick={() => setDeletePassword('')}
@@ -660,8 +671,8 @@ export default function SettingsProfilePage() {
                     </AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAccount}
-                      disabled={deleteAccountMutation.isPending}
-                      className="flex-1 rounded-lg text-[0.8rem] h-9 bg-red-500 hover:bg-red-600 text-white"
+                      disabled={deleteAccountMutation.isPending || !profile?.has_password}
+                      className="flex-1 rounded-lg text-[0.8rem] h-9 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
                     >
                       {deleteAccountMutation.isPending ? 'Eliminando\u2026' : 'Eliminar cuenta'}
                     </AlertDialogAction>

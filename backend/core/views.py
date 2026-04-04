@@ -41,6 +41,7 @@ from .throttles import (
 )
 
 logger = logging.getLogger(__name__)
+from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.db.models import Q
 
 from .permissions import IsTenantAdmin
@@ -1969,20 +1970,27 @@ class TeamListView(generics.ListAPIView):
         if role in ("admin", "staff", "customer"):
             qs = qs.filter(role=role)
 
-        # Filtro por método de auth (evaluación en Python para usar has_usable_password)
+        # Filtro por método de auth (a nivel BD usando UNUSABLE_PASSWORD_PREFIX)
         auth_method = self.request.query_params.get("auth_method")
-        if auth_method in ("email_only", "social_only", "both"):
-            filtered_ids = []
-            for u in qs:
-                has_social = u.social_accounts.exists()
-                has_pw = u.has_usable_password()
-                if auth_method == "email_only" and not has_social and has_pw:
-                    filtered_ids.append(u.pk)
-                elif auth_method == "social_only" and has_social and not has_pw:
-                    filtered_ids.append(u.pk)
-                elif auth_method == "both" and has_social and has_pw:
-                    filtered_ids.append(u.pk)
-            qs = qs.filter(pk__in=filtered_ids)
+        if auth_method == "email_only":
+            qs = (
+                qs.filter(social_accounts__isnull=True)
+                .exclude(password__startswith=UNUSABLE_PASSWORD_PREFIX)
+                .exclude(password="")
+            )
+        elif auth_method == "social_only":
+            qs = (
+                qs.filter(social_accounts__isnull=False)
+                .filter(Q(password__startswith=UNUSABLE_PASSWORD_PREFIX) | Q(password=""))
+                .distinct()
+            )
+        elif auth_method == "both":
+            qs = (
+                qs.filter(social_accounts__isnull=False)
+                .exclude(password__startswith=UNUSABLE_PASSWORD_PREFIX)
+                .exclude(password="")
+                .distinct()
+            )
 
         # Búsqueda
         search = self.request.query_params.get("search")
@@ -2008,7 +2016,7 @@ class TeamDisconnectSocialView(APIView):
     Registra la acción en el audit log.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
 
     @extend_schema(
         responses={
@@ -2019,12 +2027,6 @@ class TeamDisconnectSocialView(APIView):
         },
     )
     def delete(self, request, user_id, provider):
-        # Solo admins del tenant
-        if request.user.role != "admin":
-            return Response(
-                {"error": "Solo administradores pueden gestionar el equipo"}, status=status.HTTP_403_FORBIDDEN
-            )
-
         if provider not in ("google", "apple", "facebook"):
             return Response({"error": "Proveedor no válido"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2067,16 +2069,13 @@ class TeamDisconnectSocialView(APIView):
             user_id=request.user.pk,
             content_type_id=ct.pk,
             object_id=str(social_account.pk),
-            object_repr=f"{social_account.get_provider_display()} - {social_account.email}",
+            object_repr=f"{social_account.get_provider_display()} (id={social_account.pk})",
             action_flag=DELETION,
-            change_message=(
-                f"Admin {request.user.email} desvinculó cuenta "
-                f"{social_account.get_provider_display()} del usuario {target_user.email}"
-            ),
+            change_message=f"Admin id={request.user.pk} desvinculó cuenta {social_account.get_provider_display()} del usuario id={target_user.pk}",
         )
         logger.info(
-            f"Team disconnect: {provider} desvinculado de {target_user.email} "
-            f"por admin {request.user.email} (tenant: {request.user.tenant.slug})"
+            f"Team disconnect: {provider} desvinculado de usuario_id={target_user.pk} "
+            f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"
         )
 
         social_account.delete()
