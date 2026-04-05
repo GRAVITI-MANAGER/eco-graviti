@@ -167,9 +167,20 @@ punto del pipeline, **DETENERSE INMEDIATAMENTE**. Algo salió mal en el bootstra
 
 ### Bootstrap automático (OBLIGATORIO en flujo SDD)
 
-Al iniciar `sdd-new`, `sdd-ff`, o cualquier comando SDD que inicie un cambio nuevo,
+Al iniciar `sdd-new`, `sdd-ff`, `sdd-continue`, o cualquier comando SDD que inicie o retome un cambio,
 ejecutar estos pasos **en orden, sin saltar ninguno, sin preguntar**. Si un paso falla,
 **DETENERSE e informar al usuario**. NO continuar con el pipeline hasta que todos pasen.
+
+#### Paso 0 — Sincronizar con develop (SIEMPRE — NO SALTAR)
+
+Antes de cualquier otra acción, asegurar que el ambiente local tiene los últimos cambios de develop:
+
+```bash
+git fetch origin develop
+echo "✅ Fetch de develop completado ($(git rev-parse --short origin/develop))"
+```
+
+Esto garantiza que al crear branches o hacer rebase, se usa el develop más reciente de GitHub.
 
 #### Paso 1 — sdd-init (si no existe skill registry)
 1. Verificar si `.atl/skill-registry.md` existe
