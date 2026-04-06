@@ -1120,3 +1120,72 @@ class OTPToken(models.Model):
 
         self.used_at = timezone.now()
         self.save()
+
+
+# ===================================
+# WEBAUTHN / PASSKEYS
+# ===================================
+
+
+class WebAuthnCredential(models.Model):
+    """
+    Credencial WebAuthn (passkey) registrada por un usuario.
+
+    Un usuario puede tener múltiples passkeys (ej: huella del móvil,
+    Face ID del laptop, llave física). Cada credencial es única globalmente
+    y está ligada a un usuario específico.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="webauthn_credentials",
+        verbose_name="Usuario",
+    )
+
+    # credential_id del authenticator — único a nivel global
+    credential_id = models.BinaryField(
+        unique=True,
+        verbose_name="Credential ID",
+        help_text="ID binario de la credencial emitido por el authenticator",
+    )
+
+    # clave pública para verificar assertions futuras
+    public_key = models.BinaryField(
+        verbose_name="Public Key",
+        help_text="Clave pública COSE de la credencial",
+    )
+
+    # contador usado para detectar clonación
+    sign_count = models.PositiveBigIntegerField(
+        default=0,
+        verbose_name="Sign Count",
+    )
+
+    # nombre descriptivo dado por el usuario ("iPhone de Felipe", "Yubikey azul")
+    name = models.CharField(
+        max_length=100,
+        default="Mi passkey",
+        verbose_name="Nombre",
+    )
+
+    # tipo de transporte soportado por el authenticator (internal, usb, nfc, ble)
+    transports = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Transports",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name="Último uso")
+
+    class Meta:
+        verbose_name = "Credencial WebAuthn"
+        verbose_name_plural = "Credenciales WebAuthn"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.name}"

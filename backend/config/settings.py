@@ -362,6 +362,18 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ===================================
+# WEBAUTHN / PASSKEYS
+# ===================================
+# RP_ID debe ser el dominio efectivo del frontend (sin protocolo, sin puerto).
+# Para desarrollo local usamos "localhost".
+# En producción usar el dominio sin subdominio específico (ej: "nerbis.app").
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "localhost")
+WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "NERBIS")
+# ORIGIN debe coincidir EXACTAMENTE con window.location.origin del frontend.
+# Acepta múltiples separados por coma para desarrollo (ej: "http://localhost:3000,http://localhost:3002").
+WEBAUTHN_ORIGIN = os.getenv("WEBAUTHN_ORIGIN", "http://localhost:3000")
+
+# ===================================
 # EMAIL CONFIGURATION
 # ===================================
 # En desarrollo, usamos console backend (imprime emails en consola)
