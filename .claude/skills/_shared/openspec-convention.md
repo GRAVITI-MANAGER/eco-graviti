@@ -91,12 +91,12 @@ rules:
     tdd: false
     test_command: "pytest backend/"
     lint_backend: "ruff check backend/"
-    lint_frontend: "cd frontend && npm run lint"
+    lint_frontend: "npm run lint --prefix frontend"
   verify:
     test_command: "pytest backend/"
-    build_command: "cd frontend && npm run build"
+    build_command: "npm run build --prefix frontend"
     lint_backend: "ruff check backend/"
-    lint_frontend: "cd frontend && npm run lint"
+    lint_frontend: "npm run lint --prefix frontend"
     coverage_threshold: 0
   archive:
     - Warn before merging destructive deltas

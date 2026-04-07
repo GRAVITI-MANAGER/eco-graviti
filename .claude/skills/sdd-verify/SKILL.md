@@ -137,12 +137,12 @@ pytest backend/
 
 **Frontend lint:**
 ```bash
-cd frontend && npm run lint
+npm run lint --prefix frontend
 ```
 
 **Frontend build:**
 ```bash
-cd frontend && npm run build
+npm run build --prefix frontend
 ```
 
 Capture exit codes, errors, and results for each.

@@ -52,7 +52,7 @@ Read the project to understand:
 - Routes in `frontend/src/app/`
 - Context providers: AuthContext, CartContext, TenantContext, WebsiteContentContext
 - Components: shadcn/ui
-- Lint: ESLint (`cd frontend && npm run lint`)
+- Lint: ESLint (`npm run lint --prefix frontend`)
 
 **Infrastructure:**
 - CI: GitHub Actions (backend + frontend pipelines)
