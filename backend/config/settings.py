@@ -384,14 +384,9 @@ if not DEBUG:
     _frontend_host = (_parsed_frontend_url.hostname or "").lower()
     _local_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
-    if (
-        not _parsed_frontend_url.scheme
-        or not _parsed_frontend_url.netloc
-        or _frontend_host in _local_hosts
-    ):
+    if not _parsed_frontend_url.scheme or not _parsed_frontend_url.netloc or _frontend_host in _local_hosts:
         raise RuntimeError(
-            "FRONTEND_URL no es válido para producción. "
-            "Define una URL pública del frontend (no localhost/loopback)."
+            "FRONTEND_URL no es válido para producción. Define una URL pública del frontend (no localhost/loopback)."
         )
 
 # Dominio base de la plataforma (para subdominios de tenants/websites)
