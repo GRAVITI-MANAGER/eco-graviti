@@ -475,7 +475,7 @@ function FaqAccordion({
       >
         {faq.question}
         <ChevronDown
-          className={`size-4.5 shrink-0 ml-4 text-[var(--auth-text-muted)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`size-5 shrink-0 ml-4 text-[var(--auth-text-muted)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
       <div

@@ -2,6 +2,7 @@
 
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import render
 from django.utils import timezone
@@ -68,6 +69,7 @@ def subscription_expired_view(request):
         "subscription_expired.html",
         {
             "tenant": tenant,
+            "frontend_url": getattr(settings, "FRONTEND_URL", "http://localhost:3000"),
         },
     )
 
