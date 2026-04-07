@@ -41,7 +41,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { SocialProvider } from '@/types';
 import {
@@ -124,7 +123,6 @@ function PasswordToggle({ show, onToggle }: { show: boolean; onToggle: () => voi
 export default function LoginSettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const { toast: legacyToast } = useToast();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
 
@@ -155,13 +153,10 @@ export default function LoginSettingsPage() {
     onSuccess: () => {
       setPasswordData({ current_password: '', new_password: '', new_password2: '' });
       setIsEditingPassword(false);
-      legacyToast({
-        title: 'Contraseña actualizada',
-        description: 'Tu contraseña ha sido cambiada correctamente',
-      });
+      toast.success('Contraseña actualizada correctamente');
     },
     onError: (error: Error) => {
-      legacyToast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast.error(error.message);
     },
   });
 
@@ -169,27 +164,15 @@ export default function LoginSettingsPage() {
     e.preventDefault();
     const pw = passwordData.new_password;
     if (pw !== passwordData.new_password2) {
-      legacyToast({
-        title: 'Error',
-        description: 'Las contraseñas no coinciden',
-        variant: 'destructive',
-      });
+      toast.error('Las contraseñas no coinciden');
       return;
     }
     if (pw.length < 8) {
-      legacyToast({
-        title: 'Error',
-        description: 'La contraseña debe tener al menos 8 caracteres',
-        variant: 'destructive',
-      });
+      toast.error('La contraseña debe tener al menos 8 caracteres');
       return;
     }
     if (/^\d+$/.test(pw)) {
-      legacyToast({
-        title: 'Error',
-        description: 'La contraseña no puede ser completamente numérica',
-        variant: 'destructive',
-      });
+      toast.error('La contraseña no puede ser completamente numérica');
       return;
     }
     changePasswordMutation.mutate(passwordData);
@@ -200,10 +183,10 @@ export default function LoginSettingsPage() {
     mutationFn: disconnectSocialAccount,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      legacyToast({ title: 'Cuenta desvinculada', description: data.message });
+      toast.success(data.message);
     },
     onError: (error: Error) => {
-      legacyToast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast.error(error.message);
     },
   });
 
@@ -598,10 +581,9 @@ export default function LoginSettingsPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      legacyToast({
-                        title: `Vincular ${config.name}`,
-                        description: `Para vincular ${config.name}, inicia sesión con esa cuenta desde la pantalla de login.`,
-                      })
+                      toast.info(
+                        `Para vincular ${config.name}, inicia sesión con esa cuenta desde la pantalla de login.`
+                      )
                     }
                     className="text-[0.75rem] font-medium text-[#0D9488] hover:underline transition-colors cursor-pointer"
                   >
