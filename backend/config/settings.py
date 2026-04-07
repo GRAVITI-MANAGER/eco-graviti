@@ -1,5 +1,7 @@
+import ipaddress
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -378,6 +380,31 @@ DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Nerbis")
 # URL base del frontend (para links en emails)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+if not DEBUG:
+    _parsed_frontend_url = urlparse(FRONTEND_URL)
+    _frontend_host = (_parsed_frontend_url.hostname or "").lower()
+
+    _is_loopback = _frontend_host == "localhost"
+    if not _is_loopback and _frontend_host:
+        try:
+            _is_loopback = ipaddress.ip_address(_frontend_host).is_loopback
+        except ValueError:
+            # No es una IP literal — es un hostname DNS, se permite
+            _is_loopback = False
+
+    # 0.0.0.0 / :: no son loopback pero tampoco son URLs públicas válidas
+    _is_unspecified = False
+    if _frontend_host:
+        try:
+            _is_unspecified = ipaddress.ip_address(_frontend_host).is_unspecified
+        except ValueError:
+            _is_unspecified = False
+
+    if not _parsed_frontend_url.scheme or not _parsed_frontend_url.netloc or _is_loopback or _is_unspecified:
+        raise RuntimeError(
+            "FRONTEND_URL no es válido para producción. Define una URL pública del frontend (no localhost/loopback)."
+        )
+
 # Dominio base de la plataforma (para subdominios de tenants/websites)
 PLATFORM_BASE_DOMAIN = os.getenv("PLATFORM_BASE_DOMAIN", "nerbis.com")
 
@@ -473,12 +500,6 @@ APPLE_CLIENT_ID = os.getenv("APPLE_CLIENT_ID", "")
 APPLE_TEAM_ID = os.getenv("APPLE_TEAM_ID", "")
 FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID", "")
 FACEBOOK_APP_SECRET = os.getenv("FACEBOOK_APP_SECRET", "")
-
-# ===================================
-# FRONTEND URL
-# ===================================
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
 
 # ===================================
 # UNFOLD ADMIN CONFIGURATION
