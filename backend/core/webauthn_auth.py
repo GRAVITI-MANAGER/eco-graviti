@@ -227,14 +227,12 @@ class PasskeyAuthenticateOptionsView(APIView):
         user_scope_key: str
 
         if email:
-            # Buscar cualquier usuario con ese email (multi-tenant: puede haber varios)
+            # Buscar cualquier usuario con ese email (multi-tenant: puede haber varios).
+            # Si no hay credenciales NO devolvemos 404 — eso permitiría enumerar emails.
+            # En su lugar emitimos un challenge "vacío" indistinguible: el browser intentará
+            # autenticar y la verificación fallará en el verify, sin revelar nada al cliente.
             creds = WebAuthnCredential.objects.filter(user__email__iexact=email).select_related("user")
             allow_credentials = [PublicKeyCredentialDescriptor(id=bytes(cred.credential_id)) for cred in creds]
-            if not allow_credentials:
-                return Response(
-                    {"detail": "No hay passkeys registrados para este email."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
             user_scope_key = f"email:{email}"
         else:
             # Flujo usernameless: generamos un token temporal
@@ -350,7 +348,9 @@ class PasskeyListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        creds = WebAuthnCredential.objects.filter(user=request.user).order_by("-created_at")
+        # Cap defensivo: en la práctica un usuario tiene <10 passkeys, pero las
+        # coding guidelines exigen no devolver listas no acotadas.
+        creds = WebAuthnCredential.objects.filter(user=request.user).order_by("-created_at")[:50]
         data = [
             {
                 "id": c.id,

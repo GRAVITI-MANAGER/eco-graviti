@@ -208,7 +208,7 @@ export default function LoginSettingsPage() {
   });
 
   // ── Passkeys ────────────────────────────────────────
-  const [supported, setSupported] = useState(true);
+  const [supported, setSupported] = useState(false);
   const [passkeys, setPasskeys] = useState<PasskeyRecord[]>([]);
   const [passkeysLoading, setPasskeysLoading] = useState(true);
   const [newPasskeyName, setNewPasskeyName] = useState('');
@@ -691,7 +691,7 @@ export default function LoginSettingsPage() {
                               cancelRenamePasskey();
                             }
                           }}
-                          maxLength={64}
+                          maxLength={100}
                           autoFocus
                           disabled={savingRename}
                           className="h-8 text-[0.85rem] md:text-[0.85rem] flex-1"

@@ -1882,3 +1882,12 @@ class WebAuthnCredentialAdmin(UnfoldModelAdmin):
     def has_add_permission(self, request):
         # Los passkeys solo pueden crearse vía flujo WebAuthn del usuario.
         return False
+
+    def get_queryset(self, request):
+        """Aislar passkeys por tenant para admins no-superusuarios."""
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, "tenant") and request.user.tenant:
+            return qs.filter(user__tenant=request.user.tenant)
+        return qs.none()
