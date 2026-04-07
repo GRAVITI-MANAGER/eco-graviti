@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:isolation": "node scripts/assert-admin-isolation.mjs",
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
