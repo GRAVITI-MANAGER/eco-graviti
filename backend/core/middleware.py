@@ -80,6 +80,8 @@ class SubscriptionMiddleware:
         r"^/admin/password_change/",
         r"^/api/auth/",
         r"^/api/v1/auth/",
+        r"^/api/admin/auth/",
+        r"^/api/admin/superadmins/",
         r"^/static/",
         r"^/media/",
         r"^/__reload__/",  # Django browser reload
