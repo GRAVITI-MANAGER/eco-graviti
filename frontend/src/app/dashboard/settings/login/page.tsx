@@ -19,8 +19,10 @@ import {
   KeyRound,
   Loader2,
   Lock,
+  Pencil,
   Plus,
   Trash2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +51,7 @@ import {
 } from '@/lib/api/user';
 import {
   deletePasskey,
+  renamePasskey,
   isWebAuthnSupported,
   listPasskeys,
   registerPasskey,
@@ -209,6 +212,9 @@ export default function LoginSettingsPage() {
   const [passkeys, setPasskeys] = useState<PasskeyRecord[]>([]);
   const [passkeysLoading, setPasskeysLoading] = useState(true);
   const [newPasskeyName, setNewPasskeyName] = useState('');
+  const [editingPasskeyId, setEditingPasskeyId] = useState<number | null>(null);
+  const [editingPasskeyName, setEditingPasskeyName] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
   const [registering, setRegistering] = useState(false);
 
   const loadPasskeys = useCallback(async () => {
@@ -243,6 +249,41 @@ export default function LoginSettingsPage() {
       toast.error(message);
     } finally {
       setRegistering(false);
+    }
+  };
+
+  const startRenamePasskey = (p: PasskeyRecord) => {
+    setEditingPasskeyId(p.id);
+    setEditingPasskeyName(p.name);
+  };
+
+  const cancelRenamePasskey = () => {
+    setEditingPasskeyId(null);
+    setEditingPasskeyName('');
+  };
+
+  const handleRenamePasskey = async (id: number) => {
+    const name = editingPasskeyName.trim();
+    if (!name) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    const current = passkeys.find((p) => p.id === id);
+    if (current && current.name === name) {
+      cancelRenamePasskey();
+      return;
+    }
+    try {
+      setSavingRename(true);
+      await renamePasskey(id, name);
+      setPasskeys((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)));
+      toast.success('Passkey renombrado');
+      cancelRenamePasskey();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo renombrar';
+      toast.error(message);
+    } finally {
+      setSavingRename(false);
     }
   };
 
@@ -637,21 +678,78 @@ export default function LoginSettingsPage() {
               {passkeys.map((p) => (
                 <li key={p.id} className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[0.875rem] font-medium text-[#1C3B57] truncate">
-                      {p.name}
-                    </p>
-                    <p className="text-[0.72rem] text-gray-400 mt-0.5">
-                      Creado {new Date(p.created_at).toLocaleDateString('es-CO')}
-                      {p.last_used_at
-                        ? ` · Último uso ${new Date(p.last_used_at).toLocaleDateString('es-CO')}`
-                        : ' · Nunca usado'}
-                    </p>
+                    {editingPasskeyId === p.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editingPasskeyName}
+                          onChange={(e) => setEditingPasskeyName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleRenamePasskey(p.id);
+                            } else if (e.key === 'Escape') {
+                              cancelRenamePasskey();
+                            }
+                          }}
+                          maxLength={64}
+                          autoFocus
+                          disabled={savingRename}
+                          className="h-8 text-[0.85rem] md:text-[0.85rem] flex-1"
+                          aria-label={`Nuevo nombre para ${p.name}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleRenamePasskey(p.id)}
+                          disabled={savingRename}
+                          className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                          aria-label="Guardar nombre"
+                        >
+                          {savingRename ? (
+                            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Check className="w-4 h-4" aria-hidden="true" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelRenamePasskey}
+                          disabled={savingRename}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                          aria-label="Cancelar"
+                        >
+                          <X className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[0.875rem] font-medium text-[#1C3B57] truncate">
+                          {p.name}
+                        </p>
+                        <p className="text-[0.72rem] text-gray-400 mt-0.5">
+                          Creado {new Date(p.created_at).toLocaleDateString('es-CO')}
+                          {p.last_used_at
+                            ? ` · Último uso ${new Date(p.last_used_at).toLocaleDateString('es-CO')}`
+                            : ' · Nunca usado'}
+                        </p>
+                      </>
+                    )}
                   </div>
+                  {editingPasskeyId !== p.id && (
+                    <button
+                      type="button"
+                      onClick={() => startRenamePasskey(p)}
+                      className="p-2 rounded-md text-gray-400 hover:text-[#1C3B57] hover:bg-gray-50 transition-colors"
+                      aria-label={`Renombrar ${p.name}`}
+                    >
+                      <Pencil className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button
                         type="button"
-                        className="p-2 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        disabled={editingPasskeyId === p.id}
+                        className="p-2 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
                         aria-label={`Eliminar ${p.name}`}
                       >
                         <Trash2 className="w-4 h-4" aria-hidden="true" />
