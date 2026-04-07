@@ -14,7 +14,15 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm
 from unfold.forms import UserCreationForm as UnfoldUserCreationForm
 from unfold.widgets import UnfoldAdminTextareaWidget
 
-from .models import Banner, SocialAccount, Tenant, TenantConfig, TenantWebsite, User
+from .models import (
+    Banner,
+    SocialAccount,
+    Tenant,
+    TenantConfig,
+    TenantWebsite,
+    User,
+    WebAuthnCredential,
+)
 
 
 class CustomUserCreationForm(UnfoldUserCreationForm):
@@ -1007,6 +1015,24 @@ class SocialAccountInline(admin.TabularInline):
     verbose_name_plural = "Cuentas sociales vinculadas"
 
 
+class WebAuthnCredentialInline(admin.TabularInline):
+    """Passkeys (WebAuthn) registrados por el usuario."""
+
+    model = WebAuthnCredential
+    extra = 0
+    fields = ["name", "transports", "sign_count", "created_at", "last_used_at"]
+    readonly_fields = ["name", "transports", "sign_count", "created_at", "last_used_at"]
+    can_delete = True
+    show_change_link = True
+
+    verbose_name = "Passkey"
+    verbose_name_plural = "Passkeys (WebAuthn)"
+
+    def has_add_permission(self, request, obj=None):
+        # Los passkeys solo pueden crearse vía flujo WebAuthn del usuario.
+        return False
+
+
 @admin.register(User, site=nerbis_admin_site)
 class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
     """
@@ -1023,7 +1049,7 @@ class UserAdmin(UnfoldModelAdmin, BaseUserAdmin):
     add_form = CustomUserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    inlines = [SocialAccountInline]
+    inlines = [SocialAccountInline, WebAuthnCredentialInline]
 
     def has_module_permission(self, request):
         """Permitir ver el módulo Users"""
@@ -1753,3 +1779,106 @@ class BannerAdmin(TenantFilteredAdmin):
         )
 
     preview_banner.short_description = "Vista Previa"
+
+
+# ═══════════════════════════════════════════════════════════
+# WEBAUTHN CREDENTIALS (Passkeys)
+# ═══════════════════════════════════════════════════════════
+
+
+@admin.register(WebAuthnCredential, site=nerbis_admin_site)
+class WebAuthnCredentialAdmin(UnfoldModelAdmin):
+    """
+    Panel de administración para Passkeys (WebAuthn).
+    Permite ver y revocar credenciales registradas por los usuarios.
+    Solo lectura de los campos criptográficos por seguridad.
+    """
+
+    list_display = [
+        "name",
+        "user",
+        "tenant_display",
+        "transports_display",
+        "sign_count",
+        "created_at",
+        "last_used_display",
+    ]
+    list_filter = ["created_at", "last_used_at", "user__tenant"]
+    search_fields = ["name", "user__email", "user__first_name", "user__last_name"]
+    search_help_text = "Buscar por nombre del passkey o email del usuario"
+    readonly_fields = [
+        "user",
+        "credential_id_display",
+        "public_key_display",
+        "sign_count",
+        "transports",
+        "created_at",
+        "last_used_at",
+    ]
+    ordering = ["-created_at"]
+    actions = ["revoke_passkeys"]
+
+    fieldsets = (
+        (
+            "Identificación",
+            {"fields": ("user", "name", "transports")},
+        ),
+        (
+            "Datos criptográficos (solo lectura)",
+            {
+                "fields": ("credential_id_display", "public_key_display", "sign_count"),
+                "description": (
+                    "Estos valores son generados por el authenticator del usuario y no "
+                    "deben modificarse. Si están comprometidos, revoca el passkey."
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Auditoría",
+            {"fields": ("created_at", "last_used_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    @admin.display(description="Tenant", ordering="user__tenant")
+    def tenant_display(self, obj):
+        return obj.user.tenant.name if obj.user.tenant_id else "—"
+
+    @admin.display(description="Transports")
+    def transports_display(self, obj):
+        if not obj.transports:
+            return "—"
+        return ", ".join(obj.transports)
+
+    @admin.display(description="Último uso", ordering="last_used_at")
+    def last_used_display(self, obj):
+        if not obj.last_used_at:
+            return format_html('<span style="color:#9ca3af;">Nunca</span>')
+        return obj.last_used_at.strftime("%Y-%m-%d %H:%M")
+
+    @admin.display(description="Credential ID")
+    def credential_id_display(self, obj):
+        # Mostrar solo primeros/últimos bytes en hex para identificación
+        raw = bytes(obj.credential_id)
+        hex_str = raw.hex()
+        if len(hex_str) > 32:
+            hex_str = f"{hex_str[:16]}…{hex_str[-16:]}"
+        return format_html('<code style="font-size:11px;">{}</code>', hex_str)
+
+    @admin.display(description="Public key")
+    def public_key_display(self, obj):
+        size = len(bytes(obj.public_key))
+        return format_html('<span style="color:#6b7280;">{} bytes (binario COSE)</span>', size)
+
+    @admin.action(description="Revocar passkeys seleccionados")
+    def revoke_passkeys(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request,
+            f"Se revocaron {count} passkey(s). Los usuarios deberán registrar uno nuevo.",
+        )
+
+    def has_add_permission(self, request):
+        # Los passkeys solo pueden crearse vía flujo WebAuthn del usuario.
+        return False

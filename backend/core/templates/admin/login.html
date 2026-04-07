@@ -136,43 +136,6 @@
             font-weight: bold;
         }
 
-        .tenant-hint {
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-            border: 1px solid #bae6fd;
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-bottom: 24px;
-        }
-
-        .tenant-hint-title {
-            font-weight: 600;
-            font-size: 13px;
-            color: #0369a1;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .tenant-hint-title svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        .tenant-hint-text {
-            font-size: 12px;
-            color: #0284c7;
-            line-height: 1.5;
-        }
-
-        .tenant-hint code {
-            background: rgba(2, 132, 199, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 11px;
-        }
-
         .submit-btn {
             width: 100%;
             padding: 16px;
@@ -275,43 +238,15 @@
             </div>
             {% endif %}
 
-            <div class="tenant-hint">
-                <div class="tenant-hint-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="16" x2="12" y2="12"/>
-                        <line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
-                    Identificador de Cliente
-                </div>
-                <div class="tenant-hint-text">
-                    Usa el slug de tu negocio (ej: <code>mi-salon</code>).
-                </div>
-            </div>
-
             <form action="{{ app_path }}" method="post" id="login-form">
                 {% csrf_token %}
-
-                <div class="form-group">
-                    <label for="id_tenant_slug">{{ form.tenant_slug.label }}</label>
-                    <input type="text" name="tenant_slug" id="id_tenant_slug"
-                           placeholder="ej: mi-salon"
-                           value="{{ form.tenant_slug.value|default:'' }}"
-                           autofocus>
-                    {% if form.tenant_slug.errors %}
-                    <ul class="errorlist">
-                        {% for error in form.tenant_slug.errors %}
-                        <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </div>
 
                 <div class="form-group">
                     <label for="id_username">{{ form.username.label }}</label>
                     <input type="email" name="username" id="id_username"
                            placeholder="tu@email.com"
-                           value="{{ form.username.value|default:'' }}">
+                           value="{{ form.username.value|default:'' }}"
+                           autofocus>
                     {% if form.username.errors %}
                     <ul class="errorlist">
                         {% for error in form.username.errors %}

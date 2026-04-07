@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import secrets
 
 from django.conf import settings
@@ -40,7 +41,7 @@ from webauthn.helpers.structs import (
 )
 
 from .models import User, WebAuthnCredential
-from .serializers import UserSerializer
+from .serializers import TenantSerializer, UserSessionSerializer
 from .throttles import LoginThrottle
 
 # cache dedicado para challenges (reutilizamos el cache de throttle: redis/local)
@@ -99,6 +100,11 @@ def _pop_challenge(scope: str, key: str) -> dict | None:
 
 def _tokens_for_user(user: User) -> dict[str, str]:
     refresh = RefreshToken.for_user(user)
+    # Embedder claims de tenant (mismo patrón que PlatformLoginView)
+    if user.tenant_id:
+        refresh["tenant_id"] = str(user.tenant_id)
+        refresh["tenant_slug"] = user.tenant.slug
+    refresh["role"] = user.role
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
@@ -143,7 +149,8 @@ class PasskeyRegisterOptionsView(APIView):
 
         _store_challenge("reg", str(user.id), options.challenge)
 
-        return Response(options_to_json(options), status=status.HTTP_200_OK, content_type="application/json")
+        # options_to_json retorna un string JSON; parsear para que DRF no lo re-codifique
+        return Response(json.loads(options_to_json(options)), status=status.HTTP_200_OK)
 
 
 class PasskeyRegisterVerifyView(APIView):
@@ -245,11 +252,8 @@ class PasskeyAuthenticateOptionsView(APIView):
 
         _store_challenge("auth", user_scope_key, options.challenge, extra={"email": email})
 
-        payload = options_to_json(options)
         # Devolvemos además el scope key para que el cliente lo envíe en verify
-        import json as _json
-
-        parsed = _json.loads(payload)
+        parsed = json.loads(options_to_json(options))
         parsed["_scope"] = user_scope_key
         return Response(parsed, status=status.HTTP_200_OK)
 
@@ -293,7 +297,13 @@ class PasskeyAuthenticateVerifyView(APIView):
             )
         except WebAuthnCredential.DoesNotExist:
             return Response(
-                {"detail": "Credencial no reconocida."},
+                {
+                    "detail": (
+                        "Este passkey fue eliminado de tu cuenta. "
+                        "Bórralo también del llavero de tu dispositivo para no verlo al iniciar sesión."
+                    ),
+                    "code": "PASSKEY_NOT_REGISTERED",
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -322,13 +332,14 @@ class PasskeyAuthenticateVerifyView(APIView):
 
         user = cred_obj.user
 
-        # Emitir JWT
+        # Emitir JWT — mismo shape que PlatformLoginView (AuthResponse)
         tokens = _tokens_for_user(user)
 
         return Response(
             {
-                **tokens,
-                "user": UserSerializer(user).data,
+                "user": UserSessionSerializer(user).data,
+                "tenant": TenantSerializer(user.tenant).data if user.tenant else None,
+                "tokens": tokens,
             },
             status=status.HTTP_200_OK,
         )
