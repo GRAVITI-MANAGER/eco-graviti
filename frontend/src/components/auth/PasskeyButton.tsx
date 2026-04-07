@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { features } from '@/lib/features';
+import { useAuth } from '@/contexts/AuthContext';
 import { authenticateWithPasskey, isWebAuthnSupported } from '@/lib/api/passkey';
 
 interface PasskeyButtonProps {
@@ -22,6 +23,7 @@ interface PasskeyButtonProps {
 
 export function PasskeyButton({ email, redirectTo, onSuccess }: PasskeyButtonProps) {
   const router = useRouter();
+  const { setUser, setTenant } = useAuth();
   const [loading, setLoading] = useState(false);
 
   if (!features.passkeys) return null;
@@ -31,6 +33,12 @@ export function PasskeyButton({ email, redirectTo, onSuccess }: PasskeyButtonPro
     try {
       setLoading(true);
       const auth = await authenticateWithPasskey(email || undefined);
+
+      // Sincronizar estado de AuthContext para que el DashboardShell
+      // no rebote al login al hacer router.push('/dashboard')
+      setUser(auth.user);
+      setTenant(auth.tenant ?? null);
+
       toast.success('¡Bienvenido!');
 
       if (onSuccess) {
@@ -38,11 +46,18 @@ export function PasskeyButton({ email, redirectTo, onSuccess }: PasskeyButtonPro
         return;
       }
 
-      // Redirección por defecto: si trae tenant slug, a su dashboard; si no, a /dashboard
-      const target =
-        redirectTo || (auth.tenant?.slug ? `/dashboard` : '/dashboard');
+      // Redirigir respetando el estado del tenant (setup, website-builder, dashboard)
+      let target = redirectTo;
+      if (!target) {
+        if (auth.tenant && !auth.tenant.modules_configured) {
+          target = '/dashboard/setup';
+        } else if (auth.tenant?.has_website && auth.tenant.website_status !== 'published') {
+          target = '/dashboard/website-builder';
+        } else {
+          target = '/dashboard';
+        }
+      }
       router.push(target);
-      router.refresh();
     } catch (error) {
       // El usuario canceló el prompt del browser — no es un error real
       if (error instanceof Error && error.name === 'NotAllowedError') {

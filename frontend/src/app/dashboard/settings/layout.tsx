@@ -14,7 +14,6 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { features } from '@/lib/features';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
@@ -35,15 +34,11 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Mi Perfil',
     icon: UserCircle,
   },
-  ...(features.passkeys
-    ? [
-        {
-          href: '/dashboard/settings/login',
-          label: 'Inicio de sesión',
-          icon: KeyRound,
-        },
-      ]
-    : []),
+  {
+    href: '/dashboard/settings/login',
+    label: 'Inicio de sesión',
+    icon: KeyRound,
+  },
   {
     href: '/dashboard/settings/team',
     label: 'Equipo',
