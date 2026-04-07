@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   ArrowLeft,
+  KeyRound,
   LogOut,
   UserCircle,
   Users,
@@ -32,6 +33,11 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard/settings/profile',
     label: 'Mi Perfil',
     icon: UserCircle,
+  },
+  {
+    href: '/dashboard/settings/login',
+    label: 'Inicio de sesión',
+    icon: KeyRound,
   },
   {
     href: '/dashboard/settings/team',

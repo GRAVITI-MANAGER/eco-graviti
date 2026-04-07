@@ -3,7 +3,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import views
+from . import views, webauthn_auth
 
 app_name = "core"
 
@@ -31,6 +31,29 @@ urlpatterns = [
         "auth/social/disconnect/<str:provider>/", views.SocialAccountDisconnectView.as_view(), name="social_disconnect"
     ),
     path("auth/social/<str:provider>/", views.SocialLoginView.as_view(), name="social_login"),
+    # WebAuthn / Passkeys
+    path(
+        "auth/passkey/register/options/",
+        webauthn_auth.PasskeyRegisterOptionsView.as_view(),
+        name="passkey_register_options",
+    ),
+    path(
+        "auth/passkey/register/verify/",
+        webauthn_auth.PasskeyRegisterVerifyView.as_view(),
+        name="passkey_register_verify",
+    ),
+    path(
+        "auth/passkey/authenticate/options/",
+        webauthn_auth.PasskeyAuthenticateOptionsView.as_view(),
+        name="passkey_authenticate_options",
+    ),
+    path(
+        "auth/passkey/authenticate/verify/",
+        webauthn_auth.PasskeyAuthenticateVerifyView.as_view(),
+        name="passkey_authenticate_verify",
+    ),
+    path("auth/passkey/", webauthn_auth.PasskeyListView.as_view(), name="passkey_list"),
+    path("auth/passkey/<int:pk>/", webauthn_auth.PasskeyDetailView.as_view(), name="passkey_detail"),
     # Gestión de equipo (solo admins del tenant)
     path("team/", views.TeamListView.as_view(), name="team_list"),
     path(

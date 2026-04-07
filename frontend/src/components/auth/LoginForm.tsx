@@ -202,7 +202,7 @@ export function LoginForm({
         </Form>
 
         {/* Passkey option (feature flagged) — subtle, below form */}
-        <PasskeyButton />
+        <PasskeyButton email={form.watch('email')} redirectTo={redirectTo ?? undefined} />
 
         {/* Toggle link */}
         <div className="mt-6 pt-5 border-t border-gray-100 text-center">
