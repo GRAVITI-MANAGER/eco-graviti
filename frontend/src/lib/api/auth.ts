@@ -2,26 +2,56 @@
 
 import { apiClient } from './client';
 import { AuthResponse, LoginCredentials, RegisterData, RegisterTenantData, User, Tenant, SocialProvider } from '@/types';
+import {
+  completeTwoFactorChallenge as completeTwoFactorChallengeApi,
+  type LoginResult,
+} from './twoFactor';
+
+/**
+ * Respuesta cruda del servidor que puede ser un par JWT normal
+ * o un challenge de 2FA pendiente.
+ */
+type RawLoginResponse =
+  | AuthResponse
+  | { status: '2fa_required'; challenge_token: string };
+
+function isTwoFactorRequired(
+  data: RawLoginResponse,
+): data is { status: '2fa_required'; challenge_token: string } {
+  return (data as { status?: string }).status === '2fa_required';
+}
+
+/**
+ * Persiste tokens/user/tenant tras un login exitoso (sin 2FA pendiente).
+ */
+function persistSession(data: AuthResponse): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('access_token', data.tokens.access);
+  localStorage.setItem('refresh_token', data.tokens.refresh);
+  localStorage.setItem('user', JSON.stringify(data.user));
+  if (data.tenant) {
+    localStorage.setItem('tenant', JSON.stringify(data.tenant));
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `tenant-slug=${data.tenant.slug}; path=/; SameSite=Lax${secure}`;
+  }
+}
 
 /**
  * Platform Login (cross-tenant — busca al usuario en todos los tenants)
- * Usado desde el formulario de login de la plataforma NERBIS
+ * Usado desde el formulario de login de la plataforma NERBIS.
+ *
+ * Devuelve un LoginResult discriminado para que la UI pueda mostrar el
+ * paso de 2FA sin persistir tokens cuando el backend exige challenge.
  */
-export async function platformLogin(credentials: { email: string; password: string }): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/public/platform-login/', credentials);
+export async function platformLogin(credentials: { email: string; password: string }): Promise<LoginResult> {
+  const { data } = await apiClient.post<RawLoginResponse>('/public/platform-login/', credentials);
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('access_token', data.tokens.access);
-    localStorage.setItem('refresh_token', data.tokens.refresh);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    if (data.tenant) {
-      localStorage.setItem('tenant', JSON.stringify(data.tenant));
-      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-      document.cookie = `tenant-slug=${data.tenant.slug}; path=/; SameSite=Lax${secure}`;
-    }
+  if (isTwoFactorRequired(data)) {
+    return { kind: '2fa_required', challengeToken: data.challenge_token };
   }
 
-  return data;
+  persistSession(data);
+  return { kind: 'tokens', response: data };
 }
 
 /**
@@ -144,24 +174,18 @@ export async function socialLogin(
   provider: SocialProvider,
   token: string,
   extra?: { first_name?: string; last_name?: string }
-): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>(`/auth/social/${provider}/`, {
+): Promise<LoginResult> {
+  const { data } = await apiClient.post<RawLoginResponse>(`/auth/social/${provider}/`, {
     token,
     ...extra,
   });
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('access_token', data.tokens.access);
-    localStorage.setItem('refresh_token', data.tokens.refresh);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    if (data.tenant) {
-      localStorage.setItem('tenant', JSON.stringify(data.tenant));
-      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-      document.cookie = `tenant-slug=${data.tenant.slug}; path=/; SameSite=Lax${secure}`;
-    }
+  if (isTwoFactorRequired(data)) {
+    return { kind: '2fa_required', challengeToken: data.challenge_token };
   }
 
-  return data;
+  persistSession(data);
+  return { kind: 'tokens', response: data };
 }
 
 /**
@@ -201,25 +225,19 @@ export async function platformSocialLogin(
   provider: SocialProvider,
   token: string,
   extra?: { first_name?: string; last_name?: string }
-): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/public/platform-social-login/', {
+): Promise<LoginResult> {
+  const { data } = await apiClient.post<RawLoginResponse>('/public/platform-social-login/', {
     provider,
     token,
     ...extra,
   });
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('access_token', data.tokens.access);
-    localStorage.setItem('refresh_token', data.tokens.refresh);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    if (data.tenant) {
-      localStorage.setItem('tenant', JSON.stringify(data.tenant));
-      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-      document.cookie = `tenant-slug=${data.tenant.slug}; path=/; SameSite=Lax${secure}`;
-    }
+  if (isTwoFactorRequired(data)) {
+    return { kind: '2fa_required', challengeToken: data.challenge_token };
   }
 
-  return data;
+  persistSession(data);
+  return { kind: 'tokens', response: data };
 }
 
 /**
@@ -238,6 +256,22 @@ export async function socialLinkOnly(
 }
 
 // reactivateAccount() fue eliminada — usamos flujo OTP (requestReactivationOTP + verifyReactivationOTP)
+
+/**
+ * Completa el login tras el challenge de 2FA. Persiste tokens igual que
+ * un login normal exitoso.
+ */
+export async function completeTwoFactorChallenge(
+  challengeToken: string,
+  code: string,
+): Promise<AuthResponse> {
+  const data = await completeTwoFactorChallengeApi({
+    challenge_token: challengeToken,
+    code,
+  });
+  persistSession(data);
+  return data;
+}
 
 // ===================================
 // Registro de Negocio (Tenant)

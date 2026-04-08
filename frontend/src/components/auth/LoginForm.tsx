@@ -28,6 +28,7 @@ import { SocialLoginButtons } from './SocialLoginButtons';
 import { FormDivider } from './FormDivider';
 import { PasskeyButton } from './PasskeyButton';
 import { ReactivateDialog } from './ReactivateDialog';
+import { TwoFactorChallengeStep } from './TwoFactorChallengeStep';
 import type { AuthPrefill } from './types';
 
 // ─── Props ──────────────────────────────────────────────────────
@@ -58,10 +59,17 @@ export function LoginForm({
   } | null>(null);
   const [reactivateLoading, setReactivateLoading] = useState(false);
 
+  // 2FA state — solo vive en memoria mientras el paso está activo
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+
   const handleLogin = useCallback(
     async (data: LoginFormValues) => {
       try {
-        await platformLogin(data, redirectTo || undefined);
+        const outcome = await platformLogin(data, redirectTo || undefined);
+        if (outcome.kind === '2fa_required') {
+          setChallengeToken(outcome.challengeToken);
+          return;
+        }
         toast.success('¡Bienvenido!');
       } catch (error) {
         if (error instanceof ApiError && error.code === 'ACCOUNT_INACTIVE') {
@@ -106,6 +114,16 @@ export function LoginForm({
     }
   }, [inactiveAccountData, router]);
 
+  if (challengeToken) {
+    return (
+      <TwoFactorChallengeStep
+        challengeToken={challengeToken}
+        redirectTo={redirectTo}
+        onBack={() => setChallengeToken(null)}
+      />
+    );
+  }
+
   return (
     <>
       <section aria-label="Iniciar sesión">
@@ -135,7 +153,11 @@ export function LoginForm({
         {/* Social login buttons (feature flagged) */}
         {features.socialLogin && (
           <>
-            <SocialLoginButtons mode="login" onSwitchToRegister={onSwitchToRegister} />
+            <SocialLoginButtons
+              mode="login"
+              onSwitchToRegister={onSwitchToRegister}
+              onTwoFactorRequired={(token) => setChallengeToken(token)}
+            />
             <FormDivider text="o continúa con email" />
           </>
         )}

@@ -105,6 +105,12 @@ export interface SocialLoginButtonsProps {
   onAppleClick?: () => void;
   onFacebookClick?: () => void;
   onSwitchToRegister?: (prefill: AuthPrefill) => void;
+  /**
+   * Se invoca cuando el backend responde que el usuario tiene 2FA activo.
+   * Permite al formulario padre mostrar el paso de verificación TOTP
+   * en lugar de persistir tokens.
+   */
+  onTwoFactorRequired?: (challengeToken: string) => void;
 }
 
 export interface FormDividerProps {
