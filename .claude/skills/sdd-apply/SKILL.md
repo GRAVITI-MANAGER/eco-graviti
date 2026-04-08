@@ -125,7 +125,7 @@ ruff check backend/
 
 **Frontend changes:**
 ```bash
-cd frontend && npm run lint
+npm run lint --prefix frontend
 ```
 
 Fix any issues before proceeding to the next batch.

@@ -103,7 +103,7 @@ From the design document, identify:
 ## Phase 5: Cleanup & Lint
 
 - [ ] 5.1 Run `ruff check backend/` and fix issues
-- [ ] 5.2 Run `cd frontend && npm run lint` and fix issues
+- [ ] 5.2 Run `npm run lint --prefix frontend` and fix issues
 - [ ] 5.3 {Update docs/comments if needed}
 ```
 
@@ -139,7 +139,7 @@ Phase 4: Testing
 
 Phase 5: Cleanup & Lint
   └─ ruff check backend/
-  └─ cd frontend && npm run lint
+  └─ npm run lint --prefix frontend
   └─ NEVER modify existing Django migrations
 ```
 

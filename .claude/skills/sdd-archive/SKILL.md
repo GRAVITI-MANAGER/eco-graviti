@@ -227,13 +227,13 @@ fi
 **8.5 — Verify cleanup**
 
 ```bash
-# Ensure we're in a valid git directory (not in a deleted worktree)
-cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
+# Resolve a valid git directory (not the deleted worktree)
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 
 # Confirm branch is gone
-git branch | grep -q "$BRANCH_NAME" && echo "⚠️ Local branch still exists" || echo "✅ Local branch deleted"
-git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME" && echo "⚠️ Remote branch still exists" || echo "✅ Remote branch deleted"
-echo "✅ On branch: $(git branch --show-current)"
+git -C "$REPO_ROOT" branch | grep -q "$BRANCH_NAME" && echo "⚠️ Local branch still exists" || echo "✅ Local branch deleted"
+git -C "$REPO_ROOT" ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME" && echo "⚠️ Remote branch still exists" || echo "✅ Remote branch deleted"
+echo "✅ On branch: $(git -C "$REPO_ROOT" branch --show-current)"
 ```
 
 > **Tip:** Consider enabling "Automatically delete head branches" in the GitHub repository settings (Settings → General → Pull Requests) to handle remote branch deletion automatically on merge.
