@@ -41,9 +41,16 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim().toLowerCase(), password);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Credenciales inválidas.';
+    } catch (err: unknown) {
+      let message = 'Credenciales inválidas.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as {
+          response?: { data?: { detail?: string } };
+        };
+        message = axiosErr.response?.data?.detail ?? message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setError(message);
     } finally {
       setSubmitting(false);

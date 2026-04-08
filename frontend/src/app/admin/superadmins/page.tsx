@@ -90,6 +90,7 @@ export default function SuperadminsPage() {
     null,
   );
   const [deactivateSubmitting, setDeactivateSubmitting] = useState(false);
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
   const loadPage = useCallback(async (targetPage: number) => {
@@ -169,6 +170,7 @@ export default function SuperadminsPage() {
 
   async function handleReactivate(target: AdminUser) {
     setRowError(null);
+    setReactivatingId(target.id);
     try {
       const updated = await adminReactivateSuperadmin(target.id);
       setItems((prev) =>
@@ -180,6 +182,8 @@ export default function SuperadminsPage() {
           ? err.message
           : 'No se pudo reactivar el superadministrador.';
       setRowError(message);
+    } finally {
+      setReactivatingId(null);
     }
   }
 
@@ -310,9 +314,12 @@ export default function SuperadminsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleReactivate(item)}
+                                  disabled={reactivatingId === item.id}
                                   aria-label={`Reactivar ${item.email}`}
                                 >
-                                  Reactivar
+                                  {reactivatingId === item.id
+                                    ? 'Reactivando…'
+                                    : 'Reactivar'}
                                 </Button>
                               )}
                             </TableCell>

@@ -85,8 +85,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const refresh = useCallback(async () => {
-    const me = await adminMe();
-    setAdmin(me);
+    try {
+      const me = await adminMe();
+      setAdmin(me);
+    } catch {
+      setAdmin(null);
+    }
   }, []);
 
   const value: AdminAuthState = {

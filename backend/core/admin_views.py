@@ -190,5 +190,5 @@ class AdminSuperadminDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         if "is_active" in serializer.validated_data:
             user.is_active = serializer.validated_data["is_active"]
-            user.save()
+            user.save(update_fields=["is_active"])
         return Response(AdminUserSerializer(user).data, status=status.HTTP_200_OK)
