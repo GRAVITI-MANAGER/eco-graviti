@@ -329,6 +329,8 @@ REST_FRAMEWORK = {
         "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
         "social_login": "5/min",  # Social login: 5 por minuto por IP
+        "two_factor_challenge": "10/min",  # 2FA challenge: 10 por minuto por IP
+        "two_factor_verify": "10/min",  # 2FA verify/disable: 10 por minuto por IP
     },
 }
 

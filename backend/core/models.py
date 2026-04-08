@@ -1189,3 +1189,134 @@ class WebAuthnCredential(models.Model):
 
     def __str__(self):
         return f"{self.user.email} — {self.name}"
+
+
+# ===================================
+# 2FA — TOTP DEVICE
+# ===================================
+#
+# Nota sobre multi-tenancy:
+# TOTPDevice NO hereda de TenantAwareModel porque está unido 1:1 al User,
+# y el User ya pertenece a un tenant. El dispositivo 2FA es una propiedad
+# intrínseca del usuario (como su password), no un recurso de negocio del
+# tenant. Además, el User no tiene necesariamente un segundo factor por
+# tenant: un mismo email humano puede tener cuentas separadas en distintos
+# tenants, pero cada User row tiene su propio TOTPDevice (o ninguno).
+#
+# Cualquier query debe ir filtrada vía `user=<usuario autenticado>`, lo
+# que garantiza aislamiento por usuario (y por tenant, transitivamente).
+
+
+class TOTPDevice(models.Model):
+    """
+    Dispositivo TOTP (Time-based One-Time Password) asociado a un usuario.
+
+    El secret se almacena cifrado con Fernet (derivado de SECRET_KEY).
+    Los backup codes se almacenan hasheados con make_password y se consumen
+    al usarse (one-time).
+    """
+
+    user = models.OneToOneField(
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="totp_device",
+        verbose_name="Usuario",
+    )
+    secret_encrypted = models.BinaryField(
+        verbose_name="Secreto TOTP cifrado",
+        help_text="Secreto base32 cifrado con Fernet",
+    )
+    confirmed = models.BooleanField(
+        default=False,
+        verbose_name="Confirmado",
+        help_text="True cuando el usuario ha verificado el primer código",
+    )
+    backup_codes = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Backup codes hasheados",
+        help_text="Lista de hashes (make_password) de los backup codes restantes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name="Último uso")
+
+    class Meta:
+        verbose_name = "Dispositivo TOTP"
+        verbose_name_plural = "Dispositivos TOTP"
+
+    def __str__(self) -> str:
+        estado = "confirmado" if self.confirmed else "pendiente"
+        return f"TOTP {estado} de {self.user.email}"
+
+    # ------------------------------------------------------------------
+    # Secret (cifrado en reposo)
+    # ------------------------------------------------------------------
+    def set_secret(self, secret: str) -> None:
+        """Cifra y guarda el secreto TOTP en secret_encrypted."""
+        from .crypto import encrypt
+
+        self.secret_encrypted = encrypt(secret)
+
+    def get_secret(self) -> str:
+        """Descifra y devuelve el secreto TOTP como string."""
+        from .crypto import decrypt
+
+        return decrypt(self.secret_encrypted)
+
+    # ------------------------------------------------------------------
+    # Verificación TOTP
+    # ------------------------------------------------------------------
+    def verify_totp(self, code: str) -> bool:
+        """Valida un código TOTP de 6 dígitos con tolerancia ±1 step (30s)."""
+        import pyotp
+
+        if not code:
+            return False
+        totp = pyotp.TOTP(self.get_secret())
+        return totp.verify(str(code).strip(), valid_window=1)
+
+    # ------------------------------------------------------------------
+    # Backup codes
+    # ------------------------------------------------------------------
+    def generate_backup_codes(self) -> list[str]:
+        """
+        Genera 8 backup codes (formato XXXX-XXXX, 4+4 chars alfanuméricos
+        en mayúsculas), guarda sus hashes en backup_codes y devuelve la
+        lista en plaintext para mostrarla una sola vez al usuario.
+        """
+        import secrets
+
+        from django.contrib.auth.hashers import make_password
+
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin caracteres ambiguos
+        plaintext_codes: list[str] = []
+        for _ in range(8):
+            part1 = "".join(secrets.choice(alphabet) for _ in range(4))
+            part2 = "".join(secrets.choice(alphabet) for _ in range(4))
+            plaintext_codes.append(f"{part1}-{part2}")
+
+        self.backup_codes = [make_password(code) for code in plaintext_codes]
+        self.save(update_fields=["backup_codes"])
+        return plaintext_codes
+
+    def verify_backup_code(self, code: str) -> bool:
+        """
+        Verifica un backup code contra la lista hasheada. Si coincide,
+        consume el código (lo elimina de la lista) y guarda.
+        """
+        from django.contrib.auth.hashers import check_password
+
+        if not code:
+            return False
+        normalized = str(code).strip().upper()
+        for idx, hashed in enumerate(self.backup_codes):
+            if check_password(normalized, hashed):
+                remaining = list(self.backup_codes)
+                remaining.pop(idx)
+                self.backup_codes = remaining
+                from django.utils import timezone
+
+                self.last_used_at = timezone.now()
+                self.save(update_fields=["backup_codes", "last_used_at"])
+                return True
+        return False

@@ -357,7 +357,18 @@ class LoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 5. Generar tokens JWT con claims del tenant
+        # 5. Si el usuario tiene 2FA activo, emitir challenge y NO tokens
+        from .views_2fa import issue_2fa_challenge_token, user_has_confirmed_2fa
+
+        if user_has_confirmed_2fa(user):
+            return Response(
+                {
+                    "status": "2fa_required",
+                    "challenge_token": issue_2fa_challenge_token(user),
+                }
+            )
+
+        # 6. Generar tokens JWT con claims del tenant
         refresh = RefreshToken.for_user(user)
         refresh["tenant_id"] = str(user.tenant.id)
         refresh["tenant_slug"] = user.tenant.slug
@@ -425,6 +436,17 @@ class PlatformLoginView(APIView):
         if not user.tenant.is_active:
             return Response(
                 {"error": "El negocio asociado a esta cuenta no está activo."}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Si el usuario tiene 2FA activo, emitir challenge
+        from .views_2fa import issue_2fa_challenge_token, user_has_confirmed_2fa
+
+        if user_has_confirmed_2fa(user):
+            return Response(
+                {
+                    "status": "2fa_required",
+                    "challenge_token": issue_2fa_challenge_token(user),
+                }
             )
 
         # Generar tokens JWT
@@ -1668,6 +1690,17 @@ class SocialLoginView(APIView):
             return Response(
                 {"error": "Tu cuenta está desactivada", "code": "ACCOUNT_INACTIVE"},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Si tiene 2FA activo, emitir challenge en vez de tokens
+        from .views_2fa import issue_2fa_challenge_token, user_has_confirmed_2fa
+
+        if user_has_confirmed_2fa(user):
+            return Response(
+                {
+                    "status": "2fa_required",
+                    "challenge_token": issue_2fa_challenge_token(user),
+                }
             )
 
         return Response(_build_social_auth_response(user, tenant))
