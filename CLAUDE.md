@@ -402,3 +402,28 @@ Ambos corren simultáneamente. Esperar a que ambos terminen antes de continuar.
 - **CodeRabbit:** Review automático en PRs
 - **Release Please:** Versionamiento semántico en push a main
 - Correr lint local antes de push: `ruff check backend/` y `cd frontend && npm run lint`
+- **Aislamiento del panel admin:** correr `cd frontend && npm run test:isolation` antes de push si tocaste `src/app/admin/**`, `src/lib/api/admin-*.ts`, o `src/contexts/AdminAuthContext.tsx`. El script asegura que la superficie superadmin no importe ni referencie código tenant.
+
+## Bootstrapping del primer superadministrador
+
+El panel `/admin` (issue #56) es para superadministradores de plataforma (`is_superuser=True`, `tenant=NULL`). El primer superadmin se crea **una sola vez** desde la CLI de Django:
+
+```bash
+cd backend
+python manage.py createsuperuser
+# Email: admin@nerbis.com
+# Password: ********
+```
+
+`createsuperuser` crea un usuario sin tenant (`tenant_id IS NULL`), con `is_superuser=True` e `is_staff=True`. El fix en `User.save()` (issue #56) garantiza que `is_staff` se preserve para superadmins en lugar de re-sincronizarse desde `role`.
+
+Una vez creado el primero, los superadministradores adicionales se gestionan **exclusivamente desde la UI** en `/admin/superadmins` (lista, alta, desactivar). El endpoint `POST /api/admin/auth/register/` requiere un JWT de superadmin, así que `createsuperuser` es la única vía para arrancar.
+
+**Verificación:**
+```bash
+# Smoke test
+curl -X POST http://localhost:8000/api/admin/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@nerbis.com","password":"<password>"}'
+# Debe devolver {access, refresh, user}
+```

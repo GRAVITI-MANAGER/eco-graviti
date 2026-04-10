@@ -40,6 +40,29 @@ class IsTenantStaffOrAdmin(permissions.BasePermission):
         return request.user.role in ["admin", "staff"]
 
 
+class IsSuperAdmin(permissions.BasePermission):
+    """
+    Platform superadmin: is_authenticated AND is_superuser AND tenant_id IS NULL.
+
+    Both conditions are asserted explicitly. A legacy/malformed user with
+    is_superuser=True AND a tenant_id MUST be rejected — otherwise a tenant
+    row with is_superuser accidentally set would bypass the tenant/admin
+    boundary.
+    """
+
+    message = "Superadmin privileges required."
+
+    def has_permission(self, request, view) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return False
+        if not user.is_superuser:
+            return False
+        if user.tenant_id is not None:
+            return False
+        return True
+
+
 class IsOwnerOrStaff(permissions.BasePermission):
     """Dueño del objeto o staff/admin"""
 

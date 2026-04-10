@@ -329,6 +329,7 @@ REST_FRAMEWORK = {
         "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
         "social_login": "5/min",  # Social login: 5 por minuto por IP
+        "admin_login": "5/min",  # Superadmin login: 5 por minuto por IP
     },
 }
 

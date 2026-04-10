@@ -1,6 +1,11 @@
 # backend/core/serializers.py
 
-from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.password_validation import (
+    validate_password,
+)
+from django.contrib.auth.password_validation import (
+    validate_password as django_validate_password,
+)
 from rest_framework import serializers
 
 from .models import Banner, SocialAccount, Tenant, User
@@ -479,6 +484,81 @@ class SocialLinkSerializer(serializers.Serializer):
     password = serializers.CharField(required=True, write_only=True, help_text="Contraseña de la cuenta existente")
     first_name = serializers.CharField(required=False, default="")
     last_name = serializers.CharField(required=False, default="")
+
+
+class AdminLoginSerializer(serializers.Serializer):
+    """Serializer para login de superadmin de plataforma."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+
+class AdminRegisterSerializer(serializers.Serializer):
+    """Serializer para registro de superadmin de plataforma."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+    def validate_email(self, value: str) -> str:
+        normalized = value.strip().lower()
+        if User.objects.filter(tenant__isnull=True, email__iexact=normalized).exists():
+            raise serializers.ValidationError("A superadmin with this email already exists.")
+        return normalized
+
+    def validate_password(self, value: str) -> str:
+        django_validate_password(value)
+        return value
+
+    def create(self, validated_data: dict) -> User:
+        email = validated_data["email"]
+        user = User(
+            email=email,
+            username=email.split("@")[0],
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            tenant=None,
+            is_superuser=True,
+            is_staff=True,
+            is_active=True,
+            role="admin",
+            uid=f"admin:{email}",
+        )
+        user.set_password(validated_data["password"])
+        user.save()
+        return user
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Serializer de salida para superadmins. Allowlist explícito.
+
+    No incluye `tenant`, `tenant_slug`, ni `role`.
+    """
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "is_superuser",
+            "is_staff",
+            "is_active",
+            "date_joined",
+            "last_login",
+        ]
+        read_only_fields = fields
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    """Serializer para PATCH parcial de un superadmin (solo is_active)."""
+
+    is_active = serializers.BooleanField()
 
 
 class BannerSerializer(serializers.ModelSerializer):
