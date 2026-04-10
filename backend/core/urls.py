@@ -3,7 +3,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import views
+from . import views, webauthn_auth
 
 app_name = "core"
 
@@ -25,6 +25,42 @@ urlpatterns = [
     # OTP - Reactivación de cuenta
     path("auth/request-reactivation/", views.RequestReactivationOTPView.as_view(), name="request_reactivation"),
     path("auth/verify-reactivation/", views.VerifyReactivationOTPView.as_view(), name="verify_reactivation"),
+    # Social Auth (link/ and disconnect/ must come before <str:provider>/ to avoid matching as provider)
+    path("auth/social/link/", views.SocialLinkView.as_view(), name="social_link"),
+    path(
+        "auth/social/disconnect/<str:provider>/", views.SocialAccountDisconnectView.as_view(), name="social_disconnect"
+    ),
+    path("auth/social/<str:provider>/", views.SocialLoginView.as_view(), name="social_login"),
+    # WebAuthn / Passkeys
+    path(
+        "auth/passkey/register/options/",
+        webauthn_auth.PasskeyRegisterOptionsView.as_view(),
+        name="passkey_register_options",
+    ),
+    path(
+        "auth/passkey/register/verify/",
+        webauthn_auth.PasskeyRegisterVerifyView.as_view(),
+        name="passkey_register_verify",
+    ),
+    path(
+        "auth/passkey/authenticate/options/",
+        webauthn_auth.PasskeyAuthenticateOptionsView.as_view(),
+        name="passkey_authenticate_options",
+    ),
+    path(
+        "auth/passkey/authenticate/verify/",
+        webauthn_auth.PasskeyAuthenticateVerifyView.as_view(),
+        name="passkey_authenticate_verify",
+    ),
+    path("auth/passkey/", webauthn_auth.PasskeyListView.as_view(), name="passkey_list"),
+    path("auth/passkey/<int:pk>/", webauthn_auth.PasskeyDetailView.as_view(), name="passkey_detail"),
+    # Gestión de equipo (solo admins del tenant)
+    path("team/", views.TeamListView.as_view(), name="team_list"),
+    path(
+        "team/<int:user_id>/social/<str:provider>/",
+        views.TeamDisconnectSocialView.as_view(),
+        name="team_disconnect_social",
+    ),
     # Banners
     path("banners/", views.ActiveBannersView.as_view(), name="active_banners"),
     # Configuración del tenant

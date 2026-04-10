@@ -71,3 +71,29 @@ class PasswordResetThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": self.get_ident(request),
         }
+
+
+class AdminLoginThrottle(SimpleRateThrottle):
+    """5 intentos de login de superadmin por minuto por IP."""
+
+    scope = "admin_login"
+    cache = throttle_cache
+
+    def get_cache_key(self, request, view) -> str | None:
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }
+
+
+class SocialLoginThrottle(SimpleRateThrottle):
+    """5 intentos de social login por minuto por IP."""
+
+    scope = "social_login"
+    cache = throttle_cache
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }
