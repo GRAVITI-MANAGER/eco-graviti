@@ -161,21 +161,33 @@ These define WHAT a color does, not WHAT it looks like.
 
 ## Multi-Tenant Theming
 
-Tenants override ONLY primitive brand tokens:
+NERBIS uses **runtime injection** via `theme-colors.ts` — NOT CSS `[data-tenant]` selectors.
 
-```css
-/* Tenant: "coffeeshop" */
-[data-tenant="coffeeshop"] {
-  --primitive-brand-50: #fdf8f0;
-  --primitive-brand-100: #f9edda;
-  --primitive-brand-500: #b45309;
-  --primitive-brand-600: #92400e;
-  --primitive-brand-700: #78350f;
-  /* ... rest of brand scale */
-}
+The `TenantContext` fetches tenant config on mount and calls `applyThemeToDOM()` which
+injects CSS custom properties directly into `:root` via `document.documentElement.style.setProperty()`.
+
+```typescript
+// theme-colors.ts — how it works
+import { deriveThemeVariables, applyThemeToDOM } from "@/lib/utils/theme-colors";
+
+// TenantContext calls this on mount with tenant's primary + secondary colors:
+const theme = deriveThemeVariables(tenant.primary_color, tenant.secondary_color);
+applyThemeToDOM(theme);
+// This sets ~25 CSS custom properties on :root (--primary, --secondary, --background, etc.)
 ```
 
-The semantic and component layers propagate automatically. No per-component changes needed.
+### How to add a new tenant-injectable token
+
+1. Add the derived variable in `deriveThemeVariables()` in `theme-colors.ts`
+2. Add the CSS custom property name to the return object
+3. Reference it in your components via `var(--your-new-token)`
+4. The semantic and component layers propagate automatically — no per-component changes needed
+
+### Published websites use scoped injection
+
+For published tenant websites, `WebsiteShell.tsx` injects CSS variables as **inline styles**
+on the `.published-website` wrapper div — NOT on `:root`. This prevents cross-contamination
+between the admin dashboard and the published storefront.
 
 ## Rules
 

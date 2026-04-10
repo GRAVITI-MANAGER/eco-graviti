@@ -12,6 +12,11 @@ A subtle film-grain overlay on hero sections, dark surfaces, and feature backgro
 
 ```css
 /* Apply to hero sections, dark panels, featured cards */
+.nerbis-grain {
+  position: relative;
+  overflow: hidden;
+}
+
 .nerbis-grain::before {
   content: "";
   position: absolute;

@@ -106,7 +106,7 @@ CTA: [Accept invite]
 ```
 
 ### Payment Receipt
-```
+```text
 Subject: Payment receipt — $XX.XX
 Headline: Payment received
 Body: We received your payment of $XX.XX for [Plan Name].

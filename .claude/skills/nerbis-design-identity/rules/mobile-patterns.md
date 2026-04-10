@@ -25,12 +25,14 @@ Mobile is not a shrunken desktop. It's a different context: one-handed use, vari
 ```tsx
 <nav className="fixed bottom-0 inset-x-0 z-20 md:hidden
                 border-t border-subtle bg-surface-default/95 backdrop-blur-sm
-                safe-area-bottom">
+                safe-area-bottom"
+     aria-label="Primary">
   <div className="flex items-center justify-around h-14 max-w-md mx-auto">
     <NavTab
       icon={<IconHome className="size-5" />}
       label="Home"
       active={current === "home"}
+      aria-current={current === "home" ? "page" : undefined}
       className="flex flex-col items-center gap-0.5 px-3 py-1
                  text-[10px] font-medium
                  data-[active]:text-interactive text-muted

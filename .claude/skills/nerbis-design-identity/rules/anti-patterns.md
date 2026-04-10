@@ -24,7 +24,7 @@ Before submitting any UI work, run through this checklist. If ANY item is true, 
 ### Layout
 
 - [ ] **Hero → 3 Cards → Testimonials → Pricing → CTA** — The "statistically average" layout. Instantly recognizable as template-generated.
-- [ ] **Bento grid for features** — Overused to the point of cliche. Find a different layout.
+- [ ] **Bento grid for features** — Overused to the point of cliché. Find a different layout.
 - [ ] **Uniform padding everywhere** — Same py-16 on every section. No spatial hierarchy.
 - [ ] **Centered everything** — Text, cards, buttons — all centered. Real designs use alignment variation.
 - [ ] **Equal-height cards in a row** — Especially 3 cards with icon + title + description + button. The #1 AI layout.

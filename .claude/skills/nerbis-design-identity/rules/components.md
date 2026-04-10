@@ -2,13 +2,16 @@
 
 ## Buttons
 
-### Variants (3 only — never more)
+### Variants (3 core + destructive)
 
-| Variant | Use Case | Visual |
-|---------|----------|--------|
-| **Primary** | Main action per section (1 per area) | Solid brand color, white text |
-| **Secondary** | Alternative/supporting actions | Transparent bg, border, dark text |
-| **Ghost** | Tertiary actions, navigation, inline | No bg, no border, muted text |
+| Variant | shadcn prop | Use Case | Visual |
+|---------|------------|----------|--------|
+| **Primary** | `default` | Main action per section (1 per area) | Solid brand color, white text |
+| **Secondary** | `outline` | Alternative/supporting actions | Transparent bg, border, dark text |
+| **Ghost** | `ghost` | Tertiary actions, navigation, inline | No bg, no border, muted text |
+| **Destructive** | `destructive` | Delete, remove, cancel (dangerous actions only) | Red bg, white text |
+
+> **Note:** In shadcn/ui, "secondary" maps to `variant="outline"`. Use `variant="outline"` in code.
 
 ### Sizes
 
@@ -144,7 +147,7 @@
 
 ```tsx
 <Table>
-  <TableHeader className="bg-surface-raised">
+  <TableHeader className="sticky top-0 z-10 bg-surface-raised">
     <TableRow>
       <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted">
         Name

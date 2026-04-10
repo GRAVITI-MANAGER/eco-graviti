@@ -22,9 +22,11 @@ Use these colors in sequence for multi-series charts:
 }
 
 /* Status (fixed, never reassigned) */
---chart-positive: var(--color-status-success);  /* Green — always means good */
---chart-negative: var(--color-status-error);    /* Red — always means bad */
---chart-neutral: var(--color-text-muted);       /* Gray — baseline/comparison */
+:root {
+  --chart-positive: var(--color-status-success);  /* Green — always means good */
+  --chart-negative: var(--color-status-error);    /* Red — always means bad */
+  --chart-neutral: var(--color-text-muted);       /* Gray — baseline/comparison */
+}
 ```
 
 ### Dark Mode
@@ -108,9 +110,9 @@ The most common dashboard element. Structure:
 
 ### NOT Bento Grids
 
-Bento grids are the 2024-2025 AI cliche. NERBIS dashboards use **content-driven layouts**:
+Bento grids are the 2024-2025 AI cliché. NERBIS dashboards use **content-driven layouts**:
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │  4 Stat Cards (KPIs)                        │
 ├─────────────────────────┬───────────────────┤

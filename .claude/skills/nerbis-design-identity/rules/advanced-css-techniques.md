@@ -411,17 +411,31 @@ document.startViewTransition(async () => {
 });
 ```
 
-### React 19 Integration
+### React Integration
+
+> **Warning:** `unstable_ViewTransition` only exists in React Canary/Experimental builds.
+> It is NOT available in stable React 19. Do not use in production.
+
+For stable React 19, use the browser API directly with `startTransition`:
 
 ```tsx
-import { unstable_ViewTransition as ViewTransition } from "react";
+import { startTransition, useDeferredValue } from "react";
 
-function App() {
-  return (
-    <ViewTransition>
-      <Routes />
-    </ViewTransition>
-  );
+function navigateTo(url: string) {
+  // Use the native View Transition API with React's startTransition
+  if (document.startViewTransition) {
+    document.startViewTransition(() => {
+      startTransition(() => {
+        // Update your router/state here
+        router.push(url);
+      });
+    });
+  } else {
+    // Fallback for unsupported browsers
+    startTransition(() => {
+      router.push(url);
+    });
+  }
 }
 ```
 
@@ -1389,8 +1403,8 @@ Style containers based on any descendant having focus. Critical for form UX and 
 | color-mix() | 111+ | 113+ | 16.4+ | 111+ | 95% |
 | Subgrid | 117+ | 71+ | 16+ | 117+ | 97% |
 | :has() | 105+ | 121+ | 15.4+ | 105+ | 95% |
-| Anchor positioning | 125+ | No | No | 125+ | ~65% |
-| @property (Houdini) | 85+ | No | 15.4+ | 85+ | ~80% |
+| Anchor positioning | 125+ | 147+ | 26.0+ | 125+ | ~85% |
+| @property (Houdini) | 85+ | 128+ | 16.4+ | 85+ | ~92% |
 | scrollbar-width/color | 121+ | 64+ | n/a | 121+ | ~85% |
 | ::selection | All | All | All | All | 99% |
 | :focus-within | 60+ | 52+ | 10.1+ | 79+ | 98% |
