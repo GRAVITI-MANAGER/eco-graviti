@@ -74,7 +74,28 @@ docs/       → Documentación técnica (SDD.md)
 - **Frontend:** ESLint + Next.js build (en PRs a main y develop)
 - **CodeRabbit:** Review automático en cada PR
 - **Release Please:** Versionamiento semántico automático en push a main
-- Correr lint local antes de push: `ruff check backend/` y `cd frontend && npm run lint`
+- Correr lint local antes de push: `ruff check backend/` y `npm run lint --prefix frontend`
+
+## Comandos en skills y documentación (NUNCA usar `cd X && Y`)
+
+Los comandos en skills, hooks y documentación **no deben usar `cd X && Y`** porque
+las allowlists granulares de permisos (`Bash(cd:*)` + `Bash(npm:*)`) no matchean
+comandos encadenados, forzando prompts de permiso innecesarios.
+
+**Usar alternativas sin `cd`:**
+
+| Herramienta | Mal | Bien |
+|-------------|------|------|
+| npm | `cd frontend && npm run lint` | `npm run lint --prefix frontend` |
+| pytest | `cd backend && pytest` | `pytest backend/` |
+| ruff | `cd backend && ruff check .` | `ruff check backend/` |
+| git | `cd "$REPO" && git ...` | `git -C "$REPO" ...` |
+| manage.py | `cd backend && python manage.py X` | `python backend/manage.py X` |
+| general | `cd X && comando` | Usar flag `-C`, `--prefix`, o path absoluto |
+
+**Excepciones válidas:** scripts de shell multi-línea donde `cd` es necesario para
+establecer el directorio de trabajo (ej: setup de worktrees). La regla aplica a
+one-liners encadenados con `&&`.
 
 ## Reglas críticas (NUNCA violar)
 

@@ -93,7 +93,7 @@ Al finalizar el desarrollo (commit hecho, build y lint pasando), evaluar si el c
 
 Cuando aplique:
 ```bash
-cd frontend && npm run dev -- --port 3001 &
+npm run dev --prefix frontend -- --port 3001 &
 # Informar: "Preview disponible en http://localhost:3001 — verifica los cambios en el browser"
 ```
 
@@ -401,8 +401,8 @@ Ambos corren simultáneamente. Esperar a que ambos terminen antes de continuar.
 - **Frontend:** ESLint + Next.js build (en PRs a main y develop)
 - **CodeRabbit:** Review automático en PRs
 - **Release Please:** Versionamiento semántico en push a main
-- Correr lint local antes de push: `ruff check backend/` y `cd frontend && npm run lint`
-- **Aislamiento del panel admin:** correr `cd frontend && npm run test:isolation` antes de push si tocaste `src/app/admin/**`, `src/lib/api/admin-*.ts`, o `src/contexts/AdminAuthContext.tsx`. El script asegura que la superficie superadmin no importe ni referencie código tenant.
+- Correr lint local antes de push: `ruff check backend/` y `npm run lint --prefix frontend`
+- **Aislamiento del panel admin:** correr `npm run test:isolation --prefix frontend` antes de push si tocaste `src/app/admin/**`, `src/lib/api/admin-*.ts`, o `src/contexts/AdminAuthContext.tsx`. El script asegura que la superficie superadmin no importe ni referencie código tenant.
 
 ## Bootstrapping del primer superadministrador
 
