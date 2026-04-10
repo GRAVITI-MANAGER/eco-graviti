@@ -87,6 +87,15 @@ docs/       → Documentación técnica (SDD.md)
 - SIEMPRE paginar listados
 - GitHub Actions: pinear con commit hash (no tags)
 
+## Worktrees y trabajo paralelo
+
+- Los worktrees de Git proveen **aislamiento de branch**, no de filesystem
+- Desde un worktree puedes leer/escribir archivos de cualquier path del sistema (mismos permisos que el repo principal)
+- El `cwd` cambia al root del worktree — usar paths relativos al worktree actual, no al repo principal
+- **NUNCA** usar `cd /ruta/repo/principal && comando` en scripts o skills; usar paths relativos o `$PWD`
+- Los worktrees son ideales para que múltiples agentes trabajen en paralelo sin conflictos de branch
+- No se necesita configuración especial de permisos para worktrees — las mismas reglas de `settings.json` aplican
+
 ## Checklist antes de generar código
 
 - [ ] ¿Considera el multi-tenant?
