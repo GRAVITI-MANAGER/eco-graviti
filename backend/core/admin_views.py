@@ -135,10 +135,7 @@ class AdminLogoutView(APIView):
             )
         try:
             token = RefreshToken(refresh)
-            if (
-                token.get("scope") != "admin"
-                or str(token.get("user_id")) != str(request.user.id)
-            ):
+            if token.get("scope") != "admin" or str(token.get("user_id")) != str(request.user.id):
                 return Response(
                     {"detail": "invalid refresh token"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -197,10 +194,7 @@ class AdminSuperadminDetailView(APIView):
         serializer = AdminUserUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         if "is_active" in serializer.validated_data:
-            if (
-                user.pk == request.user.pk
-                and serializer.validated_data["is_active"] is False
-            ):
+            if user.pk == request.user.pk and serializer.validated_data["is_active"] is False:
                 return Response(
                     {"detail": "No puedes desactivar tu propia cuenta."},
                     status=status.HTTP_400_BAD_REQUEST,
