@@ -337,7 +337,7 @@ class TwoFactorChallengeView(APIView):
         try:
             user = decode_2fa_challenge_token(challenge_token)
         except ValueError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         device = getattr(user, "totp_device", None)
         if not device or not device.confirmed:
@@ -349,7 +349,7 @@ class TwoFactorChallengeView(APIView):
         if not (device.verify_totp(code) or device.verify_backup_code(code)):
             return Response(
                 {"error": "Código 2FA inválido"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         device.last_used_at = timezone.now()

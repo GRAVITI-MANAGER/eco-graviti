@@ -98,6 +98,7 @@ export function OtpInput({
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
+          autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={1}
           value={digits[i] || ''}
           disabled={disabled}
