@@ -82,6 +82,11 @@ urlpatterns = [
         views.TeamDisconnectSocialView.as_view(),
         name="team_disconnect_social",
     ),
+    path(
+        "team/<int:user_id>/2fa/reset/",
+        views.TeamReset2FAView.as_view(),
+        name="team_reset_2fa",
+    ),
     # Banners
     path("banners/", views.ActiveBannersView.as_view(), name="active_banners"),
     # Configuración del tenant

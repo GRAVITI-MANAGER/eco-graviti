@@ -112,9 +112,22 @@ def _generate_qr_base64(otpauth_uri: str) -> str:
 
 
 def user_has_confirmed_2fa(user: User) -> bool:
-    """True si el usuario tiene un TOTPDevice confirmado."""
+    """True si el usuario tiene 2FA activo (TOTP confirmado O passkey registrado)."""
     device = getattr(user, "totp_device", None)
-    return bool(device and device.confirmed)
+    if device and device.confirmed:
+        return True
+    return user.webauthn_credentials.exists()
+
+
+def get_2fa_methods(user: User) -> list[str]:
+    """Construye la lista de métodos 2FA disponibles para el usuario."""
+    methods = []
+    if user.webauthn_credentials.exists():
+        methods.append("passkey")
+    device = getattr(user, "totp_device", None)
+    if device and device.confirmed:
+        methods.extend(["totp", "backup"])
+    return methods
 
 
 # ===================================
@@ -508,6 +521,12 @@ class TwoFactorPasskeyVerifyView(APIView):
                 require_user_verification=False,
             )
         except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "2FA passkey verify failed: %s | origin=%s | rp_id=%s",
+                exc,
+                _expected_origin(),
+                _rp_id(),
+            )
             return Response(
                 {"error": f"Verificación fallida: {exc}"},
                 status=status.HTTP_400_BAD_REQUEST,

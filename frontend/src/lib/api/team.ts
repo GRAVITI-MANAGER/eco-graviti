@@ -26,6 +26,7 @@ export interface TeamMember {
   has_password: boolean;
   social_accounts: SocialAccountDetail[];
   auth_method: 'email_only' | 'social_only' | 'both';
+  has_2fa: boolean;
 }
 
 export interface TeamFilters {
@@ -61,6 +62,15 @@ export async function disconnectTeamSocial(
 ): Promise<{ message: string }> {
   const { data } = await api.delete<{ message: string }>(
     `/team/${userId}/social/${provider}/`
+  );
+  return data;
+}
+
+export async function resetTeam2FA(
+  userId: number
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/team/${userId}/2fa/reset/`
   );
   return data;
 }

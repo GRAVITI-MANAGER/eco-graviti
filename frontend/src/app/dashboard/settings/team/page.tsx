@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTeamMembers, disconnectTeamSocial } from '@/lib/api/team';
+import { getTeamMembers, disconnectTeamSocial, resetTeam2FA } from '@/lib/api/team';
 import type { TeamMember, TeamFilters, SocialAccountDetail } from '@/lib/api/team';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,7 @@ import {
   Unlink,
   Shield,
   ShieldCheck,
+  ShieldOff,
   UserRound,
   Mail,
   KeyRound,
@@ -146,6 +147,10 @@ export default function SettingsTeamPage() {
     member: TeamMember | null;
     social: SocialAccountDetail | null;
   }>({ open: false, member: null, social: null });
+  const [reset2faDialog, setReset2faDialog] = useState<{
+    open: boolean;
+    member: TeamMember | null;
+  }>({ open: false, member: null });
 
   const { data: members, isLoading } = useQuery({
     queryKey: ['team-members', filters],
@@ -163,6 +168,18 @@ export default function SettingsTeamPage() {
     },
     onError: (error: Error & { data?: { error?: string } }) => {
       toast.error(error.data?.error || error.message || 'Error al desvincular la cuenta');
+    },
+  });
+
+  const reset2faMutation = useMutation({
+    mutationFn: (userId: number) => resetTeam2FA(userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success(data.message);
+      setReset2faDialog({ open: false, member: null });
+    },
+    onError: (error: Error & { data?: { error?: string } }) => {
+      toast.error(error.data?.error || error.message || 'Error al resetear 2FA');
     },
   });
 
@@ -336,7 +353,13 @@ export default function SettingsTeamPage() {
                   {/* Acciones */}
                   <div className="flex items-center gap-2 shrink-0">
                     <AuthMethodBadge method={member.auth_method} />
-                    {member.social_accounts.length > 0 && (
+                    {member.has_2fa && (
+                      <Badge variant="outline" className="text-[0.6rem] py-0 px-1.5 gap-1 text-emerald-600 border-emerald-200">
+                        <ShieldCheck className="h-3 w-3" />
+                        2FA
+                      </Badge>
+                    )}
+                    {(member.social_accounts.length > 0 || (member.has_2fa && member.id !== user?.id)) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon-sm" className="text-gray-300 hover:text-gray-500">
@@ -360,6 +383,15 @@ export default function SettingsTeamPage() {
                               Desvincular {(PROVIDER_CONFIG[sa.provider] ?? DEFAULT_PROVIDER_CONFIG).label}
                             </DropdownMenuItem>
                           ))}
+                          {member.has_2fa && member.id !== user?.id && (
+                            <DropdownMenuItem
+                              onClick={() => setReset2faDialog({ open: true, member })}
+                              className="text-destructive"
+                            >
+                              <ShieldOff className="h-4 w-4 mr-2" />
+                              Resetear 2FA
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
@@ -439,6 +471,47 @@ export default function SettingsTeamPage() {
               }
             >
               {disconnectMutation.isPending ? 'Desvinculando...' : 'Desvincular'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmación para resetear 2FA */}
+      <AlertDialog
+        open={reset2faDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setReset2faDialog({ open: false, member: null });
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resetear 2FA</AlertDialogTitle>
+            <AlertDialogDescription>
+              {reset2faDialog.member && (
+                <>
+                  ¿Resetear la autenticación en dos pasos de{' '}
+                  <strong>{reset2faDialog.member.full_name}</strong>?
+                  <br />
+                  <br />
+                  Se eliminarán todos sus métodos de verificación (passkeys y códigos TOTP).
+                  El usuario podrá iniciar sesión solo con su contraseña o cuenta social
+                  y configurar 2FA nuevamente si lo desea.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (reset2faDialog.member) {
+                  reset2faMutation.mutate(reset2faDialog.member.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={reset2faMutation.isPending}
+            >
+              {reset2faMutation.isPending ? 'Reseteando...' : 'Resetear 2FA'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

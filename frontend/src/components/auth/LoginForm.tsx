@@ -159,10 +159,6 @@ export function LoginForm({
             <SocialLoginButtons
               mode="login"
               onSwitchToRegister={onSwitchToRegister}
-              onTwoFactorRequired={(token, methods) => {
-                setChallengeToken(token);
-                setTwoFactorMethods(methods);
-              }}
             />
             <FormDivider text="o continúa con email" />
           </>

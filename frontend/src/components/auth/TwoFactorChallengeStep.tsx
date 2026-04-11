@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Fingerprint, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError } from '@/lib/api/client';
@@ -74,6 +74,7 @@ export function TwoFactorChallengeStep({
   const [backupCode, setBackupCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const passkeyTriggered = useRef(false);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
 
   // Focus automatico al cambiar de modo
@@ -180,23 +181,36 @@ export function TwoFactorChallengeStep({
       }
       router.push(target);
     } catch (error) {
-      // El usuario canceló el prompt del browser — no es un error real
+      const hasTotpFallback = methods.includes('totp');
+      const fallbackMode = hasTotpFallback ? 'totp' : 'passkey';
+
+      // El usuario canceló el prompt biométrico
       if (error instanceof Error && error.name === 'NotAllowedError') {
+        setMode(fallbackMode);
         setIsLoading(false);
         return;
       }
+      // Cualquier otro error
+      setMode(fallbackMode);
       const message =
         error instanceof ApiError
           ? error.message
           : error instanceof Error
             ? error.message
-            : 'No se pudo verificar con passkey. Intenta con código.';
+            : 'No se pudo verificar con passkey. Intenta de nuevo.';
       setPasskeyError(message);
-      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   }, [challengeToken, redirectTo, handlePasskeyAuthResponse, router]);
+
+  // ─── Auto-trigger passkey (sin pantalla intermedia) ────────────
+  useEffect(() => {
+    if (passkeyAvailable && !passkeyTriggered.current) {
+      passkeyTriggered.current = true;
+      handlePasskeyVerify();
+    }
+  }, [passkeyAvailable, handlePasskeyVerify]);
 
   // ─── Submit TOTP/backup ──────────────────────────────────────
 
@@ -246,8 +260,24 @@ export function TwoFactorChallengeStep({
   };
 
   // ─── Render: modo passkey ────────────────────────────────────
+  // Si está cargando: spinner. Si hay error (passkey-only): botón reintentar.
 
   if (mode === 'passkey') {
+    if (isLoading) {
+      return (
+        <section aria-label="Verificación en dos pasos" className="flex flex-col items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: 'var(--auth-accent)' }} />
+          <p
+            className="text-[0.85rem]"
+            style={{ color: 'var(--auth-text-muted)', fontFamily: 'var(--auth-font-body)' }}
+          >
+            Verificando tu identidad...
+          </p>
+        </section>
+      );
+    }
+
+    // Passkey-only: el usuario canceló o falló, mostrar opción de reintentar
     return (
       <section aria-label="Verificación en dos pasos">
         <div className="mb-6">
@@ -259,7 +289,7 @@ export function TwoFactorChallengeStep({
               fontFamily: 'var(--auth-font-heading)',
             }}
           >
-            Verifica tu identidad
+            Un paso más
           </h2>
           <p
             className="text-[0.85rem] leading-relaxed"
@@ -268,11 +298,11 @@ export function TwoFactorChallengeStep({
               fontFamily: 'var(--auth-font-body)',
             }}
           >
-            Usa tu passkey para verificar tu identidad de forma segura.
+            Confirma con tu huella o Face ID para iniciar sesión.
           </p>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           {passkeyError && (
             <p
               className="text-[0.8rem] text-center"
@@ -283,43 +313,20 @@ export function TwoFactorChallengeStep({
             </p>
           )}
 
-          <button
-            type="button"
+          <SubmitButton
+            isLoading={false}
+            loadingLabel="Verificando..."
             onClick={handlePasskeyVerify}
-            disabled={isLoading}
-            className="flex h-[var(--auth-input-height,2.75rem)] w-full items-center justify-center gap-2.5 rounded-[var(--auth-radius-button,0.5rem)] border border-[var(--auth-border)] bg-[var(--auth-bg-input,#fff)] text-[0.95rem] font-medium transition-[background-color,border-color,box-shadow] duration-[var(--auth-duration-fast)] ease-out hover:bg-[#F9FAFB] hover:border-[var(--auth-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              color: 'var(--auth-text)',
-              fontFamily: 'var(--auth-font-body)',
-            }}
           >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Fingerprint className="h-5 w-5" aria-hidden="true" />
-            )}
-            <span>{isLoading ? 'Verificando...' : 'Verificar con passkey'}</span>
-          </button>
-
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => switchMode('totp')}
-              disabled={isLoading}
-              className="text-[0.75rem] font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm disabled:opacity-50"
-              style={{ color: 'var(--auth-accent, #0D9488)' }}
-            >
-              Usar código de verificación
-            </button>
-          </div>
+            Reintentar verificación
+          </SubmitButton>
         </div>
 
         <div className="mt-6 pt-5 border-t border-gray-100 text-center">
           <button
             type="button"
             onClick={onBack}
-            disabled={isLoading}
-            className="text-[0.8rem] font-medium hover:underline underline-offset-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm disabled:opacity-50"
+            className="text-[0.8rem] font-medium hover:underline underline-offset-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
             style={{ color: 'var(--auth-text-muted)' }}
           >
             Volver
@@ -342,7 +349,7 @@ export function TwoFactorChallengeStep({
             fontFamily: 'var(--auth-font-heading)',
           }}
         >
-          Verifica tu identidad
+          Un paso más
         </h2>
         <p
           className="text-[0.85rem] leading-relaxed"
@@ -352,7 +359,7 @@ export function TwoFactorChallengeStep({
           }}
         >
           {mode === 'totp'
-            ? 'Ingresa el código de 6 dígitos de tu app de autenticación para continuar.'
+            ? 'Ingresa el código de 6 dígitos de tu app de autenticación.'
             : 'Ingresa uno de tus códigos de respaldo (formato XXXX-XXXX).'}
         </p>
       </div>
@@ -395,7 +402,7 @@ export function TwoFactorChallengeStep({
           </div>
         )}
 
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex justify-center">
           <button
             type="button"
             onClick={() => switchMode(mode === 'totp' ? 'backup' : 'totp')}
@@ -406,21 +413,11 @@ export function TwoFactorChallengeStep({
               ? 'Usar código de respaldo'
               : 'Usar código de la app'}
           </button>
-          {passkeyAvailable && (
-            <button
-              type="button"
-              onClick={() => switchMode('passkey')}
-              className="text-[0.75rem] font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
-              style={{ color: 'var(--auth-accent, #0D9488)' }}
-            >
-              Verificar con passkey
-            </button>
-          )}
         </div>
 
         <div className="pt-2">
           <SubmitButton isLoading={isLoading} loadingLabel="Verificando...">
-            Verificar
+            Continuar
           </SubmitButton>
         </div>
       </form>

@@ -164,15 +164,7 @@ function SocialLoginButtonsInner({
   ) => {
     setIsLoading(provider);
     try {
-      const outcome = await socialLogin(provider, token, extra);
-      if (outcome.kind === '2fa_required') {
-        if (onTwoFactorRequired) {
-          onTwoFactorRequired(outcome.challengeToken, outcome.methods);
-        } else {
-          toast.error('Esta cuenta requiere verificación en dos pasos');
-        }
-        return;
-      }
+      await socialLogin(provider, token, extra);
     } catch (error) {
       // Handle linking required — check both AxiosError and ApiError
       const errorData = error instanceof AxiosError

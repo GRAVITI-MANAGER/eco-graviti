@@ -93,7 +93,7 @@ Al finalizar el desarrollo (commit hecho, build y lint pasando), evaluar si el c
 
 Cuando aplique:
 ```bash
-cd frontend && npm run dev -- --port 3001 &
+npm --prefix frontend run dev -- --port 3001 &
 # Informar: "Preview disponible en http://localhost:3001 — verifica los cambios en el browser"
 ```
 

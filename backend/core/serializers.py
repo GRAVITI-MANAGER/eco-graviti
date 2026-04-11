@@ -138,6 +138,7 @@ class TeamMemberSerializer(serializers.ModelSerializer):
     has_password = serializers.SerializerMethodField()
     social_accounts = SocialAccountDetailSerializer(many=True, read_only=True)
     auth_method = serializers.SerializerMethodField()
+    has_2fa = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -156,6 +157,7 @@ class TeamMemberSerializer(serializers.ModelSerializer):
             "has_password",
             "social_accounts",
             "auth_method",
+            "has_2fa",
         ]
         read_only_fields = fields
 
@@ -173,6 +175,12 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         if has_social:
             return "social_only"
         return "email_only"
+
+    def get_has_2fa(self, obj) -> bool:
+        device = getattr(obj, "totp_device", None)
+        if device and device.confirmed:
+            return True
+        return obj.webauthn_credentials.exists()
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
