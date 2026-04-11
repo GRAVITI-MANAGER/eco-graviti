@@ -428,10 +428,7 @@ class TwoFactorPasskeyOptionsView(APIView):
             _store_challenge,
         )
 
-        allow_credentials = [
-            PublicKeyCredentialDescriptor(id=bytes(cred.credential_id))
-            for cred in credentials
-        ]
+        allow_credentials = [PublicKeyCredentialDescriptor(id=bytes(cred.credential_id)) for cred in credentials]
 
         options = generate_authentication_options(
             rp_id=_rp_id(),
@@ -519,9 +516,7 @@ class TwoFactorPasskeyVerifyView(APIView):
 
         # La credencial debe pertenecer al usuario del challenge token
         try:
-            cred_obj = WebAuthnCredential.objects.get(
-                credential_id=raw_id, user=user
-            )
+            cred_obj = WebAuthnCredential.objects.get(credential_id=raw_id, user=user)
         except WebAuthnCredential.DoesNotExist:
             return Response(
                 {"error": "Passkey no reconocido para este usuario"},
