@@ -69,7 +69,18 @@ fi
 for envfile in "$MAIN_REPO"/frontend/.env*; do
   [ -f "$envfile" ] || continue
   fname="$(basename "$envfile")"
-  ln -sfn "$envfile" "$WT_ROOT/frontend/$fname"
+  dest="$WT_ROOT/frontend/$fname"
+  # Skip if dest already points to the correct target
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$envfile" ]; then
+    echo "✅ Symlink frontend/$fname ya existe (correcto)"
+    continue
+  fi
+  # Backup if dest is a real file or a symlink to a different target
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    echo "⚠️  frontend/$fname existe — backup a frontend/${fname}.bak"
+    mv "$dest" "${dest}.bak"
+  fi
+  ln -sfn "$envfile" "$dest"
   echo "✅ Symlink frontend/$fname → repo principal"
 done
 
@@ -77,7 +88,16 @@ done
 for envfile in "$MAIN_REPO"/backend/.env*; do
   [ -f "$envfile" ] || continue
   fname="$(basename "$envfile")"
-  ln -sfn "$envfile" "$WT_ROOT/backend/$fname"
+  dest="$WT_ROOT/backend/$fname"
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$envfile" ]; then
+    echo "✅ Symlink backend/$fname ya existe (correcto)"
+    continue
+  fi
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    echo "⚠️  backend/$fname existe — backup a backend/${fname}.bak"
+    mv "$dest" "${dest}.bak"
+  fi
+  ln -sfn "$envfile" "$dest"
   echo "✅ Symlink backend/$fname → repo principal"
 done
 
@@ -92,9 +112,16 @@ fi
 ```bash
 WT_ROOT="$(git rev-parse --show-toplevel)"
 [ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || { echo "❌ node_modules FALTA — DETENERSE"; exit 1; }
-[ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ frontend/.env.local OK" || echo "⚠️  frontend/.env.local no existe (puede ser normal)"
-[ -L "$WT_ROOT/frontend/.env.development" ] && echo "✅ frontend/.env.development OK" || echo "⚠️  frontend/.env.development no existe"
-[ -L "$WT_ROOT/backend/.env" ] && echo "✅ backend/.env OK" || echo "⚠️  backend/.env no existe"
+for envfile in "$WT_ROOT"/frontend/.env*; do
+  [ -e "$envfile" ] || [ -L "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  [ -L "$envfile" ] && echo "✅ frontend/$fname OK" || echo "⚠️  frontend/$fname no es symlink"
+done
+for envfile in "$WT_ROOT"/backend/.env*; do
+  [ -e "$envfile" ] || [ -L "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  [ -L "$envfile" ] && echo "✅ backend/$fname OK" || echo "⚠️  backend/$fname no es symlink"
+done
 ```
 
 **Dev server automático post-desarrollo** (OBLIGATORIO cuando el cambio toca UI):
