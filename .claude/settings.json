@@ -1,0 +1,166 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git fetch origin develop 2>/dev/null && echo '✅ Synced with origin/develop' || echo '⚠️ Could not fetch origin/develop (offline?)'",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '/migrations/[0-9]'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se pueden modificar migraciones existentes de Django. Las migraciones son registros inmutables.\"}}'; else exit 0; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.(env|pem|key)$|credentials\\.json|secrets\\.'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se pueden editar archivos con secretos o credenciales.\"}}'; else exit 0; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'npm install.*(\\@mui|\\.@chakra|\\@mantine|antd|bootstrap|react-bootstrap|\\@material)'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: Este proyecto usa shadcn/ui + Radix UI exclusivamente. No instalar otras librerías de UI. Usa: npx shadcn@latest add {component}\"}}'; else exit 0; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'git push.*(origin\\s+(main|master|develop)\\b|--force)'; then BRANCH=$(echo \"$CMD\" | grep -oE '(main|master|develop)'); echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se permite push directo a '\"$BRANCH\"'. Usa PR: feature/* o fix/* → develop → main.\"}}'; else exit 0; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE '^git commit'; then MSG=$(echo \"$CMD\" | grep -oP '(?<=-m [\"'\\'']).+?(?=[\"'\\''](\\s|$))' || echo ''); if [ -n \"$MSG\" ] && ! echo \"$MSG\" | grep -qE '^(feat|fix|refactor|docs|ci|chore|test|style|perf)(\\(.+\\))?!?:'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: El commit debe usar conventional commits. Formato: tipo(scope): descripción. Tipos: feat, fix, refactor, docs, ci, chore, test, style, perf\"}}'; else exit 0; fi; else exit 0; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.py$' && echo \"$FILE_PATH\" | grep -q 'backend/'; then ruff check --fix \"$FILE_PATH\" 2>/dev/null && echo '✅ Ruff auto-fix applied' || true; fi",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.tsx$' && echo \"$FILE_PATH\" | grep -q 'frontend/src/'; then if grep -qE '(useState|useEffect|useRef|useCallback|onClick|onChange|onSubmit|useContext)' \"$FILE_PATH\" 2>/dev/null && ! head -5 \"$FILE_PATH\" | grep -q '\"use client\"' 2>/dev/null; then echo '⚠️ ADVERTENCIA: '\"$FILE_PATH\"' usa hooks/eventos de React pero NO tiene \"use client\" al inicio. En Next.js App Router, los componentes con interactividad requieren la directiva \"use client\".'; fi; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE 'backend/.*/models\\.py$'; then if grep -qE '^class\\s+\\w+.*models\\.Model\\)' \"$FILE_PATH\" 2>/dev/null && ! grep -q 'TenantAwareModel' \"$FILE_PATH\" 2>/dev/null; then echo '🚨 ALERTA TENANT: '\"$FILE_PATH\"' tiene modelos que heredan de models.Model en vez de TenantAwareModel. TODOS los modelos de negocio DEBEN heredar de TenantAwareModel (backend/core/models.py). Solo Tenant y modelos de configuración global pueden heredar de models.Model.'; fi; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.py$' && echo \"$FILE_PATH\" | grep -q 'backend/'; then ISSUES=''; if grep -nE '\\.objects\\.all\\(\\)' \"$FILE_PATH\" 2>/dev/null | grep -vE '#.*noqa|#.*tenant-safe' > /tmp/tenant_check 2>/dev/null && [ -s /tmp/tenant_check ]; then ISSUES=\"$ISSUES$(echo '⚠️ .objects.all() sin filtro de tenant encontrado:'; cat /tmp/tenant_check)\"; fi; if grep -nE '(cursor\\.execute|connection\\.cursor|raw\\()' \"$FILE_PATH\" 2>/dev/null | grep -vE '#.*noqa' > /tmp/raw_sql_check 2>/dev/null && [ -s /tmp/raw_sql_check ]; then ISSUES=\"$ISSUES$(echo '\\n⚠️ Raw SQL detectado (riesgo de inyección SQL y bypass de tenant):'; cat /tmp/raw_sql_check)\"; fi; if grep -nE '\\.extra\\(' \"$FILE_PATH\" 2>/dev/null | grep -vE '#.*noqa' > /tmp/extra_check 2>/dev/null && [ -s /tmp/extra_check ]; then ISSUES=\"$ISSUES$(echo '\\n⚠️ QuerySet.extra() detectado (deprecado, riesgo de SQL injection):'; cat /tmp/extra_check)\"; fi; if [ -n \"$ISSUES\" ]; then echo \"$ISSUES\"; fi; rm -f /tmp/tenant_check /tmp/raw_sql_check /tmp/extra_check; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.tsx$' && echo \"$FILE_PATH\" | grep -q 'frontend/'; then if grep -nE 'dangerouslySetInnerHTML' \"$FILE_PATH\" 2>/dev/null > /tmp/xss_check && [ -s /tmp/xss_check ]; then echo '🚨 ALERTA XSS: dangerouslySetInnerHTML detectado en '\"$FILE_PATH\"':'; cat /tmp/xss_check; echo 'Asegúrate de sanitizar el HTML con DOMPurify u otra librería antes de renderizar.'; fi; rm -f /tmp/xss_check; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "if": "Edit(frontend/src/**/*.tsx)",
+            "prompt": "You are a UI/UX design reviewer for NERBIS, a multi-tenant SaaS platform using Next.js 16 + React 19 + shadcn/ui + TailwindCSS 4. Quickly review this code edit for design compliance. Check: (1) Uses shadcn/ui components (Button, Card, Dialog, etc.) — not custom or third-party UI libraries. (2) TailwindCSS utility classes only — no inline styles or custom CSS modules. (3) Mobile-first responsive design (sm:, md:, lg: breakpoints). (4) Proper visual hierarchy: consistent spacing (p-4, gap-4, etc.), clear heading levels, adequate contrast. (5) No generic AI aesthetics (avoid Inter font, purple-on-white gradients, cookie-cutter layouts). (6) Accessible: proper aria labels on interactive elements, alt text on images. Return PASS if compliant or list ONLY actual violations found (max 3 most important). Be concise — one line per issue. If the edit is minor (import change, variable rename), return PASS."
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "agent",
+            "if": "Write(frontend/src/**/*.tsx)",
+            "prompt": "You are a thorough UI/UX design reviewer for NERBIS. A new frontend component was just created. Do a full design compliance review: (1) Read .claude/skills/web-design-guidelines/SKILL.md for UI guidelines. (2) Read .claude/skills/shadcn/rules/styling.md and .claude/skills/shadcn/rules/composition.md for component patterns. (3) Read .claude/skills/vercel-react-best-practices/SKILL.md for React/Next.js performance patterns. (4) Review the new file against these skills. Check: shadcn/ui usage, TailwindCSS compliance, Server Component by default, mobile-first responsive, accessibility (aria, alt, semantic HTML), visual hierarchy and spacing consistency, no generic AI aesthetics. Return a structured report: PASS or FAIL with specific line-number violations grouped by category (Components, Styling, Accessibility, Performance). Max 5 issues. If the file is a simple utility or config, return PASS."
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📌 RECORDATORIO POST-COMPACTACIÓN: Este proyecto usa SDD (Spec-Driven Development). Si estás en medio de un flujo SDD, verifica el estado del cambio actual con mem_search en Engram. Branch flow: feature/* → develop → main. Conventional commits obligatorios. Skills disponibles: multi-tenancy, shadcn, vercel-react, web-design-guidelines, code-quality, frontend-design. Agents: backend-implementer, frontend-implementer, security-reviewer, test-runner.'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CHANGED=$(git diff --name-only HEAD 2>/dev/null | head -20); if [ -n \"$CHANGED\" ]; then SUMMARY=\"Archivos modificados en esta sesión: $(echo $CHANGED | tr '\\n' ', ')\"; echo \"📝 Cambios pendientes detectados. Considera guardar progreso en Engram si esta sesión tiene trabajo importante sin commit.\"; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🌳 Worktree creado. RECORDATORIO: (1) Al terminar, limpia el worktree con sdd-archive Step 8 o manualmente. (2) Cada worktree debe tener su propio feature branch. (3) No olvides git fetch origin develop antes de crear el branch.'"
+          }
+        ]
+      }
+    ]
+  }
+}
