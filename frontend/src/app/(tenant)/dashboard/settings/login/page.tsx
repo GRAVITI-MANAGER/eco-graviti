@@ -3,32 +3,50 @@
 //   - Correo + contraseña (estado y cambio)
 //   - Cuentas vinculadas (Google, Apple, Facebook)
 //   - Passkeys (WebAuthn)
+//   - Autenticación en dos pasos (TOTP)
 //
-// Futuro (ver issue): sesiones activas, 2FA, historial de inicios, alertas de seguridad.
+// Futuro (ver issue): sesiones activas, historial de inicios, alertas de seguridad.
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
   Check,
+  Copy,
+  Download,
   Eye,
   EyeOff,
   Fingerprint,
   KeyRound,
   Loader2,
   Lock,
+  Mail,
   Pencil,
   Plus,
+  ShieldAlert,
+  ShieldCheck,
+  Smartphone,
   Trash2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +58,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { OtpInput } from '@/components/auth/OtpInput';
 import { useAuth } from '@/contexts/AuthContext';
+import { requestPasswordResetOTP, verifyPasswordResetOTP } from '@/lib/api/auth';
+import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { SocialProvider } from '@/types';
 import {
@@ -56,6 +77,14 @@ import {
   registerPasskey,
   type PasskeyRecord,
 } from '@/lib/api/passkey';
+import {
+  disableTwoFactor,
+  getTwoFactorStatus,
+  regenerateBackupCodes,
+  setupTwoFactor,
+  verifyTwoFactor,
+  type TwoFactorSetupResponse,
+} from '@/lib/api/twoFactor';
 
 // ─── SVG icons de providers sociales ──────────────────────
 const googleIcon = (
@@ -119,10 +148,57 @@ function PasswordToggle({ show, onToggle }: { show: boolean; onToggle: () => voi
   );
 }
 
+// ─── Helpers 2FA ──────────────────────────────────────────
+type TwoFactorPhase =
+  | { name: 'loading' }
+  | { name: 'disabled' }
+  | { name: 'enabling'; setup: TwoFactorSetupResponse; code: string }
+  | { name: 'show-codes'; codes: string[] }
+  | { name: 'enabled' };
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function downloadTxt(filename: string, content: string): void {
+  if (typeof window === 'undefined') return;
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  const masked =
+    local.length <= 2
+      ? local
+      : local.slice(0, 2) + '\u2022'.repeat(Math.min(local.length - 2, 6));
+  return `${masked}@${domain}`;
+}
+
+type PasswordResetStep = 'idle' | 'confirm' | 'otp' | 'new-password';
+
 // ─── Página ───────────────────────────────────────────────
 export default function LoginSettingsPage() {
   const { user } = useAuth();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
 
@@ -147,6 +223,122 @@ export default function LoginSettingsPage() {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // ── Inline password reset (forgot password) ───────
+  const [resetStep, setResetStep] = useState<PasswordResetStep>('idle');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startResendCooldown = useCallback(() => {
+    setResendCooldown(60);
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+    resendTimerRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+    };
+  }, []);
+
+  const resetInlineFlow = useCallback(() => {
+    setResetStep('idle');
+    setResetOtp('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+    setShowResetNewPassword(false);
+    setShowResetConfirmPassword(false);
+    setResetLoading(false);
+    setResetError('');
+    setResendCooldown(0);
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+  }, []);
+
+  const handleSendResetOtp = useCallback(async () => {
+    if (!user?.email) return;
+    setResetLoading(true);
+    setResetError('');
+    try {
+      await requestPasswordResetOTP(user.email);
+      setResetStep('otp');
+      startResendCooldown();
+    } catch (error) {
+      setResetError(extractErrorMessage(error, 'Error al enviar el codigo'));
+    } finally {
+      setResetLoading(false);
+    }
+  }, [user?.email, startResendCooldown]);
+
+  const handleResendOtp = useCallback(async () => {
+    if (!user?.email || resendCooldown > 0) return;
+    setResetLoading(true);
+    setResetError('');
+    try {
+      await requestPasswordResetOTP(user.email);
+      startResendCooldown();
+      toast.success('Codigo reenviado');
+    } catch (error) {
+      setResetError(extractErrorMessage(error, 'Error al reenviar el codigo'));
+    } finally {
+      setResetLoading(false);
+    }
+  }, [user?.email, resendCooldown, startResendCooldown]);
+
+  const handleVerifyResetOtp = useCallback(async () => {
+    if (!user?.email) return;
+    const pw = resetNewPassword;
+    if (pw !== resetConfirmPassword) {
+      setResetError('Las contraseñas no coinciden');
+      return;
+    }
+    if (pw.length < 8) {
+      setResetError('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    if (/^\d+$/.test(pw)) {
+      setResetError('La contraseña no puede ser completamente numérica');
+      return;
+    }
+    setResetLoading(true);
+    setResetError('');
+    try {
+      await verifyPasswordResetOTP(user.email, resetOtp, pw);
+      toast.success('Contraseña restablecida correctamente');
+      resetInlineFlow();
+      setIsEditingPassword(false);
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+    } catch (error) {
+      const msg = extractErrorMessage(error, 'Error al restablecer la contraseña');
+      // Si el OTP expiró o no existe, volver al paso de envío
+      if (msg.toLowerCase().includes('código') && (msg.toLowerCase().includes('activo') || msg.toLowerCase().includes('expirado') || msg.toLowerCase().includes('inválido'))) {
+        setResetStep('confirm');
+        setResetOtp('');
+        setResetNewPassword('');
+        setResetConfirmPassword('');
+        toast.error('El código expiró. Solicitá uno nuevo.');
+      } else {
+        setResetError(msg);
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  }, [user?.email, resetOtp, resetNewPassword, resetConfirmPassword, resetInlineFlow, queryClient]);
 
   const changePasswordMutation = useMutation({
     mutationFn: changePassword,
@@ -281,6 +473,136 @@ export default function LoginSettingsPage() {
     }
   };
 
+  // ── 2FA (TOTP) ──────────────────────────────────────
+  const [twoFactorPhase, setTwoFactorPhase] = useState<TwoFactorPhase>({ name: 'loading' });
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
+  const [disableDialogOpen, setDisableDialogOpen] = useState(false);
+
+  const { data: twoFactorStatus, isLoading: twoFactorLoading } = useQuery({
+    queryKey: ['two-factor', 'status'],
+    queryFn: getTwoFactorStatus,
+    enabled: mounted,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (twoFactorLoading) {
+      setTwoFactorPhase({ name: 'loading' });
+      return;
+    }
+    if (twoFactorStatus?.enabled) {
+      setTwoFactorPhase((prev) =>
+        prev.name === 'show-codes' ? prev : { name: 'enabled' },
+      );
+    } else {
+      setTwoFactorPhase((prev) =>
+        prev.name === 'enabling' ? prev : { name: 'disabled' },
+      );
+    }
+  }, [twoFactorStatus?.enabled, twoFactorLoading]);
+
+  const setupTwoFactorMutation = useMutation({
+    mutationFn: setupTwoFactor,
+    onSuccess: (data) => {
+      setTwoFactorPhase({ name: 'enabling', setup: data, code: '' });
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, 'No pudimos iniciar el enrolamiento'));
+    },
+  });
+
+  const verifyTwoFactorMutation = useMutation({
+    mutationFn: verifyTwoFactor,
+    onSuccess: (data) => {
+      setTwoFactorPhase({ name: 'show-codes', codes: data.backup_codes });
+      queryClient.invalidateQueries({ queryKey: ['two-factor', 'status'] });
+      toast.success('2FA activado correctamente');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, 'Código inválido'));
+      setTwoFactorPhase((prev) =>
+        prev.name === 'enabling' ? { ...prev, code: '' } : prev,
+      );
+    },
+  });
+
+  const regenerateBackupCodesMutation = useMutation({
+    mutationFn: regenerateBackupCodes,
+    onSuccess: (data) => {
+      setRegenDialogOpen(false);
+      setTwoFactorPhase({ name: 'show-codes', codes: data.backup_codes });
+      toast.success('Nuevos códigos generados');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, 'No pudimos regenerar los códigos'));
+    },
+  });
+
+  const disableTwoFactorMutation = useMutation({
+    mutationFn: disableTwoFactor,
+    onSuccess: () => {
+      setDisableDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['two-factor', 'status'] });
+      setTwoFactorPhase({ name: 'disabled' });
+      toast.success('2FA desactivado');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, 'No pudimos desactivar 2FA'));
+    },
+  });
+
+  const twoFactorContent = useMemo(() => {
+    switch (twoFactorPhase.name) {
+      case 'loading':
+        return <TwoFactorLoadingState />;
+      case 'disabled':
+        return (
+          <TwoFactorDisabledState
+            isLoading={setupTwoFactorMutation.isPending}
+            onActivate={() => setupTwoFactorMutation.mutate()}
+          />
+        );
+      case 'enabling':
+        return (
+          <TwoFactorEnablingState
+            setup={twoFactorPhase.setup}
+            code={twoFactorPhase.code}
+            onCodeChange={(code) =>
+              setTwoFactorPhase((prev) =>
+                prev.name === 'enabling' ? { ...prev, code } : prev,
+              )
+            }
+            onCancel={() => setTwoFactorPhase({ name: 'disabled' })}
+            onSubmit={() => verifyTwoFactorMutation.mutate(twoFactorPhase.code)}
+            isSubmitting={verifyTwoFactorMutation.isPending}
+          />
+        );
+      case 'show-codes':
+        return (
+          <TwoFactorShowCodesState
+            codes={twoFactorPhase.codes}
+            onDone={() =>
+              setTwoFactorPhase(
+                twoFactorStatus?.enabled ? { name: 'enabled' } : { name: 'disabled' },
+              )
+            }
+          />
+        );
+      case 'enabled':
+        return (
+          <TwoFactorEnabledState
+            onRegenerate={() => setRegenDialogOpen(true)}
+            onDisable={() => setDisableDialogOpen(true)}
+          />
+        );
+    }
+  }, [
+    twoFactorPhase,
+    setupTwoFactorMutation,
+    verifyTwoFactorMutation,
+    twoFactorStatus?.enabled,
+  ]);
+
   return (
     <div className="max-w-2xl space-y-8">
       <header>
@@ -335,19 +657,221 @@ export default function LoginSettingsPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => router.push('/forgot-password')}
+                onClick={() => {
+                  setResetStep('confirm');
+                  setIsEditingPassword(true);
+                }}
                 className="text-[0.75rem] font-medium text-[#0D9488] hover:text-[#0D9488] hover:bg-[rgba(13,148,136,0.08)] cursor-pointer"
               >
                 Crear contraseña
               </Button>
             )}
           </div>
-          {profile && !profile.has_password && (
+          {profile && !profile.has_password && resetStep === 'idle' && (
             <div className="px-4 pb-3.5 -mt-1">
               <p className="text-[0.75rem] text-gray-400 leading-relaxed">
                 Crea una contraseña para acceder también por email, sin depender de redes
                 sociales.
               </p>
+            </div>
+          )}
+          {profile && !profile.has_password && resetStep !== 'idle' && (
+            <div className="px-4 pb-5 pt-1 flex flex-col gap-4 border-t border-gray-100">
+              {/* Step 1: Confirm & send OTP */}
+              {resetStep === 'confirm' && (
+                <div className="flex flex-col gap-3 pt-4">
+                  <div className="flex items-start gap-3">
+                    <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[rgba(13,148,136,0.08)]">
+                      <Mail className="size-4 text-[#0D9488]" aria-hidden="true" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[0.85rem] font-medium text-gray-700">
+                        Crear contraseña por correo
+                      </p>
+                      <p className="text-[0.75rem] text-gray-400 mt-0.5">
+                        Te enviaremos un codigo de verificacion a{' '}
+                        <span className="font-medium text-gray-500">
+                          {user?.email ? maskEmail(user.email) : ''}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  {resetError && (
+                    <p className="text-[0.75rem] text-red-500">{resetError}</p>
+                  )}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        resetInlineFlow();
+                        setIsEditingPassword(false);
+                      }}
+                      className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={resetLoading}
+                      onClick={handleSendResetOtp}
+                      className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                    >
+                      {resetLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                      {resetLoading ? 'Enviando...' : 'Enviar codigo'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Enter OTP */}
+              {resetStep === 'otp' && (
+                <div className="flex flex-col gap-4 pt-4">
+                  <div>
+                    <p className="text-[0.85rem] font-medium text-gray-700">
+                      Ingresa el codigo de verificacion
+                    </p>
+                    <p className="text-[0.75rem] text-gray-400 mt-0.5">
+                      Enviamos un codigo de 6 digitos a{' '}
+                      <span className="font-medium text-gray-500">
+                        {user?.email ? maskEmail(user.email) : ''}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="py-1">
+                    <OtpInput
+                      value={resetOtp}
+                      onChange={(val) => {
+                        setResetOtp(val);
+                        setResetError('');
+                      }}
+                      disabled={resetLoading}
+                    />
+                  </div>
+                  <div className="flex items-center justify-center">
+                    {resendCooldown > 0 ? (
+                      <p className="text-[0.72rem] text-gray-400">
+                        Reenviar en {resendCooldown}s
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={resetLoading}
+                        className="text-[0.72rem] font-medium text-[#0D9488] hover:underline cursor-pointer disabled:opacity-50"
+                      >
+                        Reenviar codigo
+                      </button>
+                    )}
+                  </div>
+                  {resetError && (
+                    <p className="text-[0.75rem] text-red-500 text-center">{resetError}</p>
+                  )}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        resetInlineFlow();
+                        setIsEditingPassword(false);
+                      }}
+                      className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={resetOtp.length < 6}
+                      onClick={() => {
+                        setResetStep('new-password');
+                        setResetError('');
+                      }}
+                      className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: New password */}
+              {resetStep === 'new-password' && (
+                <div className="flex flex-col gap-4 pt-4">
+                  <p className="text-[0.85rem] font-medium text-gray-700">
+                    Crea tu nueva contraseña
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reset_new_password_create" className="text-[0.75rem] text-gray-500">
+                      Nueva contraseña
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="reset_new_password_create"
+                        type={showResetNewPassword ? 'text' : 'password'}
+                        value={resetNewPassword}
+                        onChange={(e) => {
+                          setResetNewPassword(e.target.value);
+                          setResetError('');
+                        }}
+                        autoComplete="new-password"
+                        className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
+                      />
+                      <PasswordToggle
+                        show={showResetNewPassword}
+                        onToggle={() => setShowResetNewPassword((v) => !v)}
+                      />
+                    </div>
+                    <p className="text-[0.72rem] text-gray-400">Minimo 8 caracteres</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reset_confirm_password_create" className="text-[0.75rem] text-gray-500">
+                      Confirmar nueva contraseña
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="reset_confirm_password_create"
+                        type={showResetConfirmPassword ? 'text' : 'password'}
+                        value={resetConfirmPassword}
+                        onChange={(e) => {
+                          setResetConfirmPassword(e.target.value);
+                          setResetError('');
+                        }}
+                        autoComplete="new-password"
+                        className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
+                      />
+                      <PasswordToggle
+                        show={showResetConfirmPassword}
+                        onToggle={() => setShowResetConfirmPassword((v) => !v)}
+                      />
+                    </div>
+                  </div>
+                  {resetError && (
+                    <p className="text-[0.75rem] text-red-500">{resetError}</p>
+                  )}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        resetInlineFlow();
+                        setIsEditingPassword(false);
+                      }}
+                      className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={resetLoading || !resetNewPassword || !resetConfirmPassword}
+                      onClick={handleVerifyResetOtp}
+                      className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                    >
+                      {resetLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                      {resetLoading ? 'Creando...' : 'Crear contraseña'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -371,15 +895,224 @@ export default function LoginSettingsPage() {
               )}
             </div>
 
-            {isEditingPassword && (
+            {isEditingPassword && resetStep !== 'idle' && (
+              <div className="px-4 pb-5 pt-1 flex flex-col gap-4 border-t border-gray-100">
+                {/* Step 1: Confirm & send OTP */}
+                {resetStep === 'confirm' && (
+                  <div className="flex flex-col gap-3 pt-4">
+                    <div className="flex items-start gap-3">
+                      <div className="size-8 rounded-lg flex items-center justify-center shrink-0 bg-[rgba(13,148,136,0.08)]">
+                        <Mail className="size-4 text-[#0D9488]" aria-hidden="true" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[0.85rem] font-medium text-gray-700">
+                          Restablecer por correo
+                        </p>
+                        <p className="text-[0.75rem] text-gray-400 mt-0.5">
+                          Te enviaremos un codigo de verificacion a{' '}
+                          <span className="font-medium text-gray-500">
+                            {user?.email ? maskEmail(user.email) : ''}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    {resetError && (
+                      <p className="text-[0.75rem] text-red-500">{resetError}</p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          resetInlineFlow();
+                          setIsEditingPassword(false);
+                        }}
+                        className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={resetLoading}
+                        onClick={handleSendResetOtp}
+                        className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                      >
+                        {resetLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                        {resetLoading ? 'Enviando...' : 'Enviar codigo'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Enter OTP */}
+                {resetStep === 'otp' && (
+                  <div className="flex flex-col gap-4 pt-4">
+                    <div>
+                      <p className="text-[0.85rem] font-medium text-gray-700">
+                        Ingresa el codigo de verificacion
+                      </p>
+                      <p className="text-[0.75rem] text-gray-400 mt-0.5">
+                        Enviamos un codigo de 6 digitos a{' '}
+                        <span className="font-medium text-gray-500">
+                          {user?.email ? maskEmail(user.email) : ''}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="py-1">
+                      <OtpInput
+                        value={resetOtp}
+                        onChange={(val) => {
+                          setResetOtp(val);
+                          setResetError('');
+                        }}
+                        disabled={resetLoading}
+                      />
+                    </div>
+                    <div className="flex items-center justify-center">
+                      {resendCooldown > 0 ? (
+                        <p className="text-[0.72rem] text-gray-400">
+                          Reenviar en {resendCooldown}s
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendOtp}
+                          disabled={resetLoading}
+                          className="text-[0.72rem] font-medium text-[#0D9488] hover:underline cursor-pointer disabled:opacity-50"
+                        >
+                          Reenviar codigo
+                        </button>
+                      )}
+                    </div>
+                    {resetError && (
+                      <p className="text-[0.75rem] text-red-500 text-center">{resetError}</p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          resetInlineFlow();
+                          setIsEditingPassword(false);
+                        }}
+                        className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={resetOtp.length < 6}
+                        onClick={() => {
+                          setResetStep('new-password');
+                          setResetError('');
+                        }}
+                        className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: New password */}
+                {resetStep === 'new-password' && (
+                  <div className="flex flex-col gap-4 pt-4">
+                    <p className="text-[0.85rem] font-medium text-gray-700">
+                      Crea tu nueva contraseña
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="reset_new_password" className="text-[0.75rem] text-gray-500">
+                        Nueva contraseña
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="reset_new_password"
+                          type={showResetNewPassword ? 'text' : 'password'}
+                          value={resetNewPassword}
+                          onChange={(e) => {
+                            setResetNewPassword(e.target.value);
+                            setResetError('');
+                          }}
+                          autoComplete="new-password"
+                          className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
+                        />
+                        <PasswordToggle
+                          show={showResetNewPassword}
+                          onToggle={() => setShowResetNewPassword((v) => !v)}
+                        />
+                      </div>
+                      <p className="text-[0.72rem] text-gray-400">Minimo 8 caracteres</p>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="reset_confirm_password" className="text-[0.75rem] text-gray-500">
+                        Confirmar nueva contraseña
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="reset_confirm_password"
+                          type={showResetConfirmPassword ? 'text' : 'password'}
+                          value={resetConfirmPassword}
+                          onChange={(e) => {
+                            setResetConfirmPassword(e.target.value);
+                            setResetError('');
+                          }}
+                          autoComplete="new-password"
+                          className="h-9 pr-10 text-[0.85rem] md:text-[0.85rem]"
+                        />
+                        <PasswordToggle
+                          show={showResetConfirmPassword}
+                          onToggle={() => setShowResetConfirmPassword((v) => !v)}
+                        />
+                      </div>
+                    </div>
+                    {resetError && (
+                      <p className="text-[0.75rem] text-red-500">{resetError}</p>
+                    )}
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          resetInlineFlow();
+                          setIsEditingPassword(false);
+                        }}
+                        className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={resetLoading || !resetNewPassword || !resetConfirmPassword}
+                        onClick={handleVerifyResetOtp}
+                        className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+                      >
+                        {resetLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                        {resetLoading ? 'Restableciendo...' : 'Restablecer contraseña'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isEditingPassword && resetStep === 'idle' && (
               <form
                 onSubmit={handlePasswordSubmit}
                 className="px-4 pb-5 pt-1 flex flex-col gap-4 border-t border-gray-100"
               >
                 <div className="flex flex-col gap-1.5 pt-4">
-                  <Label htmlFor="current_password" className="text-[0.75rem] text-gray-500">
-                    Contraseña actual
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="current_password" className="text-[0.75rem] text-gray-500">
+                      Contraseña actual
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setResetStep('confirm')}
+                      className="text-[0.7rem] font-medium text-[#0D9488] hover:underline cursor-pointer"
+                    >
+                      ¿La olvidaste?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Input
                       id="current_password"
@@ -762,6 +1495,523 @@ export default function LoginSettingsPage() {
           )}
         </div>
       </section>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECCIÓN 4 — Autenticación en dos pasos                  */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <section>
+        <h3 className="text-[0.7rem] text-gray-400 font-medium tracking-wide uppercase mb-3">
+          Autenticación en dos pasos
+        </h3>
+        {twoFactorContent}
+      </section>
+
+      {/* Dialog: regenerar backup codes */}
+      <RegenerateBackupCodesDialog
+        open={regenDialogOpen}
+        onOpenChange={setRegenDialogOpen}
+        isSubmitting={regenerateBackupCodesMutation.isPending}
+        onSubmit={(code) => regenerateBackupCodesMutation.mutate(code)}
+      />
+
+      {/* Dialog: desactivar 2FA */}
+      <DisableTwoFactorDialog
+        open={disableDialogOpen}
+        onOpenChange={setDisableDialogOpen}
+        hasPassword={!!(profile?.has_password ?? user?.has_password)}
+        isSubmitting={disableTwoFactorMutation.isPending}
+        onSubmit={(payload) => disableTwoFactorMutation.mutate(payload)}
+      />
     </div>
+  );
+}
+
+// ─── Sub-componentes 2FA ──────────────────────────────────
+
+function TwoFactorLoadingState() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+      <Skeleton className="h-5 w-48" />
+      <Skeleton className="h-4 w-full max-w-md" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-10 w-56" />
+    </div>
+  );
+}
+
+function TwoFactorDisabledState({
+  isLoading,
+  onActivate,
+}: {
+  isLoading: boolean;
+  onActivate: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="size-9 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+          <ShieldAlert className="size-4 text-gray-400" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[0.9rem] font-medium text-gray-800">
+            Aún no tienes 2FA activo
+          </p>
+          <p className="text-[0.78rem] text-gray-500 leading-relaxed mt-1">
+            Protege tu cuenta con un segundo paso de verificación. Usaremos una app
+            autenticadora (Google Authenticator, 1Password, Authy) para generar un
+            código temporal cada vez que inicies sesión.
+          </p>
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={onActivate}
+        disabled={isLoading}
+        className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+      >
+        <ShieldCheck className="size-3.5" aria-hidden="true" />
+        {isLoading ? 'Preparando\u2026' : 'Activar autenticación de dos pasos'}
+      </Button>
+    </div>
+  );
+}
+
+function TwoFactorEnablingState({
+  setup,
+  code,
+  onCodeChange,
+  onCancel,
+  onSubmit,
+  isSubmitting,
+}: {
+  setup: TwoFactorSetupResponse;
+  code: string;
+  onCodeChange: (code: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+  isSubmitting: boolean;
+}) {
+  const [uriCopied, setUriCopied] = useState(false);
+
+  const manualSecret = (() => {
+    try {
+      return new URL(setup.otpauth_uri).searchParams.get('secret') || setup.otpauth_uri;
+    } catch {
+      return setup.otpauth_uri;
+    }
+  })();
+
+  const handleCopyUri = async () => {
+    const ok = await copyToClipboard(manualSecret);
+    if (ok) {
+      setUriCopied(true);
+      toast.success('Clave copiada');
+      setTimeout(() => setUriCopied(false), 2000);
+    } else {
+      toast.error('No pudimos copiar la clave');
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="size-9 rounded-lg bg-[rgba(13,148,136,0.08)] flex items-center justify-center shrink-0">
+          <Smartphone className="size-4 text-[#0D9488]" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-[0.9rem] font-medium text-gray-800">
+            Escanea el QR con tu app autenticadora
+          </p>
+          <p className="text-[0.78rem] text-gray-500 leading-relaxed mt-1">
+            Abre Google Authenticator, 1Password o Authy y escanea el código. Luego
+            ingresa el código de 6 dígitos que te aparece.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-center py-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <Image
+            src={setup.qr_code_base64}
+            alt="Código QR de 2FA"
+            width={200}
+            height={200}
+            unoptimized
+            className="size-48 object-contain"
+          />
+        </div>
+      </div>
+
+      <details className="group rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+        <summary className="cursor-pointer text-[0.75rem] text-gray-500 font-medium select-none">
+          ¿No puedes escanear? Copia la clave manualmente
+        </summary>
+        <div className="mt-3 flex items-center gap-2">
+          <code className="flex-1 overflow-x-auto rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[0.7rem] font-mono text-gray-700 whitespace-nowrap">
+            {manualSecret}
+          </code>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCopyUri}
+            className="shrink-0 rounded-lg text-[0.72rem] h-8"
+          >
+            {uriCopied ? (
+              <Check className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Copy className="size-3.5" aria-hidden="true" />
+            )}
+            {uriCopied ? 'Copiado' : 'Copiar'}
+          </Button>
+        </div>
+      </details>
+
+      <div className="space-y-2">
+        <Label className="text-[0.75rem] text-gray-500">
+          Código de verificación
+        </Label>
+        <OtpInput value={code} onChange={onCodeChange} disabled={isSubmitting} />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          className="rounded-xl text-[0.82rem] text-gray-500 hover:text-gray-700"
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="button"
+          onClick={onSubmit}
+          disabled={isSubmitting || code.length !== 6}
+          className="rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+        >
+          {isSubmitting ? 'Verificando\u2026' : 'Verificar y activar'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TwoFactorShowCodesState({
+  codes,
+  onDone,
+}: {
+  codes: string[];
+  onDone: () => void;
+}) {
+  const allCodes = codes.join('\n');
+
+  const handleCopyAll = async () => {
+    const ok = await copyToClipboard(allCodes);
+    toast[ok ? 'success' : 'error'](
+      ok ? 'Códigos copiados al portapapeles' : 'No pudimos copiar los códigos',
+    );
+  };
+
+  const handleDownload = () => {
+    const header =
+      'NERBIS — Códigos de respaldo para 2FA\n' +
+      'Guárdalos en un lugar seguro. Cada uno se puede usar una sola vez.\n\n';
+    downloadTxt('nerbis-backup-codes.txt', header + allCodes + '\n');
+    toast.success('Archivo descargado');
+  };
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-5 space-y-4">
+      <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+        <AlertTriangle className="size-4" aria-hidden="true" />
+        <AlertTitle className="text-[0.85rem] font-semibold">
+          Guarda estos códigos ahora
+        </AlertTitle>
+        <AlertDescription className="text-[0.78rem] leading-relaxed">
+          Estos códigos de respaldo te permiten entrar si pierdes el acceso a tu app
+          autenticadora. No volverán a mostrarse. Cada código se puede usar una sola
+          vez.
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid grid-cols-2 gap-2 rounded-lg border border-amber-200 bg-white p-4">
+        {codes.map((code) => (
+          <code
+            key={code}
+            className="rounded-md bg-gray-50 px-3 py-2 text-center text-[0.82rem] font-mono tracking-[0.1em] text-gray-800"
+          >
+            {code}
+          </code>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleCopyAll}
+          className="rounded-xl text-[0.8rem]"
+        >
+          <Copy className="size-3.5" aria-hidden="true" />
+          Copiar todos
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleDownload}
+          className="rounded-xl text-[0.8rem]"
+        >
+          <Download className="size-3.5" aria-hidden="true" />
+          Descargar .txt
+        </Button>
+        <Button
+          type="button"
+          onClick={onDone}
+          className="ml-auto rounded-xl text-[0.82rem] bg-[#1C3B57] hover:bg-[#15304a] hover:shadow-md active:scale-[0.98]"
+        >
+          Listo, ya los guardé
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TwoFactorEnabledState({
+  onRegenerate,
+  onDisable,
+}: {
+  onRegenerate: () => void;
+  onDisable: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="size-9 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+          <ShieldCheck className="size-4 text-emerald-600" aria-hidden="true" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-[0.9rem] font-medium text-gray-800">2FA activo</p>
+            <Badge
+              variant="outline"
+              className="gap-1 text-[0.68rem] text-emerald-600 border-emerald-200 bg-emerald-50/80"
+            >
+              <Check className="size-3" aria-hidden="true" />
+              Activo
+            </Badge>
+          </div>
+          <p className="text-[0.78rem] text-gray-500 leading-relaxed mt-1">
+            Cada vez que inicies sesión te pediremos un código de 6 dígitos de tu app
+            autenticadora. Guarda tus códigos de respaldo por si pierdes el acceso.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 mt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onRegenerate}
+          className="rounded-xl text-[0.8rem]"
+        >
+          <KeyRound className="size-3.5" aria-hidden="true" />
+          Regenerar códigos de respaldo
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onDisable}
+          className="rounded-xl text-[0.8rem] border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+        >
+          <ShieldAlert className="size-3.5" aria-hidden="true" />
+          Desactivar 2FA
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RegenerateBackupCodesDialog({
+  open,
+  onOpenChange,
+  isSubmitting,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isSubmitting: boolean;
+  onSubmit: (code: string) => void;
+}) {
+  const [code, setCode] = useState('');
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) setCode('');
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm rounded-xl p-5 gap-0 bg-white">
+        <DialogHeader className="space-y-1.5 pb-3">
+          <DialogTitle className="text-[0.92rem] font-semibold text-gray-800">
+            Regenerar códigos de respaldo
+          </DialogTitle>
+          <DialogDescription className="text-[0.78rem] text-gray-500 leading-relaxed">
+            Se invalidarán los códigos anteriores. Ingresa el código actual de tu app
+            para confirmar.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-3 space-y-2">
+          <Label className="text-[0.75rem] text-gray-500">Código TOTP</Label>
+          <OtpInput value={code} onChange={setCode} disabled={isSubmitting} />
+        </div>
+        <DialogFooter className="flex-row gap-2 pt-2 border-t border-gray-100">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+            disabled={isSubmitting}
+            className="flex-1 rounded-lg text-[0.8rem] h-9"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => onSubmit(code)}
+            disabled={isSubmitting || code.length !== 6}
+            className="flex-1 rounded-lg text-[0.8rem] h-9 bg-[#1C3B57] hover:bg-[#15304a] text-white"
+          >
+            {isSubmitting ? 'Generando\u2026' : 'Regenerar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DisableTwoFactorDialog({
+  open,
+  onOpenChange,
+  hasPassword,
+  isSubmitting,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  hasPassword: boolean;
+  isSubmitting: boolean;
+  onSubmit: (payload: { code: string; password?: string }) => void;
+}) {
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) {
+        setCode('');
+        setPassword('');
+        setUseBackup(false);
+        setBackupCode('');
+      }
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+
+  const activeCode = useBackup ? backupCode.replace(/-/g, '').trim() : code;
+  const canSubmit =
+    (useBackup ? activeCode.length === 8 : code.length === 6) &&
+    (!hasPassword || password.length > 0) &&
+    !isSubmitting;
+
+  const handleSubmit = useCallback(() => {
+    onSubmit(hasPassword ? { code: activeCode, password } : { code: activeCode });
+  }, [activeCode, password, hasPassword, onSubmit]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm rounded-xl p-5 gap-0 bg-white">
+        <DialogHeader className="space-y-1.5 pb-3">
+          <DialogTitle className="text-[0.92rem] font-semibold text-gray-800">
+            Desactivar 2FA
+          </DialogTitle>
+          <DialogDescription className="text-[0.78rem] text-gray-500 leading-relaxed">
+            Tu cuenta quedará protegida únicamente por tu contraseña. Puedes volver a
+            activar 2FA cuando quieras.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-3 space-y-4">
+          {hasPassword && (
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="disable-2fa-password"
+                className="text-[0.75rem] text-gray-500"
+              >
+                Contraseña actual
+              </Label>
+              <Input
+                id="disable-2fa-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
+                className="h-9 text-[0.85rem] md:text-[0.85rem]"
+              />
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label className="text-[0.75rem] text-gray-500">
+              {useBackup ? 'Código de respaldo' : 'Código actual de tu app'}
+            </Label>
+            {useBackup ? (
+              <Input
+                type="text"
+                placeholder="XXXX-XXXX"
+                value={backupCode}
+                onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+                disabled={isSubmitting}
+                autoComplete="off"
+                className="h-9 text-[0.85rem] md:text-[0.85rem] font-mono tracking-wider"
+              />
+            ) : (
+              <OtpInput value={code} onChange={setCode} disabled={isSubmitting} />
+            )}
+            <button
+              type="button"
+              onClick={() => setUseBackup(!useBackup)}
+              className="text-[0.72rem] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {useBackup ? 'Usar código de la app' : '¿No tienes acceso? Usa un código de respaldo'}
+            </button>
+          </div>
+        </div>
+        <DialogFooter className="flex-row gap-2 pt-2 border-t border-gray-100">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+            disabled={isSubmitting}
+            className="flex-1 rounded-lg text-[0.8rem] h-9"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="flex-1 rounded-lg text-[0.8rem] h-9 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+          >
+            {isSubmitting ? 'Desactivando\u2026' : 'Desactivar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

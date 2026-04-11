@@ -329,6 +329,8 @@ REST_FRAMEWORK = {
         "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
         "social_login": "5/min",  # Social login: 5 por minuto por IP
+        "two_factor_challenge": "10/min",  # 2FA challenge: 10 por minuto por IP
+        "two_factor_verify": "10/min",  # 2FA verify/disable: 10 por minuto por IP
         "admin_login": "5/min",  # Superadmin login: 5 por minuto por IP
     },
 }
@@ -479,6 +481,8 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Europe/Madrid"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "").lower() in ("true", "1")
+CELERY_TASK_EAGER_PROPAGATES = CELERY_TASK_ALWAYS_EAGER
 
 
 # ===================================

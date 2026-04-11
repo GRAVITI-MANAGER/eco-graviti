@@ -97,3 +97,29 @@ class SocialLoginThrottle(SimpleRateThrottle):
             "scope": self.scope,
             "ident": self.get_ident(request),
         }
+
+
+class TwoFactorChallengeThrottle(SimpleRateThrottle):
+    """10 intentos de challenge 2FA por minuto por IP."""
+
+    scope = "two_factor_challenge"
+    cache = throttle_cache
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }
+
+
+class TwoFactorVerifyThrottle(SimpleRateThrottle):
+    """10 verificaciones de 2FA por minuto por IP."""
+
+    scope = "two_factor_verify"
+    cache = throttle_cache
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }

@@ -102,7 +102,7 @@ describe('LoginForm', () => {
 
   it('submits form with valid data', async () => {
     const user = userEvent.setup();
-    mockPlatformLogin.mockResolvedValue(undefined);
+    mockPlatformLogin.mockResolvedValue({ kind: 'authenticated' });
     render(<LoginForm {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText('tu@email.com'), 'test@email.com');

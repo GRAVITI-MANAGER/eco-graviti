@@ -357,7 +357,19 @@ class LoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 5. Generar tokens JWT con claims del tenant
+        # 5. Si el usuario tiene 2FA activo, emitir challenge y NO tokens
+        from .views_2fa import get_2fa_methods, issue_2fa_challenge_token, user_has_confirmed_2fa
+
+        if user_has_confirmed_2fa(user):
+            return Response(
+                {
+                    "status": "2fa_required",
+                    "challenge_token": issue_2fa_challenge_token(user),
+                    "methods": get_2fa_methods(user),
+                }
+            )
+
+        # 6. Generar tokens JWT con claims del tenant
         refresh = RefreshToken.for_user(user)
         refresh["tenant_id"] = str(user.tenant.id)
         refresh["tenant_slug"] = user.tenant.slug
@@ -425,6 +437,18 @@ class PlatformLoginView(APIView):
         if not user.tenant.is_active:
             return Response(
                 {"error": "El negocio asociado a esta cuenta no está activo."}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Si el usuario tiene 2FA activo, emitir challenge
+        from .views_2fa import get_2fa_methods, issue_2fa_challenge_token, user_has_confirmed_2fa
+
+        if user_has_confirmed_2fa(user):
+            return Response(
+                {
+                    "status": "2fa_required",
+                    "challenge_token": issue_2fa_challenge_token(user),
+                    "methods": get_2fa_methods(user),
+                }
             )
 
         # Generar tokens JWT
@@ -1670,6 +1694,8 @@ class SocialLoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Social login ya pasó por la autenticación del proveedor (Google/Apple/FB),
+        # que maneja su propia seguridad/2FA. No requerimos 2FA adicional.
         return Response(_build_social_auth_response(user, tenant))
 
 
@@ -1871,6 +1897,8 @@ class PlatformSocialLoginView(APIView):
                     {"error": "El negocio asociado a esta cuenta no está activo."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+
+            # Social login no requiere 2FA adicional — el proveedor ya autenticó
             return Response(_build_social_auth_response(user, user.tenant))
 
         # Buscar por email en cualquier tenant
@@ -1923,6 +1951,7 @@ class PlatformSocialLoginView(APIView):
                 },
             )
 
+        # Social login no requiere 2FA adicional
         return Response(_build_social_auth_response(user, user.tenant))
 
 
@@ -2081,3 +2110,78 @@ class TeamDisconnectSocialView(APIView):
         return Response(
             {"message": f"Cuenta de {provider} desvinculada de {target_user.get_full_name() or target_user.email}"}
         )
+
+
+class TeamReset2FAView(APIView):
+    """
+    POST /api/team/{user_id}/2fa/reset/ — Resetear 2FA de un miembro del equipo.
+
+    Solo accesible para admins del tenant. Elimina TOTPDevice y todas las
+    credenciales WebAuthn del usuario. Registra la acción en el audit log.
+    """
+
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+
+    def post(self, request, user_id):
+        # Buscar usuario en el mismo tenant
+        try:
+            target_user = User.objects.get(id=user_id, tenant=request.user.tenant)
+        except User.DoesNotExist:
+            return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+        # No permitir resetearse a sí mismo (debe usar la UI normal)
+        if target_user.id == request.user.id:
+            return Response(
+                {"error": "No puedes resetear tu propio 2FA desde aquí. Usa la configuración de tu cuenta."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .views_2fa import user_has_confirmed_2fa
+
+        if not user_has_confirmed_2fa(target_user):
+            return Response(
+                {"error": "Este usuario no tiene 2FA activo"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Eliminar TOTPDevice
+            totp_device = getattr(target_user, "totp_device", None)
+            totp_deleted = False
+            if totp_device:
+                totp_device.delete()
+                totp_deleted = True
+
+            # Eliminar credenciales WebAuthn
+            passkeys_deleted = target_user.webauthn_credentials.count()
+            if passkeys_deleted:
+                target_user.webauthn_credentials.all().delete()
+
+            # Audit log
+            from django.contrib.admin.models import CHANGE, LogEntry
+            from django.contrib.contenttypes.models import ContentType
+
+            ct = ContentType.objects.get_for_model(User)
+            details = []
+            if totp_deleted:
+                details.append("TOTP")
+            if passkeys_deleted:
+                details.append(f"{passkeys_deleted} passkey(s)")
+            LogEntry.objects.log_action(
+                user_id=request.user.pk,
+                content_type_id=ct.pk,
+                object_id=str(target_user.pk),
+                object_repr=f"{target_user.get_full_name() or target_user.email}",
+                action_flag=CHANGE,
+                change_message=f"Admin id={request.user.pk} reseteó 2FA ({', '.join(details)}) del usuario id={target_user.pk}",
+            )
+
+        logger.info(
+            f"Team 2FA reset: {', '.join(details)} eliminado(s) de usuario_id={target_user.pk} "
+            f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"
+        )
+
+        target_name = target_user.get_full_name() or target_user.email
+        return Response({"message": f"2FA reseteado para {target_name}"})

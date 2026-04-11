@@ -3,7 +3,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import views, webauthn_auth
+from . import views, views_2fa, webauthn_auth
 
 app_name = "core"
 
@@ -19,6 +19,27 @@ urlpatterns = [
     path("auth/delete-account/", views.DeleteAccountView.as_view(), name="delete_account"),
     path("auth/reactivate-account/", views.ReactivateAccountView.as_view(), name="reactivate_account"),
     path("auth/set-password/", views.SetPasswordView.as_view(), name="set_password"),
+    # 2FA (TOTP)
+    path("auth/2fa/status/", views_2fa.TwoFactorStatusView.as_view(), name="two_factor_status"),
+    path("auth/2fa/setup/", views_2fa.TwoFactorSetupView.as_view(), name="two_factor_setup"),
+    path("auth/2fa/verify/", views_2fa.TwoFactorVerifyView.as_view(), name="two_factor_verify"),
+    path("auth/2fa/disable/", views_2fa.TwoFactorDisableView.as_view(), name="two_factor_disable"),
+    path(
+        "auth/2fa/backup-codes/regenerate/",
+        views_2fa.TwoFactorBackupCodesRegenerateView.as_view(),
+        name="two_factor_backup_codes_regenerate",
+    ),
+    path(
+        "auth/2fa/challenge/passkey/options/",
+        views_2fa.TwoFactorPasskeyOptionsView.as_view(),
+        name="two_factor_passkey_options",
+    ),
+    path(
+        "auth/2fa/challenge/passkey/verify/",
+        views_2fa.TwoFactorPasskeyVerifyView.as_view(),
+        name="two_factor_passkey_verify",
+    ),
+    path("auth/2fa/challenge/", views_2fa.TwoFactorChallengeView.as_view(), name="two_factor_challenge"),
     # OTP - Recuperación de contraseña
     path("auth/forgot-password/", views.RequestPasswordResetOTPView.as_view(), name="forgot_password"),
     path("auth/verify-reset-otp/", views.VerifyPasswordResetOTPView.as_view(), name="verify_reset_otp"),
@@ -60,6 +81,11 @@ urlpatterns = [
         "team/<int:user_id>/social/<str:provider>/",
         views.TeamDisconnectSocialView.as_view(),
         name="team_disconnect_social",
+    ),
+    path(
+        "team/<int:user_id>/2fa/reset/",
+        views.TeamReset2FAView.as_view(),
+        name="team_reset_2fa",
     ),
     # Banners
     path("banners/", views.ActiveBannersView.as_view(), name="active_banners"),

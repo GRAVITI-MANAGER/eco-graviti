@@ -76,10 +76,20 @@ export function SocialLoginButtons({
   onAppleClick,
   onFacebookClick,
   onSwitchToRegister,
+  onTwoFactorRequired,
 }: SocialLoginButtonsProps) {
   if (!features.socialLogin) return null;
 
-  return <SocialLoginButtonsInner mode={mode} onGoogleClick={onGoogleClick} onAppleClick={onAppleClick} onFacebookClick={onFacebookClick} onSwitchToRegister={onSwitchToRegister} />;
+  return (
+    <SocialLoginButtonsInner
+      mode={mode}
+      onGoogleClick={onGoogleClick}
+      onAppleClick={onAppleClick}
+      onFacebookClick={onFacebookClick}
+      onSwitchToRegister={onSwitchToRegister}
+      onTwoFactorRequired={onTwoFactorRequired}
+    />
+  );
 }
 
 /** Inner component — hooks are safe here because parent already checked feature flag. */
@@ -89,6 +99,7 @@ function SocialLoginButtonsInner({
   onAppleClick,
   onFacebookClick,
   onSwitchToRegister,
+  onTwoFactorRequired,
 }: SocialLoginButtonsProps) {
   const { socialLogin } = useAuth();
   const [isLoading, setIsLoading] = useState<SocialProvider | null>(null);
@@ -176,7 +187,7 @@ function SocialLoginButtonsInner({
     } finally {
       setIsLoading(null);
     }
-  }, [socialLogin, handleSocialError]);
+  }, [socialLogin, handleSocialError, onTwoFactorRequired]);
 
   // ─── Google ───────────────────────────────────────────────
   const googleLogin = useGoogleLogin({
