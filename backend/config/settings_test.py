@@ -32,6 +32,7 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # noqa: F405
     "social_login": None,
     "two_factor_challenge": None,
     "two_factor_verify": None,
+    "admin_login": None,
 }
 
 # ===================================

@@ -65,13 +65,43 @@ if [ -d "$MAIN_REPO/frontend/node_modules" ]; then
   echo "✅ Symlink node_modules → repo principal"
 fi
 
-# 3. Symlink de .env.local (variables de entorno compartidas)
-if [ -f "$MAIN_REPO/frontend/.env.local" ]; then
-  ln -sfn "$MAIN_REPO/frontend/.env.local" "$WT_ROOT/frontend/.env.local"
-  echo "✅ Symlink .env.local → repo principal"
-fi
+# 3. Symlink de TODOS los .env* del frontend (feature flags, API URLs, etc.)
+for envfile in "$MAIN_REPO"/frontend/.env*; do
+  [ -f "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  dest="$WT_ROOT/frontend/$fname"
+  # Skip if dest already points to the correct target
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$envfile" ]; then
+    echo "✅ Symlink frontend/$fname ya existe (correcto)"
+    continue
+  fi
+  # Backup if dest is a real file or a symlink to a different target
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    echo "⚠️  frontend/$fname existe — backup a frontend/${fname}.bak"
+    mv "$dest" "${dest}.bak"
+  fi
+  ln -sfn "$envfile" "$dest"
+  echo "✅ Symlink frontend/$fname → repo principal"
+done
 
-# 4. Symlink de backend .env si existe
+# 4. Symlink de TODOS los .env* del backend
+for envfile in "$MAIN_REPO"/backend/.env*; do
+  [ -f "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  dest="$WT_ROOT/backend/$fname"
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$envfile" ]; then
+    echo "✅ Symlink backend/$fname ya existe (correcto)"
+    continue
+  fi
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    echo "⚠️  backend/$fname existe — backup a backend/${fname}.bak"
+    mv "$dest" "${dest}.bak"
+  fi
+  ln -sfn "$envfile" "$dest"
+  echo "✅ Symlink backend/$fname → repo principal"
+done
+
+# 5. Symlink de .env raíz si existe
 if [ -f "$MAIN_REPO/.env" ]; then
   ln -sfn "$MAIN_REPO/.env" "$WT_ROOT/.env"
   echo "✅ Symlink .env → repo principal"
@@ -82,7 +112,16 @@ fi
 ```bash
 WT_ROOT="$(git rev-parse --show-toplevel)"
 [ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || { echo "❌ node_modules FALTA — DETENERSE"; exit 1; }
-[ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ .env.local OK" || echo "⚠️  .env.local no existe (puede ser normal)"
+for envfile in "$WT_ROOT"/frontend/.env*; do
+  [ -e "$envfile" ] || [ -L "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  [ -L "$envfile" ] && echo "✅ frontend/$fname OK" || echo "⚠️  frontend/$fname no es symlink"
+done
+for envfile in "$WT_ROOT"/backend/.env*; do
+  [ -e "$envfile" ] || [ -L "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  [ -L "$envfile" ] && echo "✅ backend/$fname OK" || echo "⚠️  backend/$fname no es symlink"
+done
 ```
 
 **Dev server automático post-desarrollo** (OBLIGATORIO cuando el cambio toca UI):
@@ -93,7 +132,7 @@ Al finalizar el desarrollo (commit hecho, build y lint pasando), evaluar si el c
 
 Cuando aplique:
 ```bash
-npm --prefix frontend run dev -- --port 3001 &
+npm run dev --prefix frontend -- --port 3001 &
 # Informar: "Preview disponible en http://localhost:3001 — verifica los cambios en el browser"
 ```
 
@@ -102,6 +141,7 @@ npm --prefix frontend run dev -- --port 3001 &
 Leer los skills relevantes en `.claude/skills/` antes de actuar:
 
 **Frontend:**
+- `.claude/skills/nerbis-design-identity` — **identidad visual NERBIS** (tipografía, color, motion, layout, micro-copy, data viz, anti-AI-slop). Leer SIEMPRE antes de crear UI.
 - `.claude/skills/frontend-design` — dirección estética premium, anti "AI slop" (oficial Anthropic)
 - `.claude/skills/web-design-guidelines` — diseño web, UI/UX, layouts, accesibilidad
 - `.claude/skills/shadcn` — uso correcto de shadcn/ui + Radix UI
@@ -401,4 +441,29 @@ Ambos corren simultáneamente. Esperar a que ambos terminen antes de continuar.
 - **Frontend:** ESLint + Next.js build (en PRs a main y develop)
 - **CodeRabbit:** Review automático en PRs
 - **Release Please:** Versionamiento semántico en push a main
-- Correr lint local antes de push: `ruff check backend/` y `cd frontend && npm run lint`
+- Correr lint local antes de push: `ruff check backend/` y `npm run lint --prefix frontend`
+- **Aislamiento del panel admin:** correr `npm run test:isolation --prefix frontend` antes de push si tocaste `src/app/admin/**`, `src/lib/api/admin-*.ts`, o `src/contexts/AdminAuthContext.tsx`. El script asegura que la superficie superadmin no importe ni referencie código tenant.
+
+## Bootstrapping del primer superadministrador
+
+El panel `/admin` (issue #56) es para superadministradores de plataforma (`is_superuser=True`, `tenant=NULL`). El primer superadmin se crea **una sola vez** desde la CLI de Django:
+
+```bash
+cd backend
+python manage.py createsuperuser
+# Email: admin@nerbis.com
+# Password: ********
+```
+
+`createsuperuser` crea un usuario sin tenant (`tenant_id IS NULL`), con `is_superuser=True` e `is_staff=True`. El fix en `User.save()` (issue #56) garantiza que `is_staff` se preserve para superadmins en lugar de re-sincronizarse desde `role`.
+
+Una vez creado el primero, los superadministradores adicionales se gestionan **exclusivamente desde la UI** en `/admin/superadmins` (lista, alta, desactivar). El endpoint `POST /api/admin/auth/register/` requiere un JWT de superadmin, así que `createsuperuser` es la única vía para arrancar.
+
+**Verificación:**
+```bash
+# Smoke test
+curl -X POST http://localhost:8000/api/admin/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@nerbis.com","password":"<password>"}'
+# Debe devolver {access, refresh, user}
+```

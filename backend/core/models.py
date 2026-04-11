@@ -4,6 +4,7 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils.text import slugify
 
 from .managers import TenantAwareManager, TenantAwareUserManager
@@ -630,6 +631,12 @@ class User(AbstractUser):
         constraints = [
             models.UniqueConstraint(fields=["tenant", "email"], name="unique_email_per_tenant"),
             models.UniqueConstraint(fields=["tenant", "username"], name="unique_username_per_tenant"),
+            # Email único (case-insensitive) entre superadmins de plataforma (tenant IS NULL)
+            models.UniqueConstraint(
+                Lower("email"),
+                condition=models.Q(tenant__isnull=True),
+                name="core_user_superadmin_email_uq",
+            ),
         ]
 
     def __str__(self):
@@ -666,12 +673,14 @@ class User(AbstractUser):
             tenant_part = self.tenant.slug if self.tenant else "admin"
             self.uid = f"{tenant_part}:{self.email}"
 
-        # Sincronizar is_staff con el rol
-        # Solo los administradores pueden acceder al panel de admin
-        if self.role == "admin":
-            self.is_staff = True
-        else:
-            self.is_staff = False
+        # Sincronizar is_staff con el rol — SOLO para usuarios de tenant.
+        # Para superadmins de plataforma (is_superuser=True o tenant_id IS NULL)
+        # se preserva el valor que estableció Django/createsuperuser/caller.
+        if not (self.is_superuser or self.tenant_id is None):
+            if self.role == "admin":
+                self.is_staff = True
+            else:
+                self.is_staff = False
 
         super().save(*args, **kwargs)
 

@@ -331,6 +331,7 @@ REST_FRAMEWORK = {
         "social_login": "5/min",  # Social login: 5 por minuto por IP
         "two_factor_challenge": "10/min",  # 2FA challenge: 10 por minuto por IP
         "two_factor_verify": "10/min",  # 2FA verify/disable: 10 por minuto por IP
+        "admin_login": "5/min",  # Superadmin login: 5 por minuto por IP
     },
 }
 

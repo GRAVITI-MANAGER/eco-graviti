@@ -165,6 +165,7 @@ class TenantExclusionMiddleware(MiddlewareMixin):
 
     EXCLUDED_PATHS = [
         "/admin/",
+        "/api/admin/",
         "/api/public/",
         "/api/docs/",
         "/api/schema/",

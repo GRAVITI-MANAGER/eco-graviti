@@ -1,17 +1,9 @@
 // src/app/layout.tsx
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
-import { Providers } from '@/components/Providers';
-import { Toaster } from '@/components/ui/toaster';
-import { GoogleAnalytics } from '@/components/GoogleAnalytics';
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://nerbis.com'),
@@ -54,12 +46,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className={inter.className}>
-        <GoogleAnalytics />
-        <Providers>
-          {children}
-          <Toaster />
-        </Providers>
+      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>
+        {children}
       </body>
     </html>
   );
