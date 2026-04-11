@@ -217,7 +217,7 @@ export function TwoFactorChallengeStep({
   const handleSubmit = useCallback(
     async (e?: React.FormEvent) => {
       e?.preventDefault();
-      const rawCode = mode === 'totp' ? totpCode : backupCode.trim();
+      const rawCode = mode === 'totp' ? totpCode : backupCode.replace(/-/g, '').trim();
 
       if (mode === 'totp' && rawCode.length !== TOTP_LENGTH) {
         toast.error('Ingresa los 6 dígitos del código');

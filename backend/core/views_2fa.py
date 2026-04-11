@@ -352,6 +352,12 @@ class TwoFactorChallengeView(APIView):
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not user.is_active:
+            return Response(
+                {"error": "Cuenta desactivada"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         device = getattr(user, "totp_device", None)
         if not device or not device.confirmed:
             return Response(
@@ -396,6 +402,12 @@ class TwoFactorPasskeyOptionsView(APIView):
             user = decode_2fa_challenge_token(challenge_token)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_active:
+            return Response(
+                {"error": "Cuenta desactivada"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # Verificar que el usuario tiene credenciales WebAuthn
         credentials = WebAuthnCredential.objects.filter(user=user)
@@ -466,6 +478,12 @@ class TwoFactorPasskeyVerifyView(APIView):
             user = decode_2fa_challenge_token(challenge_token)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_active:
+            return Response(
+                {"error": "Cuenta desactivada"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         from webauthn import verify_authentication_response
 

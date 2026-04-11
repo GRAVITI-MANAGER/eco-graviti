@@ -2144,36 +2144,40 @@ class TeamReset2FAView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Eliminar TOTPDevice
-        totp_device = getattr(target_user, "totp_device", None)
-        totp_deleted = False
-        if totp_device:
-            totp_device.delete()
-            totp_deleted = True
+        from django.db import transaction
 
-        # Eliminar credenciales WebAuthn
-        passkeys_deleted = target_user.webauthn_credentials.count()
-        if passkeys_deleted:
-            target_user.webauthn_credentials.all().delete()
+        with transaction.atomic():
+            # Eliminar TOTPDevice
+            totp_device = getattr(target_user, "totp_device", None)
+            totp_deleted = False
+            if totp_device:
+                totp_device.delete()
+                totp_deleted = True
 
-        # Audit log
-        from django.contrib.admin.models import CHANGE, LogEntry
-        from django.contrib.contenttypes.models import ContentType
+            # Eliminar credenciales WebAuthn
+            passkeys_deleted = target_user.webauthn_credentials.count()
+            if passkeys_deleted:
+                target_user.webauthn_credentials.all().delete()
 
-        ct = ContentType.objects.get_for_model(User)
-        details = []
-        if totp_deleted:
-            details.append("TOTP")
-        if passkeys_deleted:
-            details.append(f"{passkeys_deleted} passkey(s)")
-        LogEntry.objects.log_action(
-            user_id=request.user.pk,
-            content_type_id=ct.pk,
-            object_id=str(target_user.pk),
-            object_repr=f"{target_user.get_full_name() or target_user.email}",
-            action_flag=CHANGE,
-            change_message=f"Admin id={request.user.pk} reseteó 2FA ({', '.join(details)}) del usuario id={target_user.pk}",
-        )
+            # Audit log
+            from django.contrib.admin.models import CHANGE, LogEntry
+            from django.contrib.contenttypes.models import ContentType
+
+            ct = ContentType.objects.get_for_model(User)
+            details = []
+            if totp_deleted:
+                details.append("TOTP")
+            if passkeys_deleted:
+                details.append(f"{passkeys_deleted} passkey(s)")
+            LogEntry.objects.log_action(
+                user_id=request.user.pk,
+                content_type_id=ct.pk,
+                object_id=str(target_user.pk),
+                object_repr=f"{target_user.get_full_name() or target_user.email}",
+                action_flag=CHANGE,
+                change_message=f"Admin id={request.user.pk} reseteó 2FA ({', '.join(details)}) del usuario id={target_user.pk}",
+            )
+
         logger.info(
             f"Team 2FA reset: {', '.join(details)} eliminado(s) de usuario_id={target_user.pk} "
             f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"

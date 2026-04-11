@@ -1593,14 +1593,22 @@ function TwoFactorEnablingState({
 }) {
   const [uriCopied, setUriCopied] = useState(false);
 
+  const manualSecret = (() => {
+    try {
+      return new URL(setup.otpauth_uri).searchParams.get('secret') || setup.otpauth_uri;
+    } catch {
+      return setup.otpauth_uri;
+    }
+  })();
+
   const handleCopyUri = async () => {
-    const ok = await copyToClipboard(setup.otpauth_uri);
+    const ok = await copyToClipboard(manualSecret);
     if (ok) {
       setUriCopied(true);
-      toast.success('URI copiada');
+      toast.success('Clave copiada');
       setTimeout(() => setUriCopied(false), 2000);
     } else {
-      toast.error('No pudimos copiar la URI');
+      toast.error('No pudimos copiar la clave');
     }
   };
 
@@ -1640,7 +1648,7 @@ function TwoFactorEnablingState({
         </summary>
         <div className="mt-3 flex items-center gap-2">
           <code className="flex-1 overflow-x-auto rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[0.7rem] font-mono text-gray-700 whitespace-nowrap">
-            {setup.otpauth_uri}
+            {manualSecret}
           </code>
           <Button
             type="button"
@@ -1900,24 +1908,31 @@ function DisableTwoFactorDialog({
 }) {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         setCode('');
         setPassword('');
+        setUseBackup(false);
+        setBackupCode('');
       }
       onOpenChange(next);
     },
     [onOpenChange],
   );
 
+  const activeCode = useBackup ? backupCode.replace(/-/g, '').trim() : code;
   const canSubmit =
-    code.length === 6 && (!hasPassword || password.length > 0) && !isSubmitting;
+    (useBackup ? activeCode.length === 8 : code.length === 6) &&
+    (!hasPassword || password.length > 0) &&
+    !isSubmitting;
 
   const handleSubmit = useCallback(() => {
-    onSubmit(hasPassword ? { code, password } : { code });
-  }, [code, password, hasPassword, onSubmit]);
+    onSubmit(hasPassword ? { code: activeCode, password } : { code: activeCode });
+  }, [activeCode, password, hasPassword, onSubmit]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -1953,9 +1968,28 @@ function DisableTwoFactorDialog({
           )}
           <div className="space-y-2">
             <Label className="text-[0.75rem] text-gray-500">
-              Código actual de tu app
+              {useBackup ? 'Código de respaldo' : 'Código actual de tu app'}
             </Label>
-            <OtpInput value={code} onChange={setCode} disabled={isSubmitting} />
+            {useBackup ? (
+              <Input
+                type="text"
+                placeholder="XXXX-XXXX"
+                value={backupCode}
+                onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+                disabled={isSubmitting}
+                autoComplete="off"
+                className="h-9 text-[0.85rem] md:text-[0.85rem] font-mono tracking-wider"
+              />
+            ) : (
+              <OtpInput value={code} onChange={setCode} disabled={isSubmitting} />
+            )}
+            <button
+              type="button"
+              onClick={() => setUseBackup(!useBackup)}
+              className="text-[0.72rem] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {useBackup ? 'Usar código de la app' : '¿No tienes acceso? Usa un código de respaldo'}
+            </button>
           </div>
         </div>
         <DialogFooter className="flex-row gap-2 pt-2 border-t border-gray-100">
