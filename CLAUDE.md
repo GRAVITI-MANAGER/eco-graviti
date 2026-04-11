@@ -65,13 +65,23 @@ if [ -d "$MAIN_REPO/frontend/node_modules" ]; then
   echo "✅ Symlink node_modules → repo principal"
 fi
 
-# 3. Symlink de .env.local (variables de entorno compartidas)
-if [ -f "$MAIN_REPO/frontend/.env.local" ]; then
-  ln -sfn "$MAIN_REPO/frontend/.env.local" "$WT_ROOT/frontend/.env.local"
-  echo "✅ Symlink .env.local → repo principal"
-fi
+# 3. Symlink de TODOS los .env* del frontend (feature flags, API URLs, etc.)
+for envfile in "$MAIN_REPO"/frontend/.env*; do
+  [ -f "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  ln -sfn "$envfile" "$WT_ROOT/frontend/$fname"
+  echo "✅ Symlink frontend/$fname → repo principal"
+done
 
-# 4. Symlink de backend .env si existe
+# 4. Symlink de TODOS los .env* del backend
+for envfile in "$MAIN_REPO"/backend/.env*; do
+  [ -f "$envfile" ] || continue
+  fname="$(basename "$envfile")"
+  ln -sfn "$envfile" "$WT_ROOT/backend/$fname"
+  echo "✅ Symlink backend/$fname → repo principal"
+done
+
+# 5. Symlink de .env raíz si existe
 if [ -f "$MAIN_REPO/.env" ]; then
   ln -sfn "$MAIN_REPO/.env" "$WT_ROOT/.env"
   echo "✅ Symlink .env → repo principal"
@@ -82,7 +92,9 @@ fi
 ```bash
 WT_ROOT="$(git rev-parse --show-toplevel)"
 [ -L "$WT_ROOT/frontend/node_modules" ] && echo "✅ node_modules OK" || { echo "❌ node_modules FALTA — DETENERSE"; exit 1; }
-[ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ .env.local OK" || echo "⚠️  .env.local no existe (puede ser normal)"
+[ -L "$WT_ROOT/frontend/.env.local" ] && echo "✅ frontend/.env.local OK" || echo "⚠️  frontend/.env.local no existe (puede ser normal)"
+[ -L "$WT_ROOT/frontend/.env.development" ] && echo "✅ frontend/.env.development OK" || echo "⚠️  frontend/.env.development no existe"
+[ -L "$WT_ROOT/backend/.env" ] && echo "✅ backend/.env OK" || echo "⚠️  backend/.env no existe"
 ```
 
 **Dev server automático post-desarrollo** (OBLIGATORIO cuando el cambio toca UI):
