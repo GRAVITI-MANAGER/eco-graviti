@@ -27,6 +27,12 @@ import {
 
 const MOBILE_BREAKPOINT = "(max-width: 767px)"
 
+const ResponsiveDialogContext = React.createContext<boolean>(false)
+
+function useResponsiveDialog() {
+  return React.useContext(ResponsiveDialogContext)
+}
+
 interface ResponsiveDialogProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -36,17 +42,19 @@ interface ResponsiveDialogProps {
 function ResponsiveDialog({ children, ...props }: ResponsiveDialogProps) {
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
 
-  if (isMobile) {
-    return <Sheet {...props}>{children}</Sheet>
-  }
-  return <Dialog {...props}>{children}</Dialog>
+  const Wrapper = isMobile ? Sheet : Dialog
+  return (
+    <ResponsiveDialogContext.Provider value={isMobile}>
+      <Wrapper {...props}>{children}</Wrapper>
+    </ResponsiveDialogContext.Provider>
+  )
 }
 
 function ResponsiveDialogTrigger({
   className,
   ...props
 }: React.ComponentProps<"button">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return <SheetTrigger className={className} {...props} />
@@ -58,7 +66,7 @@ function ResponsiveDialogClose({
   className,
   ...props
 }: React.ComponentProps<"button">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return <SheetClose className={className} {...props} />
@@ -70,8 +78,8 @@ function ResponsiveDialogContent({
   className,
   children,
   ...props
-}: React.ComponentProps<"div"> & { showCloseButton?: boolean }) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+}: React.ComponentProps<"div">) {
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return (
@@ -98,7 +106,7 @@ function ResponsiveDialogHeader({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return <SheetHeader className={className} {...props} />
@@ -110,7 +118,7 @@ function ResponsiveDialogFooter({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return <SheetFooter className={className} {...props} />
@@ -122,7 +130,7 @@ function ResponsiveDialogTitle({
   className,
   ...props
 }: React.ComponentProps<"h2">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return (
@@ -144,7 +152,7 @@ function ResponsiveDialogDescription({
   className,
   ...props
 }: React.ComponentProps<"p">) {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
+  const isMobile = useResponsiveDialog()
 
   if (isMobile) {
     return (
