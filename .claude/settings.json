@@ -5,15 +5,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git fetch origin develop 2>/dev/null && echo 'Synced with origin/develop' || echo 'Could not fetch origin/develop (offline?)'",
-            "timeout": 15
+            "command": "git fetch origin develop 2>/dev/null || { echo 'Could not fetch origin/develop (offline?)'; exit 0; }; if git rev-parse --git-common-dir 2>/dev/null | grep -q '/worktrees/'; then BRANCH=$(git branch --show-current 2>/dev/null); HAS_REMOTE=$(git rev-parse --verify origin/\"$BRANCH\" 2>/dev/null); REFLOG_COUNT=$(git reflog show \"$BRANCH\" --count 2>/dev/null | wc -l || echo 1); if [ -z \"$HAS_REMOTE\" ] && [ \"$REFLOG_COUNT\" -le 1 ]; then git reset --hard origin/develop 2>/dev/null && echo \"New worktree detected: reset to origin/develop (branch $BRANCH had no remote and no history)\"; else BEHIND=$(git rev-list --count HEAD..origin/develop 2>/dev/null || echo 0); if [ \"$BEHIND\" -gt 0 ]; then if git merge origin/develop --no-edit 2>/dev/null; then echo \"Worktree synced: merged $BEHIND commits from origin/develop\"; else git merge --abort 2>/dev/null; echo \"WARNING: Worktree is $BEHIND commits behind origin/develop but merge has conflicts. Run: git merge origin/develop\"; fi; else echo 'Synced with origin/develop (already up to date)'; fi; fi; else echo 'Synced with origin/develop'; fi",
+            "timeout": 30
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit",
         "hooks": [
           {
             "type": "command",
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.(env|pem|key)$|credentials\\.json|secrets\\.'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se pueden editar archivos con secretos o credenciales.\"}}'; else exit 0; fi"
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE '\\.(env|pem|key)$|\\.env\\.|credentials\\.json|secret'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se pueden editar archivos con secretos o credenciales.\"}}'; else exit 0; fi"
           }
         ]
       },
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'npm install.*(\\@mui|\\.@chakra|\\@mantine|antd|bootstrap|react-bootstrap|\\@material)'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: Este proyecto usa shadcn/ui + Radix UI exclusivamente.\"}}'; else exit 0; fi"
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'npm install.*(\\@mui|\\@chakra|\\@mantine|antd|bootstrap|react-bootstrap|\\@material)'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: Este proyecto usa shadcn/ui + Radix UI exclusivamente.\"}}'; else exit 0; fi"
           }
         ]
       },
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'git push.*(origin\\s+(main|master|develop)\\b|--force)'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se permite push directo a branches protegidos.\"}}'; else exit 0; fi"
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE 'git push.*(origin\\s+(main|master|develop)\\b|--force|:(main|master|develop))'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: No se permite push directo a branches protegidos.\"}}'; else exit 0; fi"
           }
         ]
       },
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE '^git commit'; then MSG=$(echo \"$CMD\" | grep -oP '(?<=-m [\"'\\'']).+?(?=[\"'\\''](\\s|$))' || echo ''); if [ -n \"$MSG\" ] && ! echo \"$MSG\" | grep -qE '^(feat|fix|refactor|docs|ci|chore|test|style|perf)(\\(.+\\))?!?:'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: El commit debe usar conventional commits.\"}}'; else exit 0; fi; else exit 0; fi"
+            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | jq -r '.tool_input.command // empty'); if echo \"$CMD\" | grep -qE '^git commit'; then MSG=$(echo \"$CMD\" | sed -n 's/.*-m [\"'\\''\"'\\'']*\\([^\"'\\''\"'\\'']*\\).*/\\1/p'); if [ -n \"$MSG\" ] && ! echo \"$MSG\" | grep -qE '^(feat|fix|refactor|docs|ci|chore|test|style|perf|build|revert)(\\(.+\\))?!?:'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"BLOQUEADO: Conventional commits requerido. Formato: tipo(scope): descripcion. Tipos: feat, fix, refactor, docs, ci, chore, test, style, perf, build, revert\"}}'; else exit 0; fi; else exit 0; fi"
           }
         ]
       }
@@ -80,11 +80,11 @@
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE 'backend/.*/models\\.py$'; then if grep -qE '^class\\s+\\w+.*models\\.Model\\)' \"$FILE_PATH\" 2>/dev/null && ! grep -q 'TenantAwareModel' \"$FILE_PATH\" 2>/dev/null; then echo 'ALERTA TENANT: '\"$FILE_PATH\"' tiene modelos que heredan de models.Model en vez de TenantAwareModel.'; fi; fi",
+            "command": "INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // empty'); if echo \"$FILE_PATH\" | grep -qE 'backend/.*/models\\.py$'; then OFFENDING=$(grep -nE '^class\\s+\\w+.*models\\.Model\\)' \"$FILE_PATH\" 2>/dev/null | grep -v 'TenantAwareModel' || true); if [ -n \"$OFFENDING\" ]; then echo 'ALERTA TENANT: Clases heredando de models.Model en '\"$FILE_PATH\"':'; echo \"$OFFENDING\"; echo 'Todos los modelos de negocio DEBEN heredar de TenantAwareModel.'; fi; fi",
             "timeout": 5
           }
         ]
@@ -145,7 +145,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CHANGED=$(git diff --name-only HEAD 2>/dev/null | head -20); if [ -n \"$CHANGED\" ]; then echo 'Cambios pendientes detectados.'; fi",
+            "command": "STATUS=$(git status --porcelain --untracked-files=all 2>/dev/null | head -20); if [ -n \"$STATUS\" ]; then echo \"Cambios pendientes detectados:\"; echo \"$STATUS\"; fi",
             "timeout": 5
           }
         ]
