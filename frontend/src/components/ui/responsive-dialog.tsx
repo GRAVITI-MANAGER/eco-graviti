@@ -33,11 +33,11 @@ function useResponsiveDialog() {
   return React.useContext(ResponsiveDialogContext)
 }
 
-interface ResponsiveDialogProps {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  children: React.ReactNode
-}
+type ResponsiveDialogProps = React.ComponentProps<typeof Dialog>
+
+type ResponsiveDialogContentProps =
+  React.ComponentProps<typeof DialogContent> &
+  Omit<React.ComponentProps<typeof SheetContent>, "side">
 
 function ResponsiveDialog({ children, ...props }: ResponsiveDialogProps) {
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT)
@@ -53,7 +53,7 @@ function ResponsiveDialog({ children, ...props }: ResponsiveDialogProps) {
 function ResponsiveDialogTrigger({
   className,
   ...props
-}: React.ComponentProps<"button">) {
+}: React.ComponentProps<typeof DialogTrigger>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
@@ -65,7 +65,7 @@ function ResponsiveDialogTrigger({
 function ResponsiveDialogClose({
   className,
   ...props
-}: React.ComponentProps<"button">) {
+}: React.ComponentProps<typeof DialogClose>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
@@ -78,7 +78,7 @@ function ResponsiveDialogContent({
   className,
   children,
   ...props
-}: React.ComponentProps<"div">) {
+}: ResponsiveDialogContentProps) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
@@ -86,7 +86,7 @@ function ResponsiveDialogContent({
       <SheetContent
         side="bottom"
         className={cn("max-h-[85dvh] overflow-y-auto rounded-t-xl", className)}
-        {...(props as React.ComponentProps<typeof SheetContent>)}
+        {...props}
       >
         {children}
       </SheetContent>
@@ -95,7 +95,7 @@ function ResponsiveDialogContent({
   return (
     <DialogContent
       className={className}
-      {...(props as React.ComponentProps<typeof DialogContent>)}
+      {...props}
     >
       {children}
     </DialogContent>
@@ -105,7 +105,7 @@ function ResponsiveDialogContent({
 function ResponsiveDialogHeader({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<typeof DialogHeader>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
@@ -117,7 +117,7 @@ function ResponsiveDialogHeader({
 function ResponsiveDialogFooter({
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<typeof DialogFooter>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
@@ -129,45 +129,25 @@ function ResponsiveDialogFooter({
 function ResponsiveDialogTitle({
   className,
   ...props
-}: React.ComponentProps<"h2">) {
+}: React.ComponentProps<typeof DialogTitle>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
-    return (
-      <SheetTitle
-        className={className}
-        {...(props as React.ComponentProps<typeof SheetTitle>)}
-      />
-    )
+    return <SheetTitle className={className} {...props} />
   }
-  return (
-    <DialogTitle
-      className={className}
-      {...(props as React.ComponentProps<typeof DialogTitle>)}
-    />
-  )
+  return <DialogTitle className={className} {...props} />
 }
 
 function ResponsiveDialogDescription({
   className,
   ...props
-}: React.ComponentProps<"p">) {
+}: React.ComponentProps<typeof DialogDescription>) {
   const isMobile = useResponsiveDialog()
 
   if (isMobile) {
-    return (
-      <SheetDescription
-        className={className}
-        {...(props as React.ComponentProps<typeof SheetDescription>)}
-      />
-    )
+    return <SheetDescription className={className} {...props} />
   }
-  return (
-    <DialogDescription
-      className={className}
-      {...(props as React.ComponentProps<typeof DialogDescription>)}
-    />
-  )
+  return <DialogDescription className={className} {...props} />
 }
 
 export {
