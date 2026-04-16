@@ -243,7 +243,7 @@ export default function ProductsPage() {
                   )}
                   {!product.is_active && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <Badge variant="destructive">Inactivo</Badge>
+                      <Badge variant="secondary">Inactivo</Badge>
                     </div>
                   )}
                   {product.is_featured && product.is_active && (
@@ -360,7 +360,7 @@ export default function ProductsPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteDialog.product && deleteMutation.mutate(deleteDialog.product.id)}
-              className="bg-destructive hover:bg-destructive/90"
+              variant="destructive"
             >
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
             </AlertDialogAction>
