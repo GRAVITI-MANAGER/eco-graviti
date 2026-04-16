@@ -470,7 +470,7 @@ export default function ProfilePage() {
                         </AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleDeleteAccount}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          variant="destructive"
                           disabled={deleteAccountMutation.isPending}
                         >
                           {deleteAccountMutation.isPending ? 'Eliminando...' : 'Sí, eliminar mi cuenta'}

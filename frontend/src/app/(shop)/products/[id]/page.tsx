@@ -164,7 +164,7 @@ export default function ProductDetailPage() {
                 <Badge className="absolute top-4 right-4">Destacado</Badge>
               )}
               {hasDiscount && (
-                <Badge variant="destructive" className="absolute top-4 left-4">
+                <Badge className="absolute top-4 left-4">
                   Oferta
                 </Badge>
               )}

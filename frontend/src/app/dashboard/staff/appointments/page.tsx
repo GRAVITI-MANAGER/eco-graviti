@@ -379,7 +379,7 @@ export default function StaffAppointmentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>No, mantener</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               onClick={() => cancelingId && cancelMutation.mutate(cancelingId)}
               disabled={cancelMutation.isPending}
             >

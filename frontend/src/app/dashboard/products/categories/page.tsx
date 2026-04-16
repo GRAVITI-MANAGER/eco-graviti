@@ -457,7 +457,7 @@ export default function CategoriesPage() {
               onClick={() =>
                 deleteDialog.category && deleteMutation.mutate(deleteDialog.category.id)
               }
-              className="bg-destructive hover:bg-destructive/90"
+              variant="destructive"
             >
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
             </AlertDialogAction>

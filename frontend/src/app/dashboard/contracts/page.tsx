@@ -246,7 +246,7 @@ export default function ContractsPage() {
             <AlertDialogCancel>No, mantener</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCancelContract}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               Sí, cancelar contrato
             </AlertDialogAction>
