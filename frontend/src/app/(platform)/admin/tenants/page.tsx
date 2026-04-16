@@ -1,0 +1,669 @@
+// src/app/(platform)/admin/tenants/page.tsx
+//
+// Platform superadmin: tenant list page.
+//
+// Lists every tenant in the platform with search + filters + pagination
+// and exposes quick activate/suspend actions guarded by AlertDialog
+// confirmations. Data flows through `adminClient` via `admin-tenants.ts` —
+// NEVER the tenant-scoped apiClient.
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import {
+  ArrowLeft,
+  Building2,
+  ChevronRight,
+  Loader2,
+  LogOut,
+  MoreHorizontal,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+} from 'lucide-react';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import {
+  adminListTenants,
+  adminUpdateTenant,
+} from '@/lib/api/admin-tenants';
+import type {
+  AdminTenant,
+  AdminTenantFilters,
+  AdminTenantPlan,
+  AdminSubscriptionStatus,
+} from '@/types/admin';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+const PAGE_SIZE = 20;
+
+type PlanFilter = 'all' | AdminTenantPlan;
+type StatusFilter = 'all' | 'active' | 'inactive';
+
+const PLAN_LABELS: Record<AdminTenantPlan, string> = {
+  trial: 'Trial',
+  basic: 'Basico',
+  professional: 'Profesional',
+  enterprise: 'Enterprise',
+};
+
+const SUBSCRIPTION_LABELS: Record<AdminSubscriptionStatus, string> = {
+  active: 'Activa',
+  trial: 'Trial',
+  expired: 'Vencida',
+  inactive: 'Inactiva',
+};
+
+function planBadgeClass(plan: AdminTenantPlan): string {
+  switch (plan) {
+    case 'enterprise':
+      return 'bg-indigo-50 text-indigo-700 ring-indigo-200';
+    case 'professional':
+      return 'bg-teal-50 text-teal-700 ring-teal-200';
+    case 'basic':
+      return 'bg-slate-100 text-slate-700 ring-slate-200';
+    case 'trial':
+    default:
+      return 'bg-amber-50 text-amber-700 ring-amber-200';
+  }
+}
+
+function subscriptionBadgeClass(
+  status: AdminSubscriptionStatus,
+  isActive: boolean,
+): string {
+  if (!isActive) return 'bg-red-50 text-red-700 ring-red-200';
+  switch (status) {
+    case 'active':
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
+    case 'trial':
+      return 'bg-amber-50 text-amber-700 ring-amber-200';
+    case 'expired':
+      return 'bg-red-50 text-red-700 ring-red-200';
+    case 'inactive':
+    default:
+      return 'bg-slate-100 text-slate-600 ring-slate-200';
+  }
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '\u2014';
+  try {
+    return new Date(iso).toLocaleDateString('es-CO', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+type PendingAction = {
+  tenant: AdminTenant;
+  target: 'activate' | 'deactivate';
+};
+
+export default function AdminTenantsPage() {
+  const { admin, logout } = useAdminAuth();
+
+  // ── Filters + pagination state ──────────────────────────────────────
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [plan, setPlan] = useState<PlanFilter>('all');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
+
+  // ── Data state ──────────────────────────────────────────────────────
+  const [items, setItems] = useState<AdminTenant[]>([]);
+  const [count, setCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  // ── Action state ────────────────────────────────────────────────────
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Debounce search (300ms) — ensures we don't hammer the API on every keystroke.
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(handle);
+  }, [search]);
+
+  // Reset to page 1 whenever filter inputs change.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, plan, status]);
+
+  const loadPage = useCallback(async () => {
+    setIsLoading(true);
+    setListError(null);
+    try {
+      const filters: AdminTenantFilters = {
+        page,
+        page_size: PAGE_SIZE,
+        ordering: '-created_at',
+      };
+      if (debouncedSearch.trim()) filters.search = debouncedSearch.trim();
+      if (plan !== 'all') filters.plan = plan;
+      if (status === 'active') filters.is_active = true;
+      if (status === 'inactive') filters.is_active = false;
+      const data = await adminListTenants(filters);
+      setItems(data.results);
+      setCount(data.count);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo cargar la lista de tenants.';
+      setListError(message);
+      setItems([]);
+      setCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, debouncedSearch, plan, status]);
+
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(count / PAGE_SIZE)),
+    [count],
+  );
+
+  const hasActiveFilters = useMemo(
+    () => search !== '' || plan !== 'all' || status !== 'all',
+    [search, plan, status],
+  );
+
+  function clearFilters() {
+    setSearch('');
+    setPlan('all');
+    setStatus('all');
+  }
+
+  async function handleConfirmAction() {
+    if (!pending) return;
+    setSubmitting(true);
+    setRowError(null);
+    try {
+      const updated = await adminUpdateTenant(pending.tenant.id, {
+        is_active: pending.target === 'activate',
+      });
+      setItems((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? { ...row, is_active: updated.is_active }
+            : row,
+        ),
+      );
+      setPending(null);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : pending.target === 'activate'
+            ? 'No se pudo activar el tenant.'
+            : 'No se pudo suspender el tenant.';
+      setRowError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Header bar */}
+      <header
+        className="relative overflow-hidden border-b border-white/10"
+        style={{
+          background:
+            'linear-gradient(135deg, #0f2233 0%, #1C3B57 50%, #1a4a5e 100%)',
+        }}
+      >
+        <div
+          className="absolute -top-20 -right-20 h-64 w-64 rounded-full opacity-15 blur-3xl"
+          style={{
+            background: 'radial-gradient(circle, #0D9488, transparent 70%)',
+          }}
+        />
+        <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin"
+              aria-label="Volver al panel"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 transition-colors hover:bg-white/15"
+            >
+              <Image
+                src="/Isotipo_color_NERBIS.png"
+                alt=""
+                width={24}
+                height={24}
+                className="brightness-0 invert"
+                aria-hidden="true"
+              />
+            </Link>
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight text-white">
+                Tenants
+              </h1>
+              <p className="text-xs text-white/50">
+                {admin?.email ?? 'superadmin'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3.5 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Salir
+          </button>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Breadcrumb + back link */}
+        <nav aria-label="Ruta" className="mb-4">
+          <ol className="flex items-center gap-1.5 text-xs text-slate-500">
+            <li>
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-1 transition-colors hover:text-slate-700"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                Panel
+              </Link>
+            </li>
+            <li aria-hidden="true">
+              <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            </li>
+            <li className="font-medium text-slate-700">Tenants</li>
+          </ol>
+        </nav>
+
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Gestion de tenants
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {count === 0
+                ? 'Sin tenants que coincidan con los filtros actuales.'
+                : `${count} tenant${count === 1 ? '' : 's'} en total.`}
+            </p>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_180px_180px_auto]">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre, slug o email"
+              aria-label="Buscar tenants"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 transition-colors focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20"
+            />
+          </div>
+
+          <Select
+            value={plan}
+            onValueChange={(value) => setPlan(value as PlanFilter)}
+          >
+            <SelectTrigger
+              aria-label="Filtrar por plan"
+              className="h-10 w-full border-slate-200"
+            >
+              <SelectValue placeholder="Todos los planes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los planes</SelectItem>
+              <SelectItem value="trial">Trial</SelectItem>
+              <SelectItem value="basic">Basico</SelectItem>
+              <SelectItem value="professional">Profesional</SelectItem>
+              <SelectItem value="enterprise">Enterprise</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as StatusFilter)}
+          >
+            <SelectTrigger
+              aria-label="Filtrar por estado"
+              className="h-10 w-full border-slate-200"
+            >
+              <SelectValue placeholder="Todos los estados" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="active">Activos</SelectItem>
+              <SelectItem value="inactive">Suspendidos</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Limpiar
+          </button>
+        </div>
+
+        {/* Errors */}
+        {listError && (
+          <div
+            role="alert"
+            className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            <span>{listError}</span>
+            <button
+              type="button"
+              onClick={() => void loadPage()}
+              className="rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+        {rowError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {rowError}
+          </div>
+        )}
+
+        {/* Table */}
+        {isLoading ? (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {/* Skeleton rows */}
+            <div className="divide-y divide-slate-100">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 px-4 py-4"
+                  aria-hidden="true"
+                >
+                  <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
+                  <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                  <div className="h-4 w-10 animate-pulse rounded bg-slate-100" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Cargando tenants...
+            </div>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <Building2 className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {hasActiveFilters
+                ? 'Ningun tenant coincide con los filtros'
+                : 'Aun no hay tenants registrados'}
+            </h3>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+              {hasActiveFilters
+                ? 'Prueba a ajustar la busqueda o a limpiar los filtros para ver mas resultados.'
+                : 'Cuando se registre un negocio, aparecera aqui para que puedas administrarlo.'}
+            </p>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-[920px] w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Tenant
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Plan
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Usuarios
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Vence
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((tenant) => (
+                  <tr
+                    key={tenant.id}
+                    className="group transition-colors hover:bg-slate-50/60"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/tenants/${tenant.id}`}
+                        className="group/link block"
+                      >
+                        <span className="block font-medium text-slate-900 transition-colors group-hover/link:text-teal-700">
+                          {tenant.name}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          {tenant.slug}
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${planBadgeClass(tenant.plan)}`}
+                      >
+                        {PLAN_LABELS[tenant.plan]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${subscriptionBadgeClass(
+                          tenant.subscription_status,
+                          tenant.is_active,
+                        )}`}
+                      >
+                        {tenant.is_active
+                          ? SUBSCRIPTION_LABELS[tenant.subscription_status]
+                          : 'Suspendido'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums text-slate-700">
+                      {tenant.user_count}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {formatDate(tenant.subscription_ends_at)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label={`Acciones para ${tenant.name}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <MoreHorizontal
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/tenants/${tenant.id}`}>
+                              Ver detalle
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {tenant.is_active ? (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setPending({
+                                  tenant,
+                                  target: 'deactivate',
+                                });
+                              }}
+                              className="text-red-600 focus:text-red-700"
+                            >
+                              <ShieldOff
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              Suspender
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                setPending({
+                                  tenant,
+                                  target: 'activate',
+                                });
+                              }}
+                              className="text-teal-700 focus:text-teal-800"
+                            >
+                              <ShieldCheck
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              Reactivar
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+            <span>
+              Pagina {page} de {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                disabled={page >= totalPages || isLoading}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Activate / Suspend confirmation */}
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pending?.target === 'activate'
+                ? 'Reactivar tenant'
+                : 'Suspender tenant'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pending
+                ? pending.target === 'activate'
+                  ? `${pending.tenant.name} recuperara acceso a la plataforma y sus usuarios podran iniciar sesion de nuevo.`
+                  : `${pending.tenant.name} quedara suspendido: sus usuarios no podran iniciar sesion. Puedes reactivar el tenant mas tarde.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmAction();
+              }}
+              disabled={submitting}
+              className={
+                pending?.target === 'deactivate'
+                  ? 'bg-red-600 hover:bg-red-500 focus:ring-red-500'
+                  : undefined
+              }
+            >
+              {submitting
+                ? 'Procesando...'
+                : pending?.target === 'activate'
+                  ? 'Reactivar'
+                  : 'Suspender'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
