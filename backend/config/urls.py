@@ -12,6 +12,8 @@ from core.admin_site import nerbis_admin_site
 from core.admin_tenant_views import (
     AdminTenantDetailView,
     AdminTenantListView,
+    AdminTenantUsersListView,
+    AdminUserDetailView,
 )
 from core.admin_views import (
     AdminLoginView,
@@ -85,6 +87,16 @@ urlpatterns = [
         "api/admin/tenants/<uuid:pk>/",
         AdminTenantDetailView.as_view(),
         name="admin-tenants-detail",
+    ),
+    path(
+        "api/admin/tenants/<uuid:pk>/users/",
+        AdminTenantUsersListView.as_view(),
+        name="admin-tenant-users-list",
+    ),
+    path(
+        "api/admin/users/<int:pk>/",
+        AdminUserDetailView.as_view(),
+        name="admin-users-detail",
     ),
     # Webhooks (sin middleware de tenant)
     path("api/webhooks/stripe/", stripe_webhook, name="stripe-webhook"),

@@ -27,8 +27,11 @@ from core.admin_tenant_serializers import (
     AdminTenantDetailSerializer,
     AdminTenantListSerializer,
     AdminTenantUpdateSerializer,
+    AdminTenantUserSerializer,
+    AdminUserDetailSerializer,
+    AdminUserUpdateSerializer,
 )
-from core.models import AdminAuditLog, Tenant
+from core.models import AdminAuditLog, Tenant, User
 from core.permissions import IsSuperAdmin
 from core.utils import get_client_ip
 
@@ -223,3 +226,223 @@ class AdminTenantDetailView(generics.RetrieveUpdateAPIView):
             {"detail": 'Method "PUT" not allowed.'},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
+
+
+# ---------------------------------------------------------------------------
+# Tenant users list view — Phase 3 (Issue #110)
+# ---------------------------------------------------------------------------
+
+
+class AdminTenantUsersListView(generics.ListAPIView):
+    """GET ``/api/admin/tenants/<uuid:pk>/users/`` — usuarios de un tenant.
+
+    Listado paginado de los usuarios asociados a un tenant específico.
+    Responde 404 si el tenant no existe.
+
+    Filtros soportados vía query params:
+      - ``role`` (admin/staff/customer)
+      - ``is_active`` (true/false)
+      - ``search`` (coincidencia parcial sobre email/first_name/last_name)
+      - ``ordering`` (last_login, -last_login, date_joined, -date_joined,
+        email, -email) — default ``-date_joined``.
+
+    Filtro explícito vía ``User.objects.filter(tenant_id=<uuid>)`` — NO nos
+    apoyamos en el ``TenantAwareUserManager`` porque el contexto de tenant
+    ya fue desactivado por ``TenantExclusionMiddleware``. Ser explícitos aquí
+    blinda contra futuros cambios en el middleware o el manager.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = AdminPagination
+    serializer_class = AdminTenantUserSerializer
+
+    ALLOWED_ORDERING = {
+        "last_login",
+        "-last_login",
+        "date_joined",
+        "-date_joined",
+        "email",
+        "-email",
+    }
+
+    def get_queryset(self) -> QuerySet[User]:
+        tenant_id = self.kwargs.get("pk")
+
+        # Guard explícito: si el tenant no existe, 404.
+        if not Tenant.objects.filter(pk=tenant_id).exists():
+            from django.http import Http404
+
+            raise Http404("Tenant not found")
+
+        # Filtro explícito por tenant_id — NO confiamos en el auto-filter
+        # del TenantAwareUserManager.
+        qs = User.objects.filter(tenant_id=tenant_id)
+
+        params = self.request.query_params
+
+        role = params.get("role")
+        if role in {"admin", "staff", "customer"}:
+            qs = qs.filter(role=role)
+
+        is_active = _parse_bool(params.get("is_active"))
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active)
+
+        search = params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search)
+            )
+
+        ordering = params.get("ordering")
+        if ordering in self.ALLOWED_ORDERING:
+            qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by("-date_joined")
+
+        return qs
+
+
+# ---------------------------------------------------------------------------
+# User detail view — Phase 3 (Issue #110)
+# ---------------------------------------------------------------------------
+
+
+class AdminUserDetailView(generics.RetrieveUpdateAPIView):
+    """GET/PATCH ``/api/admin/users/<int:pk>/``.
+
+    Reglas clave:
+    - Superadmins (``tenant IS NULL``) NO son accesibles vía este endpoint
+      (para eso está ``/api/admin/superadmins/``). Se devuelve 404 para no
+      filtrar la existencia del recurso.
+    - El superadmin autenticado NO puede modificar su propio usuario aquí
+      (self-protection). Responde 403.
+    - ``PATCH`` sólo acepta ``is_active`` y ``role`` (allowlist). Cualquier
+      otro campo se ignora silenciosamente.
+    - Se crea entrada en ``AdminAuditLog`` en cada transición destructiva:
+      ``deactivate_user`` / ``activate_user`` (cambio de ``is_active``) y
+      ``change_user_role`` (cambio de ``role``). Cambios "no-op" (mismo
+      valor) no disparan audit log.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    lookup_field = "pk"
+    serializer_class = AdminUserDetailSerializer
+
+    def get_queryset(self) -> QuerySet[User]:
+        # Excluye explícitamente superadmins — para ellos hay otro endpoint.
+        # ``select_related`` + ``prefetch_related`` evitan N+1 al serializar
+        # tenant, social_accounts, passkeys y totp_device.
+        return (
+            User.objects.filter(tenant__isnull=False)
+            .select_related("tenant", "totp_device")
+            .prefetch_related("social_accounts", "webauthn_credentials")
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        user = self.get_object()
+
+        # Self-protection: un superadmin no debería poder tocar su propio
+        # usuario aquí. Pero como excluimos superadmins del queryset, este
+        # caso solo ocurre si el superadmin tiene un tenant (inconsistencia
+        # de datos). Dejamos el guard explícito por defensa en profundidad.
+        if user.pk == request.user.pk:
+            return Response(
+                {"detail": "Cannot modify your own user via this endpoint."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = AdminUserUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        if not validated:
+            return Response(
+                AdminUserDetailSerializer(user).data,
+                status=status.HTTP_200_OK,
+            )
+
+        previous_is_active = user.is_active
+        previous_role = user.role
+        update_fields: list[str] = []
+
+        for field, value in validated.items():
+            setattr(user, field, value)
+            update_fields.append(field)
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        # Audit trail: una entrada por tipo de cambio destructivo.
+        ip = get_client_ip(request)
+        target_repr = f"user: {user.email}"
+
+        if "is_active" in validated and previous_is_active != validated["is_active"]:
+            action = (
+                AdminAuditLog.ACTION_ACTIVATE_USER if validated["is_active"] else AdminAuditLog.ACTION_DEACTIVATE_USER
+            )
+            self._write_audit(
+                actor=request.user,
+                action=action,
+                target_id=str(user.pk),
+                target_repr=target_repr,
+                details={
+                    "previous_is_active": previous_is_active,
+                    "new_is_active": validated["is_active"],
+                },
+                ip_address=ip,
+            )
+
+        if "role" in validated and previous_role != validated["role"]:
+            self._write_audit(
+                actor=request.user,
+                action=AdminAuditLog.ACTION_CHANGE_USER_ROLE,
+                target_id=str(user.pk),
+                target_repr=target_repr,
+                details={
+                    "old_role": previous_role,
+                    "new_role": validated["role"],
+                },
+                ip_address=ip,
+            )
+
+        # Re-fetch con prefetch para evitar N+1 al serializar métodos auth.
+        refreshed = self.get_queryset().get(pk=user.pk)
+        return Response(
+            AdminUserDetailSerializer(refreshed).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, *args, **kwargs):
+        return Response(
+            {"detail": 'Method "PUT" not allowed.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    @staticmethod
+    def _write_audit(
+        *,
+        actor: User,
+        action: str,
+        target_id: str,
+        target_repr: str,
+        details: dict,
+        ip_address: str | None,
+    ) -> None:
+        """Escribe una entrada de AdminAuditLog. No bloquea la acción si falla."""
+        try:
+            AdminAuditLog.objects.create(
+                actor=actor,
+                action=action,
+                target_type="User",
+                target_id=target_id,
+                target_repr=target_repr,
+                details=details,
+                ip_address=ip_address,
+            )
+        except Exception:  # pragma: no cover — defensivo
+            logger.exception(
+                "Failed to write AdminAuditLog action=%s target_id=%s",
+                action,
+                target_id,
+            )
