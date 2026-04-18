@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { LogOut, Users } from 'lucide-react';
+import { Building2, LogOut, Users } from 'lucide-react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 export default function AdminDashboardPage() {
@@ -83,6 +83,22 @@ export default function AdminDashboardPage() {
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               Gestiona quien tiene acceso al panel de plataforma.
+            </p>
+          </Link>
+
+          {/* Tenants card */}
+          <Link
+            href="/admin/tenants"
+            className="group rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:border-teal-200 hover:shadow-md"
+          >
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-600 transition-colors group-hover:bg-teal-100">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Tenants
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Gestionar tenants, planes, usuarios y métodos de autenticación
             </p>
           </Link>
         </div>
