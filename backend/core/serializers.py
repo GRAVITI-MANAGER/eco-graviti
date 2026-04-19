@@ -1,9 +1,14 @@
 # backend/core/serializers.py
 
-from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.password_validation import (
+    validate_password,
+)
+from django.contrib.auth.password_validation import (
+    validate_password as django_validate_password,
+)
 from rest_framework import serializers
 
-from .models import Banner, TeamInvitation, Tenant, User
+from .models import Banner, SocialAccount, TeamInvitation, Tenant, User
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -65,12 +70,41 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "slug"]
 
 
+class SocialAccountSerializer(serializers.ModelSerializer):
+    """Serializer para cuentas sociales vinculadas."""
+
+    class Meta:
+        model = SocialAccount
+        fields = ["id", "provider", "email", "created_at"]
+        read_only_fields = fields
+
+
+class SocialAccountDetailSerializer(serializers.ModelSerializer):
+    """Serializer extendido para social accounts — incluye nombre y avatar del proveedor."""
+
+    provider_name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SocialAccount
+        fields = ["id", "provider", "email", "provider_name", "avatar_url", "created_at"]
+        read_only_fields = fields
+
+    def get_provider_name(self, obj) -> str:
+        return obj.extra_data.get("name", "")
+
+    def get_avatar_url(self, obj) -> str:
+        return obj.extra_data.get("picture", "")
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer para User (información completa)"""
 
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     role_display = serializers.CharField(source="get_role_display", read_only=True)
     full_name = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
+    social_accounts = SocialAccountSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -89,11 +123,69 @@ class UserSerializer(serializers.ModelSerializer):
             "role_display",
             "is_active",
             "date_joined",
+            "has_password",
+            "social_accounts",
         ]
         read_only_fields = ["id", "tenant", "date_joined"]
 
     def get_full_name(self, obj) -> str:
         return obj.get_full_name() or obj.username
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    """Serializer para miembros del equipo — vista de admin con social accounts detalladas."""
+
+    full_name = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    has_password = serializers.SerializerMethodField()
+    social_accounts = SocialAccountDetailSerializer(many=True, read_only=True)
+    auth_method = serializers.SerializerMethodField()
+    has_2fa = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "phone",
+            "avatar",
+            "role",
+            "role_display",
+            "is_active",
+            "date_joined",
+            "has_password",
+            "social_accounts",
+            "auth_method",
+            "has_2fa",
+        ]
+        read_only_fields = fields
+
+    def get_full_name(self, obj) -> str:
+        return obj.get_full_name() or obj.username
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
+
+    def get_auth_method(self, obj) -> str:
+        has_password = obj.has_usable_password()
+        has_social = obj.social_accounts.exists()
+        if has_password and has_social:
+            return "both"
+        if has_social:
+            return "social_only"
+        return "email_only"
+
+    def get_has_2fa(self, obj) -> bool:
+        device = getattr(obj, "totp_device", None)
+        if device and device.confirmed:
+            return True
+        return obj.webauthn_credentials.exists()
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
@@ -494,11 +586,73 @@ class InvitationDetailSerializer(serializers.ModelSerializer):
         return ""
 
 
-class TeamMemberSerializer(serializers.ModelSerializer):
-    """Serializer para listar miembros del equipo (admin + staff)"""
+class SocialLoginSerializer(serializers.Serializer):
+    """Serializer para social login (Google, Apple, Facebook)."""
 
-    full_name = serializers.SerializerMethodField()
-    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    token = serializers.CharField(required=True, help_text="Token del proveedor (id_token o access_token)")
+    first_name = serializers.CharField(required=False, default="", help_text="Nombre (opcional, para Apple)")
+    last_name = serializers.CharField(required=False, default="", help_text="Apellido (opcional, para Apple)")
+
+
+class SocialLinkSerializer(serializers.Serializer):
+    """Serializer para vincular cuenta social a usuario existente con contraseña."""
+
+    provider = serializers.ChoiceField(choices=["google", "apple", "facebook"], required=True)
+    token = serializers.CharField(required=True, help_text="Token del proveedor")
+    password = serializers.CharField(required=True, write_only=True, help_text="Contraseña de la cuenta existente")
+    first_name = serializers.CharField(required=False, default="")
+    last_name = serializers.CharField(required=False, default="")
+
+
+class AdminLoginSerializer(serializers.Serializer):
+    """Serializer para login de superadmin de plataforma."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+
+class AdminRegisterSerializer(serializers.Serializer):
+    """Serializer para registro de superadmin de plataforma."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+    def validate_email(self, value: str) -> str:
+        normalized = value.strip().lower()
+        if User.objects.filter(tenant__isnull=True, email__iexact=normalized).exists():
+            raise serializers.ValidationError("A superadmin with this email already exists.")
+        return normalized
+
+    def validate_password(self, value: str) -> str:
+        django_validate_password(value)
+        return value
+
+    def create(self, validated_data: dict) -> User:
+        email = validated_data["email"]
+        user = User(
+            email=email,
+            username=email.split("@")[0],
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            tenant=None,
+            is_superuser=True,
+            is_staff=True,
+            is_active=True,
+            role="admin",
+            uid=f"admin:{email}",
+        )
+        user.set_password(validated_data["password"])
+        user.save()
+        return user
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Serializer de salida para superadmins. Allowlist explícito."""
 
     class Meta:
         model = User
@@ -507,18 +661,19 @@ class TeamMemberSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
-            "full_name",
-            "phone",
-            "avatar",
-            "role",
-            "role_display",
+            "is_superuser",
+            "is_staff",
             "is_active",
             "date_joined",
+            "last_login",
         ]
         read_only_fields = fields
 
-    def get_full_name(self, obj) -> str:
-        return obj.get_full_name() or obj.username
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    """Serializer para PATCH parcial de un superadmin (solo is_active)."""
+
+    is_active = serializers.BooleanField()
 
 
 class BannerSerializer(serializers.ModelSerializer):

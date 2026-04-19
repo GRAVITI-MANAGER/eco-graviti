@@ -1,5 +1,7 @@
+import ipaddress
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -326,6 +328,10 @@ REST_FRAMEWORK = {
         "otp_request": "3/min",  # Solicitar OTP: 3 por minuto por IP
         "otp_verify": "5/min",  # Verificar OTP: 5 por minuto por IP
         "password_reset": "3/min",  # Reset password: 3 por minuto por IP
+        "social_login": "5/min",  # Social login: 5 por minuto por IP
+        "two_factor_challenge": "10/min",  # 2FA challenge: 10 por minuto por IP
+        "two_factor_verify": "10/min",  # 2FA verify/disable: 10 por minuto por IP
+        "admin_login": "5/min",  # Superadmin login: 5 por minuto por IP
     },
 }
 
@@ -361,6 +367,18 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ===================================
+# WEBAUTHN / PASSKEYS
+# ===================================
+# RP_ID debe ser el dominio efectivo del frontend (sin protocolo, sin puerto).
+# Para desarrollo local usamos "localhost".
+# En producción usar el dominio sin subdominio específico (ej: "nerbis.app").
+WEBAUTHN_RP_ID = os.getenv("WEBAUTHN_RP_ID", "localhost")
+WEBAUTHN_RP_NAME = os.getenv("WEBAUTHN_RP_NAME", "NERBIS")
+# ORIGIN debe coincidir EXACTAMENTE con window.location.origin del frontend.
+# Acepta múltiples separados por coma para desarrollo (ej: "http://localhost:3000,http://localhost:3002").
+WEBAUTHN_ORIGIN = os.getenv("WEBAUTHN_ORIGIN", "http://localhost:3000")
+
+# ===================================
 # EMAIL CONFIGURATION
 # ===================================
 # En desarrollo, usamos console backend (imprime emails en consola)
@@ -372,9 +390,35 @@ EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@nerbis.com")
+DEFAULT_FROM_NAME = os.getenv("DEFAULT_FROM_NAME", "Nerbis")
 
 # URL base del frontend (para links en emails)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+if not DEBUG:
+    _parsed_frontend_url = urlparse(FRONTEND_URL)
+    _frontend_host = (_parsed_frontend_url.hostname or "").lower()
+
+    _is_loopback = _frontend_host == "localhost"
+    if not _is_loopback and _frontend_host:
+        try:
+            _is_loopback = ipaddress.ip_address(_frontend_host).is_loopback
+        except ValueError:
+            # No es una IP literal — es un hostname DNS, se permite
+            _is_loopback = False
+
+    # 0.0.0.0 / :: no son loopback pero tampoco son URLs públicas válidas
+    _is_unspecified = False
+    if _frontend_host:
+        try:
+            _is_unspecified = ipaddress.ip_address(_frontend_host).is_unspecified
+        except ValueError:
+            _is_unspecified = False
+
+    if not _parsed_frontend_url.scheme or not _parsed_frontend_url.netloc or _is_loopback or _is_unspecified:
+        raise RuntimeError(
+            "FRONTEND_URL no es válido para producción. Define una URL pública del frontend (no localhost/loopback)."
+        )
 
 # Dominio base de la plataforma (para subdominios de tenants/websites)
 PLATFORM_BASE_DOMAIN = os.getenv("PLATFORM_BASE_DOMAIN", "nerbis.com")
@@ -437,6 +481,8 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Europe/Madrid"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "").lower() in ("true", "1")
+CELERY_TASK_EAGER_PROPAGATES = CELERY_TASK_ALWAYS_EAGER
 
 
 # ===================================
@@ -464,10 +510,13 @@ ANTHROPIC_PRICE_OUTPUT = os.getenv("ANTHROPIC_PRICE_OUTPUT", "1.25")  # USD por 
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")
 
 # ===================================
-# FRONTEND URL
+# OAUTH / SOCIAL AUTH
 # ===================================
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+APPLE_CLIENT_ID = os.getenv("APPLE_CLIENT_ID", "")
+APPLE_TEAM_ID = os.getenv("APPLE_TEAM_ID", "")
+FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID", "")
+FACEBOOK_APP_SECRET = os.getenv("FACEBOOK_APP_SECRET", "")
 
 # ===================================
 # UNFOLD ADMIN CONFIGURATION

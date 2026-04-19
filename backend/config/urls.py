@@ -5,9 +5,18 @@ from django.conf.urls.static import static
 from django.urls import include, path
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 # Importar el admin site personalizado de NERBIS
 from core.admin_site import nerbis_admin_site
+from core.admin_views import (
+    AdminLoginView,
+    AdminLogoutView,
+    AdminMeView,
+    AdminRegisterView,
+    AdminSuperadminDetailView,
+    AdminSuperadminListView,
+)
 from core.views import (
     AcceptInvitationView,
     CheckBusinessNameView,
@@ -15,6 +24,7 @@ from core.views import (
     InvitationDetailView,
     PlatformForgotPasswordView,
     PlatformLoginView,
+    PlatformSocialLoginView,
     PlatformVerifyResetOTPView,
     TenantRegisterView,
     subscription_expired_view,
@@ -55,9 +65,22 @@ urlpatterns = [
     path(
         "api/public/platform-verify-reset-otp/", PlatformVerifyResetOTPView.as_view(), name="platform-verify-reset-otp"
     ),
+    path("api/public/platform-social-login/", PlatformSocialLoginView.as_view(), name="platform-social-login"),
     # Invitaciones de equipo (públicas)
     path("api/public/invitation/<str:token>/", InvitationDetailView.as_view(), name="invitation-detail"),
     path("api/public/accept-invitation/<str:token>/", AcceptInvitationView.as_view(), name="accept-invitation"),
+    # NERBIS Admin (superadmin de plataforma — sin middleware de tenant)
+    path("api/admin/auth/login/", AdminLoginView.as_view(), name="admin-login"),
+    path("api/admin/auth/register/", AdminRegisterView.as_view(), name="admin-register"),
+    path("api/admin/auth/me/", AdminMeView.as_view(), name="admin-me"),
+    path("api/admin/auth/logout/", AdminLogoutView.as_view(), name="admin-logout"),
+    path("api/admin/auth/refresh/", TokenRefreshView.as_view(), name="admin-token-refresh"),
+    path("api/admin/superadmins/", AdminSuperadminListView.as_view(), name="admin-superadmins-list"),
+    path(
+        "api/admin/superadmins/<int:pk>/",
+        AdminSuperadminDetailView.as_view(),
+        name="admin-superadmins-detail",
+    ),
     # Webhooks (sin middleware de tenant)
     path("api/webhooks/stripe/", stripe_webhook, name="stripe-webhook"),
     # Documentación

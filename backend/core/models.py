@@ -4,6 +4,7 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils.text import slugify
 
 from .managers import TenantAwareManager, TenantAwareUserManager
@@ -630,6 +631,12 @@ class User(AbstractUser):
         constraints = [
             models.UniqueConstraint(fields=["tenant", "email"], name="unique_email_per_tenant"),
             models.UniqueConstraint(fields=["tenant", "username"], name="unique_username_per_tenant"),
+            # Email único (case-insensitive) entre superadmins de plataforma (tenant IS NULL)
+            models.UniqueConstraint(
+                Lower("email"),
+                condition=models.Q(tenant__isnull=True),
+                name="core_user_superadmin_email_uq",
+            ),
         ]
 
     def __str__(self):
@@ -666,12 +673,14 @@ class User(AbstractUser):
             tenant_part = self.tenant.slug if self.tenant else "admin"
             self.uid = f"{tenant_part}:{self.email}"
 
-        # Sincronizar is_staff con el rol
-        # Solo los administradores pueden acceder al panel de admin
-        if self.role == "admin":
-            self.is_staff = True
-        else:
-            self.is_staff = False
+        # Sincronizar is_staff con el rol — SOLO para usuarios de tenant.
+        # Para superadmins de plataforma (is_superuser=True o tenant_id IS NULL)
+        # se preserva el valor que estableció Django/createsuperuser/caller.
+        if not (self.is_superuser or self.tenant_id is None):
+            if self.role == "admin":
+                self.is_staff = True
+            else:
+                self.is_staff = False
 
         super().save(*args, **kwargs)
 
@@ -694,6 +703,79 @@ class User(AbstractUser):
     def is_customer(self):
         """Verificar si el usuario es cliente"""
         return self.role == "customer"
+
+
+class SocialAccount(models.Model):
+    """
+    Cuenta social vinculada a un usuario dentro de un tenant.
+
+    Permite login via Google, Apple o Facebook.
+    Un usuario puede tener múltiples cuentas sociales (una por provider).
+    """
+
+    PROVIDER_CHOICES = [
+        ("google", "Google"),
+        ("apple", "Apple"),
+        ("facebook", "Facebook"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="social_accounts",
+        verbose_name="Usuario",
+    )
+
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="social_accounts",
+        verbose_name="Tenant",
+    )
+
+    provider = models.CharField(
+        max_length=20,
+        choices=PROVIDER_CHOICES,
+        verbose_name="Proveedor",
+    )
+
+    provider_uid = models.CharField(
+        max_length=255,
+        verbose_name="ID del proveedor",
+        help_text="ID único del usuario en el proveedor (sub/id)",
+    )
+
+    email = models.EmailField(
+        verbose_name="Email del proveedor",
+        help_text="Email asociado en la cuenta social",
+    )
+
+    extra_data = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Datos adicionales",
+        help_text="Nombre, avatar, etc. del proveedor",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+
+    class Meta:
+        verbose_name = "Cuenta Social"
+        verbose_name_plural = "Cuentas Sociales"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "provider", "provider_uid"],
+                name="unique_social_account_per_tenant",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["tenant", "provider", "email"]),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} - {self.email} ({self.user.get_full_name()})"
 
 
 class Banner(TenantAwareModel):
@@ -1179,3 +1261,203 @@ class TeamInvitation(TenantAwareModel):
         self.accepted_at = timezone.now()
         self.accepted_user = user
         self.save(update_fields=["status", "accepted_at", "accepted_user", "updated_at"])
+
+
+# ===================================
+# WEBAUTHN / PASSKEYS
+# ===================================
+
+
+class WebAuthnCredential(models.Model):
+    """
+    Credencial WebAuthn (passkey) registrada por un usuario.
+
+    Un usuario puede tener múltiples passkeys (ej: huella del móvil,
+    Face ID del laptop, llave física). Cada credencial es única globalmente
+    y está ligada a un usuario específico.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="webauthn_credentials",
+        verbose_name="Usuario",
+    )
+
+    # credential_id del authenticator — único a nivel global
+    credential_id = models.BinaryField(
+        unique=True,
+        verbose_name="Credential ID",
+        help_text="ID binario de la credencial emitido por el authenticator",
+    )
+
+    # clave pública para verificar assertions futuras
+    public_key = models.BinaryField(
+        verbose_name="Public Key",
+        help_text="Clave pública COSE de la credencial",
+    )
+
+    # contador usado para detectar clonación
+    sign_count = models.PositiveBigIntegerField(
+        default=0,
+        verbose_name="Sign Count",
+    )
+
+    # nombre descriptivo dado por el usuario ("iPhone de Felipe", "Yubikey azul")
+    name = models.CharField(
+        max_length=100,
+        default="Mi passkey",
+        verbose_name="Nombre",
+    )
+
+    # tipo de transporte soportado por el authenticator (internal, usb, nfc, ble)
+    transports = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Transports",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name="Último uso")
+
+    class Meta:
+        verbose_name = "Credencial WebAuthn"
+        verbose_name_plural = "Credenciales WebAuthn"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.name}"
+
+
+# ===================================
+# 2FA — TOTP DEVICE
+# ===================================
+#
+# Nota sobre multi-tenancy:
+# TOTPDevice NO hereda de TenantAwareModel porque está unido 1:1 al User,
+# y el User ya pertenece a un tenant. El dispositivo 2FA es una propiedad
+# intrínseca del usuario (como su password), no un recurso de negocio del
+# tenant. Además, el User no tiene necesariamente un segundo factor por
+# tenant: un mismo email humano puede tener cuentas separadas en distintos
+# tenants, pero cada User row tiene su propio TOTPDevice (o ninguno).
+#
+# Cualquier query debe ir filtrada vía `user=<usuario autenticado>`, lo
+# que garantiza aislamiento por usuario (y por tenant, transitivamente).
+
+
+class TOTPDevice(models.Model):
+    """
+    Dispositivo TOTP (Time-based One-Time Password) asociado a un usuario.
+
+    El secret se almacena cifrado con Fernet (derivado de SECRET_KEY).
+    Los backup codes se almacenan hasheados con make_password y se consumen
+    al usarse (one-time).
+    """
+
+    user = models.OneToOneField(
+        "core.User",
+        on_delete=models.CASCADE,
+        related_name="totp_device",
+        verbose_name="Usuario",
+    )
+    secret_encrypted = models.BinaryField(
+        verbose_name="Secreto TOTP cifrado",
+        help_text="Secreto base32 cifrado con Fernet",
+    )
+    confirmed = models.BooleanField(
+        default=False,
+        verbose_name="Confirmado",
+        help_text="True cuando el usuario ha verificado el primer código",
+    )
+    backup_codes = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Backup codes hasheados",
+        help_text="Lista de hashes (make_password) de los backup codes restantes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creado")
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name="Último uso")
+
+    class Meta:
+        verbose_name = "Dispositivo TOTP"
+        verbose_name_plural = "Dispositivos TOTP"
+
+    def __str__(self) -> str:
+        estado = "confirmado" if self.confirmed else "pendiente"
+        return f"TOTP {estado} de {self.user.email}"
+
+    # ------------------------------------------------------------------
+    # Secret (cifrado en reposo)
+    # ------------------------------------------------------------------
+    def set_secret(self, secret: str) -> None:
+        """Cifra y guarda el secreto TOTP en secret_encrypted."""
+        from .crypto import encrypt
+
+        self.secret_encrypted = encrypt(secret)
+
+    def get_secret(self) -> str:
+        """Descifra y devuelve el secreto TOTP como string."""
+        from .crypto import decrypt
+
+        return decrypt(self.secret_encrypted)
+
+    # ------------------------------------------------------------------
+    # Verificación TOTP
+    # ------------------------------------------------------------------
+    def verify_totp(self, code: str) -> bool:
+        """Valida un código TOTP de 6 dígitos con tolerancia ±1 step (30s)."""
+        import pyotp
+
+        if not code:
+            return False
+        totp = pyotp.TOTP(self.get_secret())
+        return totp.verify(str(code).strip(), valid_window=1)
+
+    # ------------------------------------------------------------------
+    # Backup codes
+    # ------------------------------------------------------------------
+    def generate_backup_codes(self) -> list[str]:
+        """
+        Genera 8 backup codes (formato XXXX-XXXX, 4+4 chars alfanuméricos
+        en mayúsculas), guarda sus hashes en backup_codes y devuelve la
+        lista en plaintext para mostrarla una sola vez al usuario.
+        """
+        import secrets
+
+        from django.contrib.auth.hashers import make_password
+
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin caracteres ambiguos
+        plaintext_codes: list[str] = []
+        for _ in range(8):
+            part1 = "".join(secrets.choice(alphabet) for _ in range(4))
+            part2 = "".join(secrets.choice(alphabet) for _ in range(4))
+            plaintext_codes.append(f"{part1}-{part2}")
+
+        self.backup_codes = [make_password(code) for code in plaintext_codes]
+        self.save(update_fields=["backup_codes"])
+        return plaintext_codes
+
+    def verify_backup_code(self, code: str) -> bool:
+        """
+        Verifica un backup code contra la lista hasheada. Si coincide,
+        consume el código (lo elimina de la lista) y guarda.
+        """
+        from django.contrib.auth.hashers import check_password
+
+        if not code:
+            return False
+        normalized = str(code).strip().upper()
+        for idx, hashed in enumerate(self.backup_codes):
+            if check_password(normalized, hashed):
+                remaining = list(self.backup_codes)
+                remaining.pop(idx)
+                self.backup_codes = remaining
+                from django.utils import timezone
+
+                self.last_used_at = timezone.now()
+                self.save(update_fields=["backup_codes", "last_used_at"])
+                return True
+        return False
