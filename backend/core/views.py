@@ -406,12 +406,13 @@ class PlatformLoginView(APIView):
             if not user.check_password(password):
                 return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
         else:
-            # Buscar en todos los tenants
-            candidates = list(User.objects.select_related("tenant").filter(email__iexact=email))
+            # Buscar en todos los tenants (cap to avoid unbounded bcrypt cost)
+            _MAX_CANDIDATES = 10
+            candidates = list(User.objects.select_related("tenant").filter(email__iexact=email)[:_MAX_CANDIDATES])
             if not candidates:
                 return Response({"error": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # Verificar password contra candidatos (short-circuit: stop after 2 matches to cap bcrypt cost)
+            # Verificar password contra candidatos (short-circuit: stop after 2 matches)
             matching = []
             for c in candidates:
                 if c.check_password(password):
@@ -1515,10 +1516,10 @@ class VerifyReactivationOTPView(APIView):
         except User.DoesNotExist:
             return generic_error
 
-        # Buscar OTP válido
-        try:
-            otp = OTPToken.objects.get(user=user, purpose="account_reactivation", used_at__isnull=True)
-        except OTPToken.DoesNotExist:
+        # Buscar OTP válido (filter+first to avoid MultipleObjectsReturned race condition;
+        # create_for_user soft-invalidates previous OTPs but a race is still possible)
+        otp = OTPToken.objects.filter(user=user, purpose="account_reactivation", used_at__isnull=True).first()
+        if not otp:
             return generic_error
 
         # Verificar OTP
