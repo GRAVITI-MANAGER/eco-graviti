@@ -726,7 +726,7 @@ class Banner(TenantAwareModel):
 
     message = models.TextField(
         verbose_name="Mensaje",
-        help_text="Texto que se mostrará en el banner. Puede incluir HTML básico.",
+        help_text="Texto plano que se mostrará en el banner. HTML será eliminado automáticamente.",
     )
 
     link_url = models.URLField(
@@ -1014,9 +1014,13 @@ class OTPToken(models.Model):
         """
         Verificar el código OTP.
 
+        Usa secrets.compare_digest para timing-safe comparison (fix #142).
+
         Returns:
             tuple: (success: bool, error_message: str or None)
         """
+        import secrets
+
         from django.utils import timezone
 
         if self.used_at is not None:
@@ -1028,7 +1032,7 @@ class OTPToken(models.Model):
         if self.attempts >= 3:
             return False, "Demasiados intentos fallidos. Solicita un nuevo código"
 
-        if self.code != code:
+        if not secrets.compare_digest(self.code, code):
             self.attempts += 1
             self.save()
             remaining = 3 - self.attempts
