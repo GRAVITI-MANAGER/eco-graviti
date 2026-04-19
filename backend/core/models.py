@@ -1047,3 +1047,135 @@ class OTPToken(models.Model):
 
         self.used_at = timezone.now()
         self.save()
+
+
+class TeamInvitation(TenantAwareModel):
+    """
+    Invitación para unirse al equipo de un tenant.
+
+    Flujo:
+    1. Admin crea invitación → se genera token y se envía email
+    2. Invitado abre el link → ve formulario de registro simplificado
+    3. Invitado acepta → se crea User con role asignado
+    """
+
+    ROLE_CHOICES = [
+        ("staff", "Empleado"),
+        ("admin", "Administrador"),
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pendiente"),
+        ("accepted", "Aceptada"),
+        ("cancelled", "Cancelada"),
+        ("expired", "Expirada"),
+    ]
+
+    email = models.EmailField(
+        verbose_name="Email del invitado",
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default="staff",
+        verbose_name="Rol asignado",
+    )
+
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        verbose_name="Token de invitación",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        verbose_name="Estado",
+    )
+
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="sent_invitations",
+        verbose_name="Invitado por",
+    )
+
+    expires_at = models.DateTimeField(
+        verbose_name="Expira",
+    )
+
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Aceptada",
+    )
+
+    accepted_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="accepted_invitation",
+        verbose_name="Usuario creado",
+    )
+
+    class Meta:
+        verbose_name = "Invitación de equipo"
+        verbose_name_plural = "Invitaciones de equipo"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "email"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_invitation_per_tenant",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Invitación a {self.email} ({self.get_status_display()})"
+
+    @property
+    def is_valid(self):
+        from django.utils import timezone
+
+        return self.status == "pending" and self.expires_at > timezone.now()
+
+    @classmethod
+    def create_invitation(cls, tenant, email, role, invited_by, days_valid=30):
+        import secrets
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        # Cancelar invitaciones pendientes previas al mismo email
+        cls.objects.filter(
+            tenant=tenant, email__iexact=email, status="pending"
+        ).update(status="cancelled")
+
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(days=days_valid)
+
+        return cls.objects.create(
+            tenant=tenant,
+            email=email.lower(),
+            role=role,
+            token=token,
+            invited_by=invited_by,
+            expires_at=expires_at,
+        )
+
+    def cancel(self):
+        self.status = "cancelled"
+        self.save(update_fields=["status", "updated_at"])
+
+    def accept(self, user):
+        from django.utils import timezone
+
+        self.status = "accepted"
+        self.accepted_at = timezone.now()
+        self.accepted_user = user
+        self.save(update_fields=["status", "accepted_at", "accepted_user", "updated_at"])

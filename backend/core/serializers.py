@@ -3,7 +3,7 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Banner, Tenant, User
+from .models import Banner, TeamInvitation, Tenant, User
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -382,6 +382,143 @@ class TenantRegisterSerializer(serializers.Serializer):
             )
 
         return user
+
+
+class TeamInvitationSerializer(serializers.ModelSerializer):
+    """Serializer para leer invitaciones de equipo"""
+
+    invited_by_name = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    is_valid = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = TeamInvitation
+        fields = [
+            "id",
+            "email",
+            "role",
+            "role_display",
+            "status",
+            "status_display",
+            "invited_by_name",
+            "is_valid",
+            "expires_at",
+            "accepted_at",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_invited_by_name(self, obj) -> str:
+        if obj.invited_by:
+            return obj.invited_by.get_full_name() or obj.invited_by.email
+        return ""
+
+
+class CreateTeamInvitationSerializer(serializers.Serializer):
+    """Serializer para crear una invitación de equipo"""
+
+    email = serializers.EmailField(required=True)
+    role = serializers.ChoiceField(
+        choices=TeamInvitation.ROLE_CHOICES,
+        default="staff",
+    )
+
+    def validate_email(self, value):
+        return value.lower()
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        tenant = request.tenant
+        email = attrs["email"]
+
+        # No invitar a alguien que ya es miembro del tenant
+        if User.objects.filter(tenant=tenant, email__iexact=email, is_active=True).exists():
+            raise serializers.ValidationError(
+                {"email": "Este email ya pertenece a un miembro del equipo"}
+            )
+
+        return attrs
+
+
+class AcceptInvitationSerializer(serializers.Serializer):
+    """Serializer para aceptar una invitación (registro simplificado)"""
+
+    first_name = serializers.CharField(max_length=150, required=True)
+    last_name = serializers.CharField(max_length=150, required=True)
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={"input_type": "password"},
+    )
+    password2 = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={"input_type": "password"},
+    )
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password2"]:
+            raise serializers.ValidationError({"password": "Las contraseñas no coinciden"})
+        return attrs
+
+
+class InvitationDetailSerializer(serializers.ModelSerializer):
+    """Serializer público para mostrar info de una invitación (sin datos sensibles)"""
+
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+    tenant_logo = serializers.ImageField(source="tenant.logo", read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    invited_by_name = serializers.SerializerMethodField()
+    is_valid = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = TeamInvitation
+        fields = [
+            "email",
+            "role",
+            "role_display",
+            "tenant_name",
+            "tenant_logo",
+            "invited_by_name",
+            "is_valid",
+            "status",
+            "expires_at",
+        ]
+        read_only_fields = fields
+
+    def get_invited_by_name(self, obj) -> str:
+        if obj.invited_by:
+            return obj.invited_by.get_full_name() or obj.invited_by.email
+        return ""
+
+
+class TeamMemberSerializer(serializers.ModelSerializer):
+    """Serializer para listar miembros del equipo (admin + staff)"""
+
+    full_name = serializers.SerializerMethodField()
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "phone",
+            "avatar",
+            "role",
+            "role_display",
+            "is_active",
+            "date_joined",
+        ]
+        read_only_fields = fields
+
+    def get_full_name(self, obj) -> str:
+        return obj.get_full_name() or obj.username
 
 
 class BannerSerializer(serializers.ModelSerializer):

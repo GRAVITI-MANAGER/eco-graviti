@@ -9,8 +9,10 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 # Importar el admin site personalizado de NERBIS
 from core.admin_site import nerbis_admin_site
 from core.views import (
+    AcceptInvitationView,
     CheckBusinessNameView,
     CheckTenantEmailView,
+    InvitationDetailView,
     PlatformForgotPasswordView,
     PlatformLoginView,
     PlatformVerifyResetOTPView,
@@ -53,6 +55,9 @@ urlpatterns = [
     path(
         "api/public/platform-verify-reset-otp/", PlatformVerifyResetOTPView.as_view(), name="platform-verify-reset-otp"
     ),
+    # Invitaciones de equipo (públicas)
+    path("api/public/invitation/<str:token>/", InvitationDetailView.as_view(), name="invitation-detail"),
+    path("api/public/accept-invitation/<str:token>/", AcceptInvitationView.as_view(), name="accept-invitation"),
     # Webhooks (sin middleware de tenant)
     path("api/webhooks/stripe/", stripe_webhook, name="stripe-webhook"),
     # Documentación

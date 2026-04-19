@@ -285,3 +285,47 @@ def send_otp_email(user_id, otp_code, purpose):
     except Exception as e:
         logger.error(f"Error enviando OTP email a usuario {user_id}: {str(e)}")
         raise
+
+
+@shared_task
+def send_team_invitation_email(invitation_id):
+    """
+    Enviar email de invitación de equipo.
+    """
+    from django.conf import settings
+
+    from core.models import TeamInvitation
+
+    try:
+        invitation = TeamInvitation.objects.select_related(
+            "tenant", "invited_by"
+        ).get(id=invitation_id)
+
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        invite_url = f"{frontend_url}/accept-invitation/{invitation.token}"
+
+        invited_by_name = ""
+        if invitation.invited_by:
+            invited_by_name = invitation.invited_by.get_full_name() or invitation.invited_by.email
+
+        # send_email requiere un user, pero el invitado aún no tiene cuenta.
+        # Usamos al invitador como user para que el Notification record quede ligado al tenant.
+        send_email(
+            user=invitation.invited_by,
+            subject=f"Te han invitado a unirte a {invitation.tenant.name}",
+            template_name="team_invitation",
+            recipient_email=invitation.email,
+            context={
+                "invite_url": invite_url,
+                "invited_by_name": invited_by_name,
+                "role_display": invitation.get_role_display(),
+                "tenant_name": invitation.tenant.name,
+                "metadata": {"invitation_id": invitation.id},
+            },
+        )
+
+        logger.info(f"Email de invitación enviado a {invitation.email}")
+
+    except Exception as e:
+        logger.error(f"Error enviando email de invitación {invitation_id}: {str(e)}")
+        raise

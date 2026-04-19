@@ -13,13 +13,19 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Banner, OTPToken, PasswordSetToken, Tenant, User
+from .models import Banner, OTPToken, PasswordSetToken, TeamInvitation, Tenant, User
+from .permissions import IsTenantAdmin
 from .serializers import (
+    AcceptInvitationSerializer,
     BannerSerializer,
     ChangePasswordSerializer,
+    CreateTeamInvitationSerializer,
+    InvitationDetailSerializer,
     LoginSerializer,
     RegisterSerializer,
     SetPasswordSerializer,
+    TeamInvitationSerializer,
+    TeamMemberSerializer,
     TenantRegisterSerializer,
     TenantSerializer,
     UpdateProfileSerializer,
@@ -1569,3 +1575,214 @@ def get_tenant_website_content(request):
         response_data["template_slug"] = config.template.slug
 
     return Response(response_data)
+
+
+# ===================================
+# EQUIPO — Invitaciones y miembros
+# ===================================
+
+
+class TeamMembersView(generics.ListAPIView):
+    """GET /api/core/team/members/ — listar miembros del equipo (admin + staff)"""
+
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    serializer_class = TeamMemberSerializer
+
+    def get_queryset(self):
+        return User.objects.filter(
+            tenant=self.request.tenant,
+            role__in=["admin", "staff"],
+            is_active=True,
+        ).order_by("role", "first_name")
+
+
+class TeamInvitationsView(APIView):
+    """
+    GET  /api/core/team/invitations/ — listar invitaciones
+    POST /api/core/team/invitations/ — crear invitación
+    """
+
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+
+    @extend_schema(responses=TeamInvitationSerializer(many=True))
+    def get(self, request):
+        invitations = TeamInvitation.objects.filter(
+            tenant=request.tenant,
+        ).select_related("invited_by").order_by("-created_at")
+        serializer = TeamInvitationSerializer(invitations, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        request=CreateTeamInvitationSerializer,
+        responses=TeamInvitationSerializer,
+    )
+    def post(self, request):
+        serializer = CreateTeamInvitationSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        role = serializer.validated_data["role"]
+
+        invitation = TeamInvitation.create_invitation(
+            tenant=request.tenant,
+            email=email,
+            role=role,
+            invited_by=request.user,
+        )
+
+        # Enviar email de invitación via Celery
+        from notifications.tasks import send_team_invitation_email
+
+        send_team_invitation_email.delay(invitation.id)
+
+        return Response(
+            TeamInvitationSerializer(invitation).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CancelInvitationView(APIView):
+    """DELETE /api/core/team/invitations/{id}/ — cancelar invitación"""
+
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+
+    def delete(self, request, pk):
+        try:
+            invitation = TeamInvitation.objects.get(
+                pk=pk, tenant=request.tenant, status="pending"
+            )
+        except TeamInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitación no encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        invitation.cancel()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ResendInvitationView(APIView):
+    """POST /api/core/team/invitations/{id}/resend/ — reenviar invitación"""
+
+    permission_classes = [IsAuthenticated, IsTenantAdmin]
+
+    def post(self, request, pk):
+        try:
+            invitation = TeamInvitation.objects.get(
+                pk=pk, tenant=request.tenant, status="pending"
+            )
+        except TeamInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitación no encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not invitation.is_valid:
+            return Response(
+                {"error": "La invitación ha expirado"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from notifications.tasks import send_team_invitation_email
+
+        send_team_invitation_email.delay(invitation.id)
+
+        return Response({"message": "Invitación reenviada"})
+
+
+class InvitationDetailView(APIView):
+    """GET /api/public/invitation/{token}/ — ver detalle de invitación (público)"""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        try:
+            invitation = TeamInvitation.objects.select_related(
+                "tenant", "invited_by"
+            ).get(token=token)
+        except TeamInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitación no encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(InvitationDetailSerializer(invitation).data)
+
+
+class AcceptInvitationView(APIView):
+    """POST /api/public/accept-invitation/{token}/ — aceptar invitación (público)"""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=AcceptInvitationSerializer)
+    def post(self, request, token):
+        from django.db import transaction
+
+        try:
+            invitation = TeamInvitation.objects.select_related("tenant").get(token=token)
+        except TeamInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitación no encontrada"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not invitation.is_valid:
+            error_msg = "La invitación ha expirado" if invitation.status == "pending" else "Esta invitación ya no es válida"
+            return Response(
+                {"error": error_msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = AcceptInvitationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        tenant = invitation.tenant
+
+        # Verificar que el email no esté en uso en este tenant
+        if User.objects.filter(tenant=tenant, email__iexact=invitation.email, is_active=True).exists():
+            return Response(
+                {"error": "Ya existe un usuario con este email en este equipo"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            # Generar username
+            base_username = invitation.email.split("@")[0].lower()
+            username = base_username
+            counter = 1
+            while User.objects.filter(tenant=tenant, username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            user = User.objects.create_user(
+                tenant=tenant,
+                username=username,
+                email=invitation.email,
+                password=data["password"],
+                first_name=data["first_name"],
+                last_name=data["last_name"],
+                role=invitation.role,
+            )
+
+            invitation.accept(user)
+
+        # Generar tokens JWT
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "message": "Invitación aceptada. Bienvenido al equipo.",
+                "user": UserSerializer(user).data,
+                "tenant": TenantSerializer(tenant).data,
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
