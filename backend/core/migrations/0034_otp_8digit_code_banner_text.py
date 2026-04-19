@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0032_merge_0031_superadmin_email_unique_0031_totp_device'),
+        ('core', '0033_admin_audit_log'),
     ]
 
     operations = [
