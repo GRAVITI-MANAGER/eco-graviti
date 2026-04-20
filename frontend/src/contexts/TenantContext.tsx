@@ -8,7 +8,7 @@ import { getClientTenantSlug } from '@/lib/tenant';
 import { applyThemeToDOM, type ThemeConfig } from '@/lib/utils/theme-colors';
 
 /** Rutas que no requieren tenant (auth, registro, etc.) */
-const AUTH_PATHS = ['/login', '/forgot-password', '/reset-password', '/reactivate', '/register-business'];
+const AUTH_PATHS = ['/login', '/forgot-password', '/reset-password', '/reactivate', '/register-business', '/ayuda'];
 
 // Tipos
 export interface TenantModules {
@@ -118,10 +118,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
         setTenantData(response.data);
         setError(null);
       } catch (err) {
-        if (err instanceof ApiError && (err.status === 400 || err.status === 404)) {
-          // Tenant no encontrado — redirigir al login
-          window.location.href = '/login';
-          return;
+        if (err instanceof ApiError) {
+          if (err.status === 401) {
+            // Sesión expirada — clearSessionAndRedirect ya redirige al login
+            return;
+          }
+          if (err.status === 400 || err.status === 404) {
+            // Tenant no encontrado — redirigir al login
+            window.location.href = '/login';
+            return;
+          }
         }
         console.error('Error loading tenant config:', err);
         setError('Error al cargar la configuración del tenant');
@@ -150,7 +156,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-auth-accent mx-auto mb-4"></div>
           <p className="text-muted-foreground">Cargando...</p>
         </div>
       </div>
