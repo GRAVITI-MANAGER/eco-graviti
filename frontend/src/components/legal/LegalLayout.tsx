@@ -13,7 +13,7 @@ export function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* ─── Header ─── */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2" aria-label="NERBIS — Inicio">
             <Image
@@ -28,13 +28,13 @@ export function LegalLayout({ children }: { children: React.ReactNode }) {
           <nav className="flex items-center gap-6 text-sm">
             <Link
               href="/terms"
-              className="text-neutral-600 hover:text-neutral-900 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Términos de Servicio
             </Link>
             <Link
               href="/privacy"
-              className="text-neutral-600 hover:text-neutral-900 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Política de Privacidad
             </Link>
@@ -43,33 +43,33 @@ export function LegalLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ─── Content ─── */}
-      <main className="min-h-screen bg-white">
+      <main className="min-h-screen bg-background">
         <div className="container py-12 max-w-4xl">
           {children}
         </div>
       </main>
 
       {/* ─── Footer ─── */}
-      <footer className="border-t bg-neutral-50">
+      <footer className="border-t border-border bg-muted/40">
         <div className="container py-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-6 text-sm text-neutral-500">
-              <Link href="/terms" className="hover:text-neutral-700 transition-colors">
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link href="/terms" className="hover:text-foreground transition-colors">
                 Términos de Servicio
               </Link>
-              <Link href="/privacy" className="hover:text-neutral-700 transition-colors">
+              <Link href="/privacy" className="hover:text-foreground transition-colors">
                 Política de Privacidad
               </Link>
-              <Link href="/cookies" className="hover:text-neutral-700 transition-colors">
+              <Link href="/cookies" className="hover:text-foreground transition-colors">
                 Política de Cookies
               </Link>
             </div>
-            <div className="text-sm text-neutral-400">
+            <div className="text-sm text-muted-foreground">
               &copy; {new Date().getFullYear()} NERBIS SAS. Todos los derechos reservados.
               {' · '}
               <a
                 href={`mailto:${contactEmail}`}
-                className="hover:text-neutral-600 transition-colors"
+                className="hover:text-foreground transition-colors"
               >
                 {contactEmail}
               </a>

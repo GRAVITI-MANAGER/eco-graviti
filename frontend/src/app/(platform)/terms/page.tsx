@@ -15,8 +15,8 @@ export default function TermsPage() {
 
   return (
     <LegalLayout>
-      <h1 className="text-4xl font-bold mb-4 text-neutral-900">Términos de Servicio</h1>
-      <p className="text-neutral-500 mb-8">
+      <h1 className="text-4xl font-bold mb-4 text-foreground">Términos de Servicio</h1>
+      <p className="text-muted-foreground mb-8">
         Última actualización: Abril 2026
       </p>
 
@@ -35,18 +35,18 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">1. Introducción y aceptación</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Estos Términos de Servicio (&quot;Términos&quot;) constituyen un acuerdo legal
                 vinculante entre usted (&quot;Usuario&quot;, &quot;usted&quot;) y la entidad de
                 NERBIS que corresponda según su ubicación geográfica, conforme a la tabla de la
                 Sección 2 (&quot;NERBIS&quot;, &quot;nosotros&quot;, &quot;la Plataforma&quot;).
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Al crear una cuenta, acceder o utilizar cualquiera de nuestros servicios, usted
                 acepta estos Términos en su totalidad. Si no está de acuerdo, no debe utilizar la
                 Plataforma.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Para utilizar NERBIS, usted debe tener al menos 18 años de edad o la mayoría de
                 edad legal en su jurisdicción, y contar con la capacidad legal para celebrar
                 contratos vinculantes. Estos Términos están sujetos a las modificaciones regionales
@@ -58,15 +58,15 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 2. Entidad contratante y jurisdicción
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 La entidad de NERBIS con la que usted contrata, la ley aplicable y la jurisdicción
                 competente dependen del país asociado a su cuenta:
               </p>
 
               <div className="overflow-x-auto mt-4">
-                <table className="min-w-full text-sm text-neutral-600 border">
+                <table className="min-w-full text-sm text-muted-foreground border border-border">
                   <thead>
-                    <tr className="bg-neutral-100">
+                    <tr className="bg-muted">
                       <th className="border px-4 py-2 text-left font-semibold">País del Usuario</th>
                       <th className="border px-4 py-2 text-left font-semibold">Entidad contratante</th>
                       <th className="border px-4 py-2 text-left font-semibold">Ley aplicable</th>
@@ -98,19 +98,19 @@ export default function TermsPage() {
                 </table>
               </div>
 
-              <p className="text-neutral-600 leading-relaxed mt-4">
+              <p className="text-muted-foreground leading-relaxed mt-4">
                 Independientemente de la ley aplicable indicada, prevalecerán las normas imperativas
                 de protección al consumidor y protección de datos personales del país de residencia
                 del Usuario cuando resulten más favorables. La jurisdicción competente no limita su
                 derecho a presentar reclamaciones ante las autoridades de protección al consumidor
                 de su país.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 <strong>Datos de identificación:</strong> NERBIS SAS, con domicilio en Bogotá,
                 Colombia. Correo electrónico:{' '}
                 <a
                   href={`mailto:${contactEmail}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   {contactEmail}
                 </a>
@@ -120,7 +120,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">3. Definiciones</h2>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Plataforma:</strong> el software, infraestructura y servicios
                   proporcionados por NERBIS, incluyendo el panel de administración, API, sitios web
@@ -155,11 +155,11 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">4. Descripción de los Servicios</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS es una plataforma de software como servicio (SaaS) que permite a los
                 Usuarios crear y gestionar su presencia digital. Los Servicios incluyen:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Constructor de sitios web:</strong> herramientas para diseñar y publicar
                   sitios web profesionales, con posibilidad de generación asistida por inteligencia
@@ -186,13 +186,13 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 5. Naturaleza de la Plataforma — NERBIS no es un marketplace
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS es un facilitador tecnológico. El contrato de compraventa, prestación de
                 servicios o reserva de citas se celebra directa y exclusivamente entre el Usuario y
                 su Cliente Final. NERBIS no actúa como vendedor, prestador de servicios, agente,
                 intermediario ni representante de ninguna de las partes.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS no garantiza, respalda ni asume responsabilidad alguna por los productos,
                 servicios, precios, disponibilidad, calidad o cumplimiento de las obligaciones del
                 Usuario frente a sus Clientes Finales.
@@ -204,11 +204,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 6. Registro y seguridad de la cuenta
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Para acceder a los Servicios, usted debe crear una cuenta proporcionando
                 información veraz, completa y actualizada. Usted es responsable de:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   Mantener la confidencialidad de sus credenciales de acceso.
                 </li>
@@ -222,7 +222,7 @@ export default function TermsPage() {
                   Mantener sus datos de contacto actualizados.
                 </li>
               </ul>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS se reserva el derecho de suspender o cancelar cuentas que contengan
                 información falsa o que incumplan estos Términos, previa notificación al Usuario
                 cuando las circunstancias lo permitan.
@@ -231,10 +231,10 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">7. Planes, tarifas y cancelación</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS ofrece diferentes planes de suscripción. Al suscribirse a un plan de pago:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   Las suscripciones se renuevan automáticamente. NERBIS le notificará antes de cada
                   renovación indicando el monto y la fecha de cargo.
@@ -253,7 +253,7 @@ export default function TermsPage() {
                   Usted es responsable de los impuestos aplicables según su jurisdicción.
                 </li>
               </ul>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Las comisiones por transacción, si aplican, serán comunicadas antes de la
                 activación del servicio.
               </p>
@@ -263,17 +263,17 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 8. Derecho de retracto y desistimiento
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Al contratar los Servicios por medios electrónicos, usted puede tener derecho a
                 retractarse sin indicar motivo y sin penalidad, dentro del plazo que establezca la
                 legislación de protección al consumidor de su jurisdicción. Los plazos específicos
                 para cada región se detallan en la Parte II de estos Términos.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Para ejercer este derecho, envíe su solicitud a{' '}
                 <a
                   href={`mailto:${contactEmail}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   {contactEmail}
                 </a>{' '}
@@ -286,7 +286,7 @@ export default function TermsPage() {
             {/* ─── LICENCIA Y USO ─── */}
             <section>
               <h2 className="text-2xl font-semibold mb-4">9. Licencia de uso</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Sujeto a estos Términos, NERBIS le otorga una licencia limitada, no exclusiva, no
                 transferible, no sublicenciable y revocable para acceder y utilizar los Servicios
                 con el propósito de operar su negocio digital. Esta licencia no le otorga ningún
@@ -296,10 +296,10 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">10. Uso aceptable</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Queda expresamente prohibido:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>Utilizar la Plataforma para actividades ilegales o fraudulentas.</li>
                 <li>Publicar o vender productos o servicios prohibidos por ley.</li>
                 <li>Enviar spam, malware o contenido malicioso.</li>
@@ -309,7 +309,7 @@ export default function TermsPage() {
                 <li>Revender o redistribuir el acceso sin autorización.</li>
                 <li>Publicar contenido que promueva odio, discriminación o violencia.</li>
               </ul>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS puede suspender el acceso a Usuarios que incumplan esta política, previa
                 notificación cuando las circunstancias lo permitan.
               </p>
@@ -318,7 +318,7 @@ export default function TermsPage() {
             {/* ─── CONTENIDO E IP ─── */}
             <section>
               <h2 className="text-2xl font-semibold mb-4">11. Contenido del Usuario</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Usted conserva todos los derechos de propiedad intelectual sobre su contenido. Al
                 cargarlo, otorga a NERBIS una licencia no exclusiva, mundial, libre de regalías y
                 sublicenciable para almacenar, procesar y mostrar dicho contenido como parte de la
@@ -326,13 +326,13 @@ export default function TermsPage() {
                 promocionales. Puede solicitar la exclusión del uso promocional escribiendo a{' '}
                 <a
                   href={`mailto:${contactEmail}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   {contactEmail}
                 </a>
                 .
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Esta licencia se extinguirá tras la eliminación del contenido, salvo para copias de
                 seguridad razonables. Usted declara y garantiza que tiene los derechos necesarios
                 sobre el contenido que publica.
@@ -343,7 +343,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 12. Propiedad intelectual de NERBIS
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 La Plataforma, su código fuente, diseños, plantillas, logotipos, marcas, API y
                 tecnología subyacente son propiedad exclusiva de NERBIS o de sus licenciantes.
                 Queda prohibido copiar, modificar, crear obras derivadas, realizar ingeniería
@@ -353,7 +353,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">13. Feedback</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Todo comentario, idea o sugerencia que envíe sobre los Servicios se licencia a
                 NERBIS de forma perpetua, irrevocable, mundial, libre de regalías y sublicenciable
                 para usar, modificar e incorporar en los Servicios sin compensación ni atribución.
@@ -364,12 +364,12 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 14. Derechos de autor e infracciones
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si considera que contenido en la Plataforma infringe sus derechos de autor, envíe
                 una notificación a{' '}
                 <a
                   href={`mailto:${contactEmail}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   {contactEmail}
                 </a>{' '}
@@ -382,11 +382,11 @@ export default function TermsPage() {
             {/* ─── E-COMMERCE ─── */}
             <section>
               <h2 className="text-2xl font-semibold mb-4">15. Servicios de e-commerce</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Al utilizar la tienda en línea, usted actúa como vendedor registrado. Es el único
                 responsable de:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>La veracidad de descripciones, precios e imágenes de productos.</li>
                 <li>
                   El cumplimiento de las leyes de protección al consumidor, incluyendo garantías
@@ -405,7 +405,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">16. Procesamiento de pagos</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS integra pasarelas de pago de terceros (Stripe, MercadoPago, entre otros).
                 NERBIS no es un procesador de pagos ni una entidad financiera. El procesamiento
                 está sujeto a los términos de cada proveedor. NERBIS no es responsable por errores,
@@ -418,7 +418,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 17. Servicios de reservas y citas
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Al utilizar el sistema de reservas, usted es responsable de configurar su
                 disponibilidad, horarios, políticas de cancelación y no-shows, y garantizar que sus
                 servicios cumplen con las regulaciones profesionales de su jurisdicción. NERBIS
@@ -432,7 +432,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 18. Subdominios, dominios y aislamiento de datos
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Cada cuenta opera como un tenant aislado con un subdominio único. Los datos de cada
                 Usuario están lógicamente separados y no son accesibles por otros Usuarios. NERBIS
                 no comparte datos entre tenants, salvo datos agregados y anonimizados. Cualquier
@@ -446,11 +446,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 19. Funcionalidades de inteligencia artificial
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS ofrece funcionalidades de IA (generación de sitios, sugerencias de
                 contenido, asistencia inteligente). Al utilizarlas:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   El contenido generado es un punto de partida. Usted es responsable de revisar,
                   editar y aprobar todo contenido antes de publicarlo.
@@ -469,7 +469,7 @@ export default function TermsPage() {
                   modelos sin su consentimiento previo y expreso.
                 </li>
               </ul>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Las herramientas de IA, incluyendo asistentes conversacionales, tienen carácter
                 informativo y no constituyen asesoría profesional de ningún tipo.
               </p>
@@ -480,25 +480,25 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 20. Privacidad y protección de datos
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 El tratamiento de datos personales se rige por nuestra{' '}
-                <a href="/privacy" className="text-blue-600 hover:underline">
+                <a href="/privacy" className="text-primary hover:underline">
                   Política de Privacidad
                 </a>
                 , que forma parte integral de estos Términos. NERBIS cumple con la normativa de
                 protección de datos aplicable en las jurisdicciones donde opera.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 <strong>Rol de NERBIS como encargado del tratamiento:</strong> respecto a los datos
                 de Clientes Finales que el Usuario recopila, NERBIS actúa como encargado del
                 tratamiento (data processor) y procesará dichos datos únicamente para la prestación
                 de los Servicios. Los términos específicos se rigen por el Acuerdo de Procesamiento
                 de Datos (DPA) disponible bajo solicitud.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Como operador de su propio sitio, usted es responsable de:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   Publicar una política de privacidad que cumpla con la legislación aplicable en su
                   jurisdicción.
@@ -520,7 +520,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">21. Datos del sistema</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS recopila datos del sistema (logs, telemetría, métricas, estadísticas de uso
                 agregadas) que son propiedad de NERBIS y se utilizan para operar, mejorar los
                 Servicios y detectar fraude. Estos datos se tratan en forma agregada y anonimizada
@@ -532,7 +532,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 22. Transferencias internacionales de datos
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Los Servicios pueden implicar la transferencia de datos a servidores ubicados fuera
                 de su país de residencia. NERBIS garantiza que dichas transferencias se realizan con
                 las garantías adecuadas exigidas por la legislación aplicable, incluyendo cláusulas
@@ -543,7 +543,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">23. Seguridad</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS implementa medidas técnicas y organizativas razonables (cifrado en tránsito
                 y en reposo, controles de acceso, monitoreo). En caso de una brecha que afecte
                 datos personales, NERBIS notificará a los Usuarios afectados y a las autoridades
@@ -558,7 +558,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 24. Servicios e integraciones de terceros
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 La Plataforma puede integrarse con servicios de terceros (pasarelas de pago,
                 registradores de dominios, analítica, etc.). El uso de estos servicios está sujeto
                 a sus propios términos. NERBIS no es responsable por su disponibilidad, seguridad
@@ -569,18 +569,18 @@ export default function TermsPage() {
             {/* ─── PROTECCIONES LEGALES ─── */}
             <section>
               <h2 className="text-2xl font-semibold mb-4">25. Exclusión de garantías</h2>
-              <p className="text-neutral-600 leading-relaxed font-medium">
+              <p className="text-muted-foreground leading-relaxed font-medium">
                 En la máxima medida permitida por la ley aplicable, los Servicios se proporcionan
                 &quot;tal cual&quot; y &quot;según disponibilidad&quot;. NERBIS no otorga garantías
                 adicionales a las expresamente establecidas en estos Términos, más allá de las
                 garantías legales obligatorias que correspondan según la legislación de su
                 jurisdicción.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS no garantiza que los Servicios serán ininterrumpidos, libres de errores ni
                 que producirán resultados comerciales específicos.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Nada en estos Términos excluye ni limita la responsabilidad de NERBIS por dolo,
                 negligencia grave, lesiones personales o fallecimiento, ni ningún otro supuesto que
                 la legislación aplicable no permita excluir o limitar. Los derechos del consumidor
@@ -593,13 +593,13 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 26. Limitación de responsabilidad
               </h2>
-              <p className="text-neutral-600 leading-relaxed font-medium">
+              <p className="text-muted-foreground leading-relaxed font-medium">
                 En la máxima medida permitida por la ley aplicable y sin perjuicio de los derechos
                 irrenunciables del consumidor, NERBIS no será responsable por daños indirectos,
                 incidentales, especiales o consecuenciales, incluyendo pérdida de beneficios,
                 datos, uso o reputación comercial.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 La responsabilidad total de NERBIS se limitará al mayor de: (a) USD 100 o (b) las
                 tarifas pagadas por el Usuario en los 12 meses anteriores al evento. Esta
                 limitación no aplica en caso de dolo, negligencia grave ni en los supuestos que la
@@ -609,7 +609,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">27. Indemnización</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 En la medida permitida por la ley aplicable, usted se compromete a indemnizar a
                 NERBIS frente a reclamaciones derivadas de: (a) su uso de los Servicios o
                 incumplimiento de estos Términos, (b) su Contenido, (c) disputas con Clientes
@@ -620,7 +620,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">28. Confidencialidad</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Ambas partes mantendrán la confidencialidad de la información no pública recibida.
                 Excepciones: (a) dominio público sin culpa del receptor, (b) recibida de tercero
                 sin restricción, (c) desarrollada independientemente, (d) divulgación por orden
@@ -633,18 +633,18 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 29. Vigencia y terminación
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 <strong>Terminación por el Usuario:</strong> puede cancelar en cualquier momento,
                 sin penalidad, desde su panel o contactando a soporte. La cancelación será efectiva
                 al final del período de facturación vigente.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 <strong>Terminación por NERBIS:</strong> con 30 días de aviso sin causa, o de forma
                 inmediata por violación grave, fraude, riesgo de seguridad o falta de pago
                 reiterada (notificando los motivos). En caso de terminación sin causa, se
                 reembolsará la parte proporcional no utilizada.
               </p>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 <strong>Efectos:</strong> (a) desactivación del acceso, (b) sitio web no disponible
                 públicamente, (c) datos conservados 30 días para exportación, luego eliminados, (d)
                 saldos pendientes vencen inmediatamente.
@@ -653,7 +653,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">30. Supervivencia</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Las secciones de propiedad intelectual, limitación de responsabilidad,
                 indemnización, confidencialidad y disposiciones generales sobreviven a la
                 terminación.
@@ -665,7 +665,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 31. Modificaciones a los Términos
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 NERBIS puede modificar estos Términos con al menos 30 días de anticipación por
                 correo electrónico y notificación en la Plataforma. Si no está de acuerdo, podrá
                 cancelar sin penalidad antes de la entrada en vigor. Las modificaciones sustanciales
@@ -678,10 +678,10 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 32. Resolución de disputas
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Cualquier controversia se resolverá preferentemente mediante:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Negociación directa</strong> durante 30 días.
                 </li>
@@ -700,7 +700,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 33. Comunicaciones electrónicas
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Usted consiente recibir comunicaciones operativas y transaccionales. Las
                 comunicaciones comerciales requieren su consentimiento previo y expreso, con opción
                 de baja en cada mensaje. Usted es responsable de mantener actualizado su correo
@@ -710,7 +710,7 @@ export default function TermsPage() {
 
             <section>
               <h2 className="text-2xl font-semibold mb-4">34. Disposiciones generales</h2>
-              <ul className="list-disc list-inside text-neutral-600 space-y-3">
+              <ul className="list-disc list-inside text-muted-foreground space-y-3">
                 <li>
                   <strong>Acuerdo completo:</strong> estos Términos, la Política de Privacidad, la
                   Política de Cookies y el DPA (cuando aplique) constituyen el acuerdo completo.
@@ -753,7 +753,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 Parte II — Modificaciones Regionales
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Las siguientes secciones complementan los Términos Generales (Parte I) y
                 prevalecen sobre estos en caso de conflicto, según la ubicación del Usuario. Si su
                 país no está listado, aplican únicamente los Términos Generales junto con las
@@ -766,12 +766,12 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 35. Colombia
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si usted reside en Colombia, se aplican las siguientes modificaciones conforme al
                 Estatuto del Consumidor (Ley 1480 de 2011) y la Ley de Habeas Data (Ley 1581 de
                 2012):
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Derecho de retracto:</strong> usted puede retractarse dentro de los 5
                   días hábiles siguientes a la celebración del contrato (Art. 47, Ley 1480).
@@ -806,11 +806,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 36. España y Unión Europea
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si usted reside en España o en un Estado miembro de la UE/EEE, se aplican las
                 siguientes modificaciones:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Derecho de desistimiento:</strong> usted puede desistir del contrato
                   dentro de los 14 días naturales siguientes a la celebración, sin indicar motivo y
@@ -825,7 +825,7 @@ export default function TermsPage() {
                     href="https://ec.europa.eu/consumers/odr"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
+                    className="text-primary hover:underline"
                   >
                     ec.europa.eu/consumers/odr
                   </a>
@@ -856,11 +856,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 37. México
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si usted reside en México, se aplican las siguientes modificaciones conforme a la
                 Ley Federal de Protección al Consumidor (LFPC) y la LFPDPPP:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Renovación automática:</strong> NERBIS le notificará al menos 5 días
                   hábiles antes de cada renovación automática, indicando monto, frecuencia y fecha
@@ -889,11 +889,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 38. Argentina
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si usted reside en Argentina, se aplican las siguientes modificaciones conforme a
                 la Ley 24.240 de Defensa del Consumidor y el Código Civil y Comercial:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Derecho de revocación:</strong> usted puede revocar la contratación
                   dentro de los 10 días corridos siguientes a la celebración del contrato (Art. 34,
@@ -926,11 +926,11 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold mb-4">
                 39. Chile
               </h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si usted reside en Chile, se aplican las siguientes modificaciones conforme a la
                 Ley 19.496 sobre Protección de los Derechos de los Consumidores:
               </p>
-              <ul className="list-disc list-inside text-neutral-600 space-y-2">
+              <ul className="list-disc list-inside text-muted-foreground space-y-2">
                 <li>
                   <strong>Derecho de retracto:</strong> usted puede retractarse dentro de los 10
                   días siguientes a la contratación del servicio (Art. 3 bis, Ley 19.496).
@@ -951,10 +951,10 @@ export default function TermsPage() {
             {/* ─── CONTACTO ─── */}
             <section className="pt-8 border-t-2">
               <h2 className="text-2xl font-semibold mb-4">40. Contacto</h2>
-              <p className="text-neutral-600 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Si tiene preguntas sobre estos Términos de Servicio:
               </p>
-              <ul className="list-none text-neutral-600 space-y-1 mt-2">
+              <ul className="list-none text-muted-foreground space-y-1 mt-2">
                 <li>
                   <strong>Razón social:</strong> NERBIS SAS
                 </li>
@@ -965,7 +965,7 @@ export default function TermsPage() {
                   <strong>Correo electrónico:</strong>{' '}
                   <a
                     href={`mailto:${contactEmail}`}
-                    className="text-blue-600 hover:underline"
+                    className="text-primary hover:underline"
                   >
                     {contactEmail}
                   </a>
@@ -974,10 +974,10 @@ export default function TermsPage() {
             </section>
 
             <div className="pt-8 border-t">
-              <p className="text-sm text-neutral-600">
+              <p className="text-sm text-muted-foreground">
                 Estos Términos de Servicio fueron actualizados por última vez en abril de 2026.
               </p>
-              <p className="text-sm text-neutral-600 mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 Al utilizar NERBIS, usted confirma que ha leído, comprendido y aceptado estos
                 Términos, sin perjuicio de los derechos irrenunciables que le correspondan como
                 consumidor según la legislación imperativa de su país de residencia.
