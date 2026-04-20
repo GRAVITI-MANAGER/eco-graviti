@@ -1382,10 +1382,12 @@ class AdminAuditLog(models.Model):
     ACTION_DISABLE_2FA = "disable_2fa"
     ACTION_UNLINK_SOCIAL = "unlink_social"
     ACTION_RESET_PASSWORD = "reset_password"
+    ACTION_EDIT_TENANT_DATA = "edit_tenant_data"
 
     ACTION_CHOICES = [
         (ACTION_DEACTIVATE_TENANT, "Deactivate tenant"),
         (ACTION_ACTIVATE_TENANT, "Activate tenant"),
+        (ACTION_EDIT_TENANT_DATA, "Edit tenant data"),
         (ACTION_DEACTIVATE_USER, "Deactivate user"),
         (ACTION_ACTIVATE_USER, "Activate user"),
         (ACTION_CHANGE_USER_ROLE, "Change user role"),
