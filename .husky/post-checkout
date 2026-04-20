@@ -16,7 +16,7 @@ if [ "$CURRENT_BRANCH" = "develop" ]; then
     echo "⚠️  No se pudo actualizar develop (posible conflicto). Ejecuta 'git pull origin develop' manualmente."
 fi
 
-# If creating a worktree (new branch from develop), ensure develop is fresh first
+# On any feature branch checkout, fetch develop so origin/develop stays fresh
 if [ "$CURRENT_BRANCH" != "develop" ] && [ "$CURRENT_BRANCH" != "main" ]; then
   git fetch origin develop 2>/dev/null && \
     echo "✅ Fetch de develop completado ($(git rev-parse --short origin/develop))" || true
