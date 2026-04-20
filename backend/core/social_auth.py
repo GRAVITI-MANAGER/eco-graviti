@@ -281,7 +281,7 @@ def social_login_or_create(social_info: SocialUserInfo, tenant: Tenant) -> User:
     2. Si existe User con mismo email → auto-vincular (el proveedor ya verificó la identidad)
     3. No existe → crear User + SocialAccount
     """
-    # 1. Buscar SocialAccount existente por user en este tenant+provider
+    # 1. Buscar SocialAccount existente por tenant+provider+provider_uid
     try:
         social_account = SocialAccount.objects.select_related("user").get(
             tenant=tenant,
