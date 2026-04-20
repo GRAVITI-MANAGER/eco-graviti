@@ -3,7 +3,7 @@
 import logging
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import render
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
@@ -1888,16 +1888,22 @@ class SocialLinkView(APIView):
             )
 
         # Crear SocialAccount (o actualizar si ya existe para este user+provider)
-        SocialAccount.objects.update_or_create(
-            user=user,
-            provider=social_info.provider,
-            defaults={
-                "tenant": tenant,
-                "provider_uid": social_info.provider_uid,
-                "email": social_info.email,
-                "extra_data": social_info.extra_data,
-            },
-        )
+        try:
+            SocialAccount.objects.update_or_create(
+                user=user,
+                provider=social_info.provider,
+                defaults={
+                    "tenant": tenant,
+                    "provider_uid": social_info.provider_uid,
+                    "email": social_info.email,
+                    "extra_data": social_info.extra_data,
+                },
+            )
+        except IntegrityError:
+            return Response(
+                {"error": "Esta cuenta social ya está vinculada"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         return _build_social_auth_response(user, tenant)
 
@@ -2074,16 +2080,22 @@ class PlatformSocialLoginView(APIView):
             )
 
         # Vincular automáticamente (update_or_create para manejar concurrencia)
-        with transaction.atomic():
-            SocialAccount.objects.update_or_create(
-                user=user,
-                provider=social_info.provider,
-                defaults={
-                    "tenant": user.tenant,
-                    "provider_uid": social_info.provider_uid,
-                    "email": social_info.email,
-                    "extra_data": social_info.extra_data,
-                },
+        try:
+            with transaction.atomic():
+                SocialAccount.objects.update_or_create(
+                    user=user,
+                    provider=social_info.provider,
+                    defaults={
+                        "tenant": user.tenant,
+                        "provider_uid": social_info.provider_uid,
+                        "email": social_info.email,
+                        "extra_data": social_info.extra_data,
+                    },
+                )
+        except IntegrityError:
+            return Response(
+                {"error": "Esta cuenta social ya está vinculada"},
+                status=status.HTTP_409_CONFLICT,
             )
 
         # Social login no requiere 2FA adicional

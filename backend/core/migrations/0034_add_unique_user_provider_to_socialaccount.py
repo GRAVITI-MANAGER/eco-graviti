@@ -10,16 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='webauthncredential',
-            new_name='core_webaut_user_id_7d5c9a_idx',
-            old_name='core_webaut_user_id_idx',
-        ),
-        migrations.AlterField(
-            model_name='webauthncredential',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
-        ),
         migrations.AddConstraint(
             model_name='socialaccount',
             constraint=models.UniqueConstraint(fields=('user', 'provider'), name='core_socialaccount_user_provider_uq'),
