@@ -1363,14 +1363,14 @@ class TOTPDevice(models.Model):
 # ===================================
 class AdminAuditLog(models.Model):
     """
-    Registro de auditoría para acciones destructivas de superadmins de plataforma.
+    Registro de auditoría para acciones administrativas de superadmins de plataforma.
 
     Este modelo NO hereda de TenantAwareModel — es un modelo a nivel de plataforma
     sin FK a tenant. Se usa exclusivamente desde los endpoints /api/admin/* para
-    registrar acciones destructivas sobre tenants, usuarios y métodos de autenticación.
+    registrar mutaciones sobre tenants, usuarios y métodos de autenticación.
 
-    Las acciones soportadas son las 9 definidas en ACTION_CHOICES. Lecturas (GET) no
-    se registran — solo mutaciones destructivas.
+    Las acciones soportadas son las definidas en ACTION_CHOICES. Lecturas (GET) no
+    se registran — solo mutaciones administrativas relevantes.
     """
 
     ACTION_DEACTIVATE_TENANT = "deactivate_tenant"

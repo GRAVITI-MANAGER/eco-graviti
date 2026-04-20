@@ -154,9 +154,10 @@ class AdminTenantDetailView(generics.RetrieveUpdateAPIView):
       anotados).
     - PATCH acepta únicamente campos del allowlist
       (``AdminTenantUpdateSerializer``). Cambios en ``is_active`` generan
-      una entrada en ``AdminAuditLog``. Otros cambios (plan, feature flags,
-      fecha de suscripción) se persisten pero no son destructivos, por lo que
-      no se registran en el audit log (ver contrato del design doc).
+      entradas ``activate_tenant`` / ``deactivate_tenant`` en ``AdminAuditLog``.
+      Cambios en ``name``, ``email``, ``phone`` e ``industry`` generan
+      ``edit_tenant_data``. Plan, feature flags y fecha de suscripción se
+      persisten sin audit log.
     """
 
     permission_classes = [IsAuthenticated, IsSuperAdmin]

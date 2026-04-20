@@ -6,7 +6,7 @@ Cubre:
 - Formato de ``__str__``.
 - Ordenamiento por ``-created_at``.
 - Comportamiento ``SET_NULL`` cuando se elimina el actor.
-- Enum de ``ACTION_CHOICES`` exacto (9 valores).
+- Enum de ``ACTION_CHOICES`` exacto (10 valores).
 - Extracción de IP con ``X-Forwarded-For`` presente, ausente y múltiple.
 """
 

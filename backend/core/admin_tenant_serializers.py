@@ -131,8 +131,8 @@ class AdminTenantUpdateSerializer(serializers.Serializer):
 
     # Datos del negocio (Issue #148)
     name = serializers.CharField(max_length=200, required=False)
-    email = serializers.EmailField(required=False, allow_blank=True)
-    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False)
+    phone = serializers.CharField(max_length=20, required=False)
     industry = serializers.ChoiceField(
         choices=[c[0] for c in Tenant.INDUSTRY_CHOICES],
         required=False,

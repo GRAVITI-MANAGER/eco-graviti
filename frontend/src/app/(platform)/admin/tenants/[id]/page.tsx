@@ -1129,19 +1129,22 @@ export default function AdminTenantDetailPage({
 
             <div className="space-y-2">
               <Label htmlFor="edit-industry">Industria</Label>
-              <select
-                id="edit-industry"
+              <Select
                 value={editForm.industry}
-                onChange={(e) => setEditForm((f) => ({ ...f, industry: e.target.value }))}
+                onValueChange={(value) => setEditForm((f) => ({ ...f, industry: value }))}
                 disabled={editSubmitting}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {INDUSTRY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="edit-industry" className="h-10 w-full">
+                  <SelectValue placeholder="Selecciona una industria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INDUSTRY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

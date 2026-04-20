@@ -356,11 +356,13 @@ class AdminTenantUpdateViewTests(_AdminTenantTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.tenant.refresh_from_db()
         self.assertEqual(self.tenant.name, "New Business Name")
-        # Should create an edit_tenant_data audit log entry
         logs = self._audit_logs()
         self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].action, "edit_tenant_data")
-        self.assertIn("name", logs[0].details["changes"])
+        self.assertEqual(logs[0].action, AdminAuditLog.ACTION_EDIT_TENANT_DATA)
+        self.assertEqual(
+            logs[0].details["changes"]["name"],
+            {"old": "Widget Co", "new": "New Business Name"},
+        )
 
     def test_patch_updates_email_field(self) -> None:
         response = self.admin_client.patch(
@@ -373,7 +375,11 @@ class AdminTenantUpdateViewTests(_AdminTenantTestBase):
         self.assertEqual(self.tenant.email, "new@example.com")
         logs = self._audit_logs()
         self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].action, "edit_tenant_data")
+        self.assertEqual(logs[0].action, AdminAuditLog.ACTION_EDIT_TENANT_DATA)
+        self.assertEqual(
+            logs[0].details["changes"]["email"],
+            {"old": "contact@widget-co.test", "new": "new@example.com"},
+        )
 
     def test_patch_updates_phone_and_industry(self) -> None:
         response = self.admin_client.patch(
@@ -387,9 +393,15 @@ class AdminTenantUpdateViewTests(_AdminTenantTestBase):
         self.assertEqual(self.tenant.industry, "tech")
         logs = self._audit_logs()
         self.assertEqual(len(logs), 1)
-        self.assertEqual(logs[0].action, "edit_tenant_data")
-        self.assertIn("phone", logs[0].details["changes"])
-        self.assertIn("industry", logs[0].details["changes"])
+        self.assertEqual(logs[0].action, AdminAuditLog.ACTION_EDIT_TENANT_DATA)
+        self.assertEqual(
+            logs[0].details["changes"]["phone"],
+            {"old": "123456789", "new": "+1234567890"},
+        )
+        self.assertEqual(
+            logs[0].details["changes"]["industry"],
+            {"old": "beauty", "new": "tech"},
+        )
 
     def test_patch_no_audit_when_business_data_unchanged(self) -> None:
         """PATCH with same values should not create audit log."""
