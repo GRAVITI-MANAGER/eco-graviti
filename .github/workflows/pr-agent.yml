@@ -18,13 +18,18 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .pr_agent.toml
+          sparse-checkout-cone-mode: false
       - name: PR Agent
         uses: qodo-ai/pr-agent@19237a5d1054069173ec2f50b4ac2b1957c57fef # main 2026-04-20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOOGLE_AI_STUDIO.GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          config.model: "gemini/gemini-2.5-flash"
-          config.fallback_models: '["gemini/gemini-2.0-flash"]'
+          config.model: "gemini/gemini-2.5-pro"
+          config.fallback_models: '["gemini/gemini-2.5-flash", "gemini/gemini-2.0-flash"]'
+          config.ai_timeout: "180"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
           github_action_config.auto_improve: "true"
