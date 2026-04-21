@@ -1260,12 +1260,16 @@ class TeamInvitation(TenantAwareModel):
             )
 
     def cancel(self):
+        if self.status != "pending":
+            raise ValueError(f"No se puede cancelar una invitación con status '{self.status}'")
         self.status = "cancelled"
         self.save(update_fields=["status", "updated_at"])
 
     def accept(self, user):
         from django.utils import timezone
 
+        if self.status != "pending":
+            raise ValueError(f"No se puede aceptar una invitación con status '{self.status}'")
         self.status = "accepted"
         self.accepted_at = timezone.now()
         self.accepted_user = user

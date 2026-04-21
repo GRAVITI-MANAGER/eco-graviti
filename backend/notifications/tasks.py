@@ -301,6 +301,10 @@ def send_team_invitation_email(invitation_id):
             "tenant", "invited_by"
         ).get(id=invitation_id)
 
+        if not invitation.is_valid:
+            logger.info("Invitación %s ya no es válida, omitiendo envío de email", invitation_id)
+            return
+
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
         invite_url = f"{frontend_url}/accept-invitation/{invitation.token}"
 
@@ -330,8 +334,8 @@ def send_team_invitation_email(invitation_id):
             },
         )
 
-        logger.info(f"Email de invitación enviado a {invitation.email}")
+        logger.info("Email de invitación enviado para invitation_id=%s", invitation_id)
 
     except Exception as e:
-        logger.error(f"Error enviando email de invitación {invitation_id}: {str(e)}")
+        logger.error("Error enviando email de invitación %s: %s", invitation_id, str(e))
         raise

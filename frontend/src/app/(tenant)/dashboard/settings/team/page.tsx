@@ -230,8 +230,12 @@ export default function SettingsTeamPage() {
       setInviteEmail('');
       setInviteRole('staff');
     },
-    onError: (error: Error & { response?: { data?: { email?: string[]; detail?: string } } }) => {
-      const msg = error.response?.data?.email?.[0] || error.response?.data?.detail || 'Error al enviar la invitación';
+    onError: (error: Error & { response?: { data?: { email?: string[]; detail?: string; error?: string } } }) => {
+      const msg = error.response?.data?.email?.[0]
+        || error.response?.data?.detail
+        || error.response?.data?.error
+        || error.message
+        || 'Error al enviar la invitación';
       toast.error(msg);
     },
   });

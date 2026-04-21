@@ -39,6 +39,8 @@ const NERBIS_PLATFORM_VARS: Record<string, string> = {
   '--sidebar-accent-foreground': '#334155',
   '--sidebar-border': '#E2E8F0',
   '--sidebar-ring': '#0D9488',
+  '--font-heading': "'Inter', sans-serif",
+  '--font-body': "'Inter', sans-serif",
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -56,9 +58,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // Reset platform identity — undo tenant ThemeInjector overrides on :root
   useEffect(() => {
     const root = document.documentElement;
-    for (const [prop, value] of Object.entries(NERBIS_PLATFORM_VARS)) {
-      root.style.setProperty(prop, value);
+    // Only apply light-mode platform vars if not in dark mode
+    if (!root.classList.contains('dark')) {
+      for (const [prop, value] of Object.entries(NERBIS_PLATFORM_VARS)) {
+        root.style.setProperty(prop, value);
+      }
     }
+    // Always clean up tenant font overrides on the root element
+    root.style.removeProperty('font-family');
   }, [tenant?.id]);
 
   useEffect(() => {
