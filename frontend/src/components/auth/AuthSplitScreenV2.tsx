@@ -10,6 +10,7 @@ import { MobileBrandHeader } from './MobileBrandHeader';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
+import { ReactivateForm } from './ReactivateForm';
 import { useReducedMotion } from './hooks';
 import type { AuthMode, AuthPrefill } from './types';
 
@@ -44,6 +45,7 @@ export default function AuthSplitScreenV2({
       login: 'Formulario de inicio de sesión',
       register: 'Formulario de registro',
       forgot: 'Recuperar contraseña',
+      reactivate: 'Reactivar cuenta',
     };
     setAnnouncement(labels[m]);
   }, []);
@@ -146,6 +148,10 @@ export default function AuthSplitScreenV2({
       {mode === 'forgot' && (
         <ForgotPasswordForm onGoToLogin={goToLogin} />
       )}
+
+      {mode === 'reactivate' && (
+        <ReactivateForm />
+      )}
     </>
   );
 
@@ -169,7 +175,7 @@ export default function AuthSplitScreenV2({
         {/* Right: Form panel */}
         <main
           className="relative flex w-[55%] flex-1 flex-col items-center justify-center xl:w-[58%]"
-          style={{ background: 'var(--auth-bg, #FAFAFA)' }}
+          style={{ background: 'var(--auth-bg)' }}
         >
           <div
             ref={formPanelRefDesktop}
@@ -194,7 +200,7 @@ export default function AuthSplitScreenV2({
         {/* Right: Form panel */}
         <main
           className="relative flex w-[62%] flex-1 flex-col items-center justify-center"
-          style={{ background: 'var(--auth-bg, #FAFAFA)' }}
+          style={{ background: 'var(--auth-bg)' }}
         >
           <div
             ref={formPanelRefTablet}
@@ -217,7 +223,7 @@ export default function AuthSplitScreenV2({
         <main
           className="flex flex-1 flex-col items-center overflow-y-auto overscroll-contain"
           style={{
-            background: 'linear-gradient(180deg, #F5F7FA 0%, var(--auth-bg, #FAFAFA) 100%)',
+            background: 'linear-gradient(180deg, var(--auth-bg) 0%, var(--auth-bg) 100%)',
             WebkitOverflowScrolling: 'touch',
           }}
         >

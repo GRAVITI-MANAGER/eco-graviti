@@ -97,10 +97,8 @@ export function TwoFactorChallengeStep({
 
   const handlePasskeyAuthResponse = useCallback(
     (data: AuthResponse) => {
-      // Persistir tokens en localStorage (mismo patrón que passkey.ts)
-      if (typeof window !== 'undefined' && data.tokens) {
-        localStorage.setItem('access_token', data.tokens.access);
-        localStorage.setItem('refresh_token', data.tokens.refresh);
+      // Persistir user/tenant en localStorage (tokens se manejan como httpOnly cookies)
+      if (typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(data.user));
         if (data.tenant) {
           localStorage.setItem('tenant', JSON.stringify(data.tenant));
@@ -306,7 +304,7 @@ export function TwoFactorChallengeStep({
           {passkeyError && (
             <p
               className="text-[0.8rem] text-center"
-              style={{ color: 'var(--auth-border-error, #EF4444)' }}
+              style={{ color: 'var(--auth-border-error)' }}
               role="alert"
             >
               {passkeyError}
@@ -407,7 +405,7 @@ export function TwoFactorChallengeStep({
             type="button"
             onClick={() => switchMode(mode === 'totp' ? 'backup' : 'totp')}
             className="text-[0.75rem] font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--auth-accent)] focus-visible:ring-offset-2 rounded-sm"
-            style={{ color: 'var(--auth-accent, #0D9488)' }}
+            style={{ color: 'var(--auth-accent)' }}
           >
             {mode === 'totp'
               ? 'Usar código de respaldo'

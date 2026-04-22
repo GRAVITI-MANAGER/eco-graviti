@@ -2,6 +2,12 @@
 # NERBIS .gitignore
 # ======================
 
+# SDD gate marker (worktree-specific, never commit)
+.sdd-approved
+
+# Claude Code local settings (personal permissions, never commit)
+.claude/settings.local.json
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -227,6 +233,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Claude Code local settings (personal, not for repo)
+.claude/settings.local.json
+.claude/worktrees/
 
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to

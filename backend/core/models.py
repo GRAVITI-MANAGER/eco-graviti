@@ -769,6 +769,10 @@ class SocialAccount(models.Model):
                 fields=["tenant", "provider", "provider_uid"],
                 name="unique_social_account_per_tenant",
             ),
+            models.UniqueConstraint(
+                fields=["user", "provider"],
+                name="core_socialaccount_user_provider_uq",
+            ),
         ]
         indexes = [
             models.Index(fields=["tenant", "provider", "email"]),
@@ -808,7 +812,7 @@ class Banner(TenantAwareModel):
 
     message = models.TextField(
         verbose_name="Mensaje",
-        help_text="Texto que se mostrará en el banner. Puede incluir HTML básico.",
+        help_text="Texto plano que se mostrará en el banner. HTML será eliminado automáticamente.",
     )
 
     link_url = models.URLField(
@@ -1004,8 +1008,16 @@ class OTPToken(models.Model):
     - Restablecer contraseña (forgot password)
     - Reactivar cuenta
 
-    El código es de 6 dígitos y expira después de 10 minutos.
+    Security hardening (#142):
+    - Código de 8 dígitos (10× más resistente a brute force que 6)
+    - Máximo 5 intentos antes de bloqueo
+    - Rate limit de reenvío: máximo 5 OTPs por usuario por hora
+    - Comparación timing-safe con secrets.compare_digest
     """
+
+    OTP_LENGTH = 8
+    MAX_ATTEMPTS = 5
+    MAX_RESENDS_PER_HOUR = 5
 
     PURPOSE_CHOICES = [
         ("password_reset", "Restablecer contraseña"),
@@ -1020,9 +1032,9 @@ class OTPToken(models.Model):
     )
 
     code = models.CharField(
-        max_length=6,
+        max_length=8,
         verbose_name="Código OTP",
-        help_text="Código de 6 dígitos",
+        help_text="Código de 8 dígitos",
     )
 
     purpose = models.CharField(
@@ -1065,24 +1077,34 @@ class OTPToken(models.Model):
 
     @property
     def is_valid(self):
-        """Verificar si el OTP es válido (no usado, no expirado, máx 3 intentos)"""
+        """Verificar si el OTP es válido (no usado, no expirado, dentro del límite de intentos)"""
         from django.utils import timezone
 
-        return self.used_at is None and self.expires_at > timezone.now() and self.attempts < 3
+        return self.used_at is None and self.expires_at > timezone.now() and self.attempts < self.MAX_ATTEMPTS
 
     @classmethod
     def create_for_user(cls, user, purpose, minutes_valid=10):
-        """Crear un nuevo OTP para un usuario"""
+        """Crear un nuevo OTP para un usuario.
+
+        Raises:
+            ValueError: Si el usuario ha excedido el límite de reenvíos por hora.
+        """
         import secrets
         from datetime import timedelta
 
         from django.utils import timezone
 
-        # Invalidar OTPs anteriores del mismo propósito
-        cls.objects.filter(user=user, purpose=purpose, used_at__isnull=True).delete()
+        # Rate limit: máximo MAX_RESENDS_PER_HOUR por usuario por hora
+        one_hour_ago = timezone.now() - timedelta(hours=1)
+        recent_count = cls.objects.filter(user=user, purpose=purpose, created_at__gte=one_hour_ago).count()
+        if recent_count >= cls.MAX_RESENDS_PER_HOUR:
+            raise ValueError("Demasiadas solicitudes de OTP. Intenta de nuevo más tarde.")
 
-        # Generar código de 6 dígitos (criptográficamente seguro)
-        code = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+        # Soft-invalidar OTPs anteriores (no delete, para que el count de rate limit siga válido)
+        cls.objects.filter(user=user, purpose=purpose, used_at__isnull=True).update(used_at=timezone.now())
+
+        # Generar código de 8 dígitos (criptográficamente seguro)
+        code = "".join([str(secrets.randbelow(10)) for _ in range(cls.OTP_LENGTH)])
         expires_at = timezone.now() + timedelta(minutes=minutes_valid)
 
         return cls.objects.create(
@@ -1094,11 +1116,13 @@ class OTPToken(models.Model):
 
     def verify(self, code):
         """
-        Verificar el código OTP.
+        Verificar el código OTP con comparación timing-safe.
 
         Returns:
             tuple: (success: bool, error_message: str or None)
         """
+        import secrets as secrets_mod
+
         from django.utils import timezone
 
         if self.used_at is not None:
@@ -1107,13 +1131,16 @@ class OTPToken(models.Model):
         if self.expires_at < timezone.now():
             return False, "El código ha expirado"
 
-        if self.attempts >= 3:
+        if self.attempts >= self.MAX_ATTEMPTS:
             return False, "Demasiados intentos fallidos. Solicita un nuevo código"
 
-        if self.code != code:
+        # Coerce to str to prevent TypeError from compare_digest
+        code_str = str(code) if code is not None else ""
+
+        if not secrets_mod.compare_digest(self.code, code_str):
             self.attempts += 1
             self.save()
-            remaining = 3 - self.attempts
+            remaining = self.MAX_ATTEMPTS - self.attempts
             if remaining > 0:
                 return False, f"Código incorrecto. Te quedan {remaining} intentos"
             return False, "Demasiados intentos fallidos. Solicita un nuevo código"
@@ -1474,3 +1501,104 @@ class TOTPDevice(models.Model):
                 self.save(update_fields=["backup_codes", "last_used_at"])
                 return True
         return False
+
+
+# ===================================
+# ADMIN AUDIT LOG
+# ===================================
+class AdminAuditLog(models.Model):
+    """
+    Registro de auditoría para acciones administrativas de superadmins de plataforma.
+
+    Este modelo NO hereda de TenantAwareModel — es un modelo a nivel de plataforma
+    sin FK a tenant. Se usa exclusivamente desde los endpoints /api/admin/* para
+    registrar mutaciones sobre tenants, usuarios y métodos de autenticación.
+
+    Las acciones soportadas son las definidas en ACTION_CHOICES. Lecturas (GET) no
+    se registran — solo mutaciones administrativas relevantes.
+    """
+
+    ACTION_DEACTIVATE_TENANT = "deactivate_tenant"
+    ACTION_ACTIVATE_TENANT = "activate_tenant"
+    ACTION_DEACTIVATE_USER = "deactivate_user"
+    ACTION_ACTIVATE_USER = "activate_user"
+    ACTION_CHANGE_USER_ROLE = "change_user_role"
+    ACTION_DELETE_PASSKEY = "delete_passkey"
+    ACTION_DISABLE_2FA = "disable_2fa"
+    ACTION_UNLINK_SOCIAL = "unlink_social"
+    ACTION_RESET_PASSWORD = "reset_password"
+    ACTION_EDIT_TENANT_DATA = "edit_tenant_data"
+
+    ACTION_CHOICES = [
+        (ACTION_DEACTIVATE_TENANT, "Deactivate tenant"),
+        (ACTION_ACTIVATE_TENANT, "Activate tenant"),
+        (ACTION_EDIT_TENANT_DATA, "Edit tenant data"),
+        (ACTION_DEACTIVATE_USER, "Deactivate user"),
+        (ACTION_ACTIVATE_USER, "Activate user"),
+        (ACTION_CHANGE_USER_ROLE, "Change user role"),
+        (ACTION_DELETE_PASSKEY, "Delete passkey"),
+        (ACTION_DISABLE_2FA, "Disable 2FA"),
+        (ACTION_UNLINK_SOCIAL, "Unlink social account"),
+        (ACTION_RESET_PASSWORD, "Reset password"),
+    ]
+
+    actor = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admin_audit_actions",
+        verbose_name="Actor",
+        help_text="Superadmin que ejecutó la acción. NULL si el actor fue eliminado o fue una acción de sistema.",
+    )
+    action = models.CharField(
+        max_length=30,
+        choices=ACTION_CHOICES,
+        verbose_name="Acción",
+    )
+    target_type = models.CharField(
+        max_length=50,
+        verbose_name="Tipo de objetivo",
+        help_text="Nombre del modelo objetivo, ej: 'Tenant', 'User', 'WebAuthnCredential'.",
+    )
+    target_id = models.CharField(
+        max_length=255,
+        verbose_name="ID del objetivo",
+        help_text="PK del objetivo como string. Soporta UUID (Tenant) e int (User).",
+    )
+    target_repr = models.CharField(
+        max_length=300,
+        verbose_name="Representación del objetivo",
+        help_text="Descripción legible del objetivo, ej: 'tenant: mi-tienda' o 'user: juan@example.com'.",
+    )
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Detalles",
+        help_text="Contexto adicional opcional, ej: {'old_role': 'customer', 'new_role': 'admin'}.",
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name="Dirección IP",
+        help_text="IP del cliente que originó la acción (X-Forwarded-For o REMOTE_ADDR).",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name="Creado",
+    )
+
+    class Meta:
+        verbose_name = "Admin Audit Log"
+        verbose_name_plural = "Admin Audit Logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["actor", "-created_at"]),
+            models.Index(fields=["action", "-created_at"]),
+            models.Index(fields=["target_type", "target_id"]),
+        ]
+
+    def __str__(self) -> str:
+        actor_repr = self.actor.email if self.actor else "system"
+        return f"{actor_repr} -> {self.action} on {self.target_repr}"

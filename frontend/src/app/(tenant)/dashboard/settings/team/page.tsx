@@ -481,7 +481,7 @@ export default function SettingsTeamPage() {
                           {ROLE_CONFIG[member.role].label}
                         </Badge>
                         {!member.is_active && (
-                          <Badge variant="destructive" className="text-[0.65rem] py-0 px-1.5">
+                          <Badge variant="secondary" className="text-[0.65rem] py-0 px-1.5">
                             Inactivo
                           </Badge>
                         )}
@@ -653,7 +653,7 @@ export default function SettingsTeamPage() {
                   });
                 }
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               disabled={
                 disconnectMutation.isPending ||
                 (!disconnectDialog.member?.has_password &&
@@ -728,7 +728,7 @@ export default function SettingsTeamPage() {
                   reset2faMutation.mutate(reset2faDialog.member.id);
                 }
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               disabled={reset2faMutation.isPending}
             >
               {reset2faMutation.isPending ? 'Reseteando...' : 'Resetear 2FA'}

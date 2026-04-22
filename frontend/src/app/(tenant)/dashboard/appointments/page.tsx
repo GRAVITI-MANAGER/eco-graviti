@@ -261,7 +261,7 @@ export default function AppointmentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>No, mantener cita</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               onClick={() => cancelingId && cancelMutation.mutate(cancelingId)}
               disabled={cancelMutation.isPending}
             >
