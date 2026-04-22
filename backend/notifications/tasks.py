@@ -335,3 +335,55 @@ def send_otp_email(user_id, otp_code, purpose):
     except Exception as e:
         logger.error(f"Error enviando OTP email a usuario {user_id}: {str(e)}")
         raise
+
+
+@shared_task
+def send_team_invitation_email(invitation_id):
+    """
+    Enviar email de invitación de equipo.
+    """
+    from django.conf import settings
+
+    from core.models import TeamInvitation
+
+    try:
+        invitation = TeamInvitation.objects.select_related("tenant", "invited_by").get(id=invitation_id)
+
+        if not invitation.is_valid:
+            logger.info("Invitación %s ya no es válida, omitiendo envío de email", invitation_id)
+            return
+
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        invite_url = f"{frontend_url}/accept-invitation/{invitation.token}"
+
+        invited_by_name = ""
+        if invitation.invited_by:
+            invited_by_name = invitation.invited_by.get_full_name() or invitation.invited_by.email
+
+        # send_email requiere un user, pero el invitado aún no tiene cuenta.
+        # Usamos al invitador como user para que el Notification record quede ligado al tenant.
+        # Si invited_by fue eliminado (SET_NULL), usamos None y send_email debe manejarlo.
+        sender_user = invitation.invited_by
+        if sender_user is None:
+            logger.warning("Invitación %s no tiene invited_by (usuario eliminado)", invitation_id)
+            return
+
+        send_email(
+            user=sender_user,
+            subject=f"Te han invitado a unirte a {invitation.tenant.name}",
+            template_name="team_invitation",
+            recipient_email=invitation.email,
+            context={
+                "invite_url": invite_url,
+                "invited_by_name": invited_by_name,
+                "role_display": invitation.get_role_display(),
+                "tenant_name": invitation.tenant.name,
+                "metadata": {"invitation_id": invitation.id},
+            },
+        )
+
+        logger.info("Email de invitación enviado para invitation_id=%s", invitation_id)
+
+    except Exception as e:
+        logger.error("Error enviando email de invitación %s: %s", invitation_id, str(e))
+        raise

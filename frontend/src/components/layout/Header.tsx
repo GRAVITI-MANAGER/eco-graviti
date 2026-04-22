@@ -198,6 +198,9 @@ export function Header() {
                       <Link href="/dashboard/appointments">Mis Citas</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                      <Link href="/dashboard/team">Equipo</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link href="/dashboard/contracts">Mis Contratos</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

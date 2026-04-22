@@ -28,8 +28,10 @@ from core.admin_views import (
     AdminTokenRefreshView,
 )
 from core.views import (
+    AcceptInvitationView,
     CheckBusinessNameView,
     CheckTenantEmailView,
+    InvitationDetailView,
     PlatformForgotPasswordView,
     PlatformLoginView,
     PlatformSocialLoginView,
@@ -74,6 +76,9 @@ urlpatterns = [
         "api/public/platform-verify-reset-otp/", PlatformVerifyResetOTPView.as_view(), name="platform-verify-reset-otp"
     ),
     path("api/public/platform-social-login/", PlatformSocialLoginView.as_view(), name="platform-social-login"),
+    # Invitaciones de equipo (públicas)
+    path("api/public/invitation/<str:token>/", InvitationDetailView.as_view(), name="invitation-detail"),
+    path("api/public/accept-invitation/<str:token>/", AcceptInvitationView.as_view(), name="accept-invitation"),
     # NERBIS Admin (superadmin de plataforma — sin middleware de tenant)
     path("api/admin/auth/login/", AdminLoginView.as_view(), name="admin-login"),
     path("api/admin/auth/register/", AdminRegisterView.as_view(), name="admin-register"),

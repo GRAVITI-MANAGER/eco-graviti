@@ -92,6 +92,10 @@ urlpatterns = [
     path("tenant/config/", views.get_tenant_config, name="tenant_config"),
     path("tenant/website-content/", views.get_tenant_website_content, name="tenant_website_content"),
     path("configure-modules/", views.configure_modules, name="configure_modules"),
+    # Equipo — invitaciones
+    path("team/invitations/", views.TeamInvitationsView.as_view(), name="team_invitations"),
+    path("team/invitations/<int:pk>/", views.CancelInvitationView.as_view(), name="cancel_invitation"),
+    path("team/invitations/<int:pk>/resend/", views.ResendInvitationView.as_view(), name="resend_invitation"),
     # Testing
     path("tenant-info/", views.tenant_info, name="tenant-info"),
 ]

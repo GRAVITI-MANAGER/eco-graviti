@@ -67,92 +67,92 @@
 :root {
   --radius: 0.625rem;
 
-  /* Defaults neutrales — applyThemeToDOM() los overridea con colores del tenant */
+  /* NERBIS Platform Identity — Navy + Teal */
   --background: #FAFAFA;
   --footer-background: #F5F5F5;
   --header: #FFFFFF;
-  --foreground: #3D3D3D;
+  --foreground: #111827;
 
   /* Cards y Popovers */
   --card: #FFFFFF;
-  --card-foreground: #3D3D3D;
+  --card-foreground: #111827;
   --popover: #FFFFFF;
-  --popover-foreground: #3D3D3D;
+  --popover-foreground: #111827;
 
-  /* Primary - Neutral */
-  --primary: #6B7280;
+  /* Primary - Navy NERBIS */
+  --primary: #1C3B57;
   --primary-foreground: #FFFFFF;
 
-  /* Secondary - Neutral */
-  --secondary: #F3F4F6;
-  --secondary-foreground: #4B5563;
+  /* Secondary - Neutro frío */
+  --secondary: #F1F5F9;
+  --secondary-foreground: #334155;
 
-  /* Muted */
-  --muted: #F5F5F5;
-  --muted-foreground: #7A7A7A;
+  /* Muted - Gris neutro */
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
 
-  /* Accent */
-  --accent: #F3F4F6;
-  --accent-foreground: #374151;
+  /* Accent - Teal NERBIS */
+  --accent: #E2F3F1;
+  --accent-foreground: #1C3B57;
 
   /* Estados */
-  --destructive: #E57373;
+  --destructive: #DC2626;
 
   /* Bordes e inputs */
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #9CA3AF;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #0D9488;
 
-  /* Charts - Neutral */
-  --chart-1: #6B7280;
-  --chart-2: #4B5563;
-  --chart-3: #9CA3AF;
-  --chart-4: #D1D5DB;
-  --chart-5: #E5E7EB;
+  /* Charts - Paleta NERBIS */
+  --chart-1: #1C3B57;
+  --chart-2: #0D9488;
+  --chart-3: #2563EB;
+  --chart-4: #059669;
+  --chart-5: #6366F1;
 
   /* Sidebar */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #3D3D3D;
-  --sidebar-primary: #6B7280;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #1C3B57;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #4B5563;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #6B7280;
+  --sidebar-accent: #F1F5F9;
+  --sidebar-accent-foreground: #334155;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #0D9488;
 
-  /* Fuentes del tema (overrideadas por ThemeInjector cuando el tenant tiene fuentes custom) */
-  --font-heading: 'Inter', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  /* Fuentes del tema (overrideadas por ThemeInjector dentro de .published-website) */
+  --font-heading: var(--font-geist-sans), sans-serif;
+  --font-body: var(--font-geist-sans), sans-serif;
 
   /* ── Auth Design Tokens ────────────────────────────────────── */
 
-  /* Auth colors — NERBIS brand, no dependen de CSS vars del tenant */
+  /* Auth colors */
   --auth-primary: #1C3B57;
-  --auth-primary-hover: color-mix(in srgb, #1C3B57 85%, black);
-  --auth-accent: #0D9488;                             /* teal-600 */
+  --auth-primary-hover: #162f46;
+  --auth-accent: #0D9488;
   --auth-accent-light: #0D9488;
   --auth-secondary: #0D9488;
   --auth-bg: #FAFAFA;
   --auth-bg-input: #FFFFFF;
   --auth-bg-dark: #1C3B57;
-  --auth-text: #3D3D3D;
-  --auth-text-muted: #7A7A7A;
+  --auth-text: #111827;
+  --auth-text-muted: #9CA3AF;
   --auth-text-label: #6B7280;
   --auth-text-placeholder: #D1D5DB;
   --auth-text-on-dark: #FFFFFF;
   --auth-text-on-dark-muted: rgba(255, 255, 255, 0.7);
   --auth-text-on-dark-subtle: rgba(255, 255, 255, 0.5);
-  --auth-border: #E5E7EB;
-  --auth-border-focus: #0D9488;                       /* teal-600 */
-  --auth-border-error: #E57373;
-  --auth-error: #E57373;
-  --auth-success: #059669;                            /* emerald-600 */
-  --auth-warning: #D97706;                            /* amber-600 */
+  --auth-border: #e7e5e4; /* stone-200 — warm */
+  --auth-border-focus: #0D9488;
+  --auth-border-error: #DC2626;
+  --auth-error: #DC2626;
+  --auth-success: #059669;
+  --auth-warning: #D97706;
 
-  /* Auth gradient (brand panel) — NERBIS brand colors */
+  /* Auth gradient (brand panel) */
   --auth-gradient-start: #1C3B57;
-  --auth-gradient-mid: color-mix(in srgb, #1C3B57 90%, black);
-  --auth-gradient-end: color-mix(in srgb, #1C3B57 60%, #95D0C9);
+  --auth-gradient-mid: #1a3450;
+  --auth-gradient-end: #265e6a;
 
   /* Auth spacing */
   --auth-form-gap: 1.25rem;
@@ -178,33 +178,33 @@
 }
 
 .dark {
-  /* Defaults neutrales dark — applyThemeToDOM() los overridea con colores del tenant */
-  --background: #111827;
-  --footer-background: #1F2937;
-  --foreground: #F9FAFB;
-  --header: #1F2937;
+  /* NERBIS Dark — Navy + Teal */
+  --background: #0F1729;
+  --footer-background: #141D2F;
+  --foreground: #F1F5F9;
+  --header: #1A2744;
 
   /* Cards y Popovers */
-  --card: #1F2937;
-  --card-foreground: #F9FAFB;
-  --popover: #1F2937;
-  --popover-foreground: #F9FAFB;
+  --card: #1A2744;
+  --card-foreground: #F1F5F9;
+  --popover: #1A2744;
+  --popover-foreground: #F1F5F9;
 
-  /* Primary - Neutral dark */
-  --primary: #9CA3AF;
-  --primary-foreground: #111827;
+  /* Primary - Navy claro en modo oscuro */
+  --primary: #93C5FD;
+  --primary-foreground: #0F1729;
 
   /* Secondary */
-  --secondary: #374151;
-  --secondary-foreground: #F9FAFB;
+  --secondary: #1E3A5F;
+  --secondary-foreground: #F1F5F9;
 
   /* Muted */
-  --muted: #374151;
-  --muted-foreground: #9CA3AF;
+  --muted: #1E3A5F;
+  --muted-foreground: #94A3B8;
 
-  /* Accent */
-  --accent: #374151;
-  --accent-foreground: #F9FAFB;
+  /* Accent - Teal oscuro */
+  --accent: #134E4A;
+  --accent-foreground: #F1F5F9;
 
   /* Estados */
   --destructive: #F87171;
@@ -212,24 +212,24 @@
   /* Bordes e inputs */
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.15);
-  --ring: #6B7280;
+  --ring: #5EEAD4;
 
   /* Charts */
-  --chart-1: #9CA3AF;
-  --chart-2: #6B7280;
-  --chart-3: #D1D5DB;
-  --chart-4: #4B5563;
-  --chart-5: #374151;
+  --chart-1: #93C5FD;
+  --chart-2: #5EEAD4;
+  --chart-3: #60A5FA;
+  --chart-4: #34D399;
+  --chart-5: #A78BFA;
 
   /* Sidebar */
-  --sidebar: #1F2937;
-  --sidebar-foreground: #F9FAFB;
-  --sidebar-primary: #9CA3AF;
-  --sidebar-primary-foreground: #111827;
-  --sidebar-accent: #374151;
-  --sidebar-accent-foreground: #F9FAFB;
+  --sidebar: #141D2F;
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #93C5FD;
+  --sidebar-primary-foreground: #0F1729;
+  --sidebar-accent: #1E3A5F;
+  --sidebar-accent-foreground: #F1F5F9;
   --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #9CA3AF;
+  --sidebar-ring: #5EEAD4;
 }
 
 @layer base {
@@ -239,7 +239,12 @@
   body {
     @apply bg-background text-foreground;
   }
-  h1, h2, h3, h4, h5, h6 {
+  .published-website h1,
+  .published-website h2,
+  .published-website h3,
+  .published-website h4,
+  .published-website h5,
+  .published-website h6 {
     font-family: var(--font-heading);
   }
 
@@ -503,14 +508,4 @@
 
 .fade-up-auth {
   animation: fade-up-auth 0.3s ease-out forwards;
-}
-
-/* ── Admin login: override browser autofill background ───────── */
-.admin-login-input:-webkit-autofill,
-.admin-login-input:-webkit-autofill:hover,
-.admin-login-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 40px rgba(28, 59, 87, 0.95) inset !important;
-  -webkit-text-fill-color: #ffffff !important;
-  caret-color: #ffffff;
-  transition: background-color 5000s ease-in-out 0s;
 }
