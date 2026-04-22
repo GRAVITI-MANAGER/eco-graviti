@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   ShieldOff,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   adminListTenants,
@@ -65,7 +66,7 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 
 const PLAN_LABELS: Record<AdminTenantPlan, string> = {
   trial: 'Trial',
-  basic: 'Basico',
+  basic: 'Básico',
   professional: 'Profesional',
   enterprise: 'Enterprise',
 };
@@ -129,6 +130,10 @@ type PendingAction = {
 
 export default function AdminTenantsPage() {
   const { admin, logout } = useAdminAuth();
+
+  useEffect(() => {
+    document.title = 'Tenants — NERBIS Admin';
+  }, []);
 
   // ── Filters + pagination state ──────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -223,7 +228,14 @@ export default function AdminTenantsPage() {
             : row,
         ),
       );
+      const name = pending.tenant.name;
+      const action = pending.target;
       setPending(null);
+      toast.success(
+        action === 'activate'
+          ? `${name} reactivado correctamente.`
+          : `${name} suspendido correctamente.`,
+      );
     } catch (err) {
       const message =
         err instanceof Error
@@ -289,7 +301,7 @@ export default function AdminTenantsPage() {
       </header>
 
       {/* Content */}
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="fade-up-auth mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Breadcrumb + back link */}
         <nav aria-label="Ruta" className="mb-4">
           <ol className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -311,8 +323,8 @@ export default function AdminTenantsPage() {
 
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Gestion de tenants
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] text-slate-900">
+              Gestión de tenants
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {count === 0
@@ -352,7 +364,7 @@ export default function AdminTenantsPage() {
             <SelectContent>
               <SelectItem value="all">Todos los planes</SelectItem>
               <SelectItem value="trial">Trial</SelectItem>
-              <SelectItem value="basic">Basico</SelectItem>
+              <SelectItem value="basic">Básico</SelectItem>
               <SelectItem value="professional">Profesional</SelectItem>
               <SelectItem value="enterprise">Enterprise</SelectItem>
             </SelectContent>
@@ -379,7 +391,7 @@ export default function AdminTenantsPage() {
             type="button"
             onClick={clearFilters}
             disabled={!hasActiveFilters}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-400/50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Limpiar
           </button>
@@ -429,7 +441,7 @@ export default function AdminTenantsPage() {
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-400">
+            <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Cargando tenants...
             </div>
@@ -441,13 +453,13 @@ export default function AdminTenantsPage() {
             </div>
             <h3 className="text-sm font-semibold text-slate-900">
               {hasActiveFilters
-                ? 'Ningun tenant coincide con los filtros'
-                : 'Aun no hay tenants registrados'}
+                ? 'Ningún tenant coincide con los filtros'
+                : 'Aún no hay tenants registrados'}
             </h3>
             <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
               {hasActiveFilters
-                ? 'Prueba a ajustar la busqueda o a limpiar los filtros para ver mas resultados.'
-                : 'Cuando se registre un negocio, aparecera aqui para que puedas administrarlo.'}
+                ? 'Prueba ajustar la búsqueda o limpiar los filtros para ver más resultados.'
+                : 'Cuando se registre un negocio, aparecerá aquí para que puedas gestionarlo.'}
             </p>
             {hasActiveFilters && (
               <button
@@ -532,7 +544,7 @@ export default function AdminTenantsPage() {
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           aria-label={`Acciones para ${tenant.name}`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-700"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400/50"
                         >
                           <MoreHorizontal
                             className="h-4 w-4"
@@ -595,7 +607,7 @@ export default function AdminTenantsPage() {
         {totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
             <span>
-              Pagina {page} de {totalPages}
+              Página {page} de {totalPages}
             </span>
             <div className="flex gap-2">
               <button
@@ -634,8 +646,8 @@ export default function AdminTenantsPage() {
             <AlertDialogDescription>
               {pending
                 ? pending.target === 'activate'
-                  ? `${pending.tenant.name} recuperara acceso a la plataforma y sus usuarios podran iniciar sesion de nuevo.`
-                  : `${pending.tenant.name} quedara suspendido: sus usuarios no podran iniciar sesion. Puedes reactivar el tenant mas tarde.`
+                  ? `${pending.tenant.name} recuperará acceso a la plataforma y sus usuarios podrán iniciar sesión de nuevo.`
+                  : `${pending.tenant.name} quedará suspendido: sus usuarios no podrán iniciar sesión. Puedes reactivar el tenant más tarde.`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -658,8 +670,8 @@ export default function AdminTenantsPage() {
               {submitting
                 ? 'Procesando...'
                 : pending?.target === 'activate'
-                  ? 'Reactivar'
-                  : 'Suspender'}
+                  ? 'Sí, reactivar'
+                  : 'Sí, suspender'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
