@@ -15,12 +15,14 @@ import {
   ArrowLeft,
   Building2,
   ChevronRight,
+  Filter,
   Loader2,
   LogOut,
   MoreHorizontal,
   Search,
   ShieldCheck,
   ShieldOff,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -41,6 +43,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -128,6 +135,62 @@ type PendingAction = {
   target: 'activate' | 'deactivate';
 };
 
+// ── Filter chip labels ─────────────────────────────────────────────
+const PLAN_CHIP_LABELS: Record<AdminTenantPlan, string> = {
+  trial: 'Plan: Trial',
+  basic: 'Plan: Básico',
+  professional: 'Plan: Profesional',
+  enterprise: 'Plan: Enterprise',
+};
+
+const STATUS_CHIP_LABELS: Record<Exclude<StatusFilter, 'all'>, string> = {
+  active: 'Estado: Activos',
+  inactive: 'Estado: Suspendidos',
+};
+
+// ── Shared filter selects (used in desktop inline + mobile popover) ──
+function TenantFilterSelects({
+  plan,
+  status,
+  onPlanChange,
+  onStatusChange,
+  size = 'default',
+}: {
+  plan: PlanFilter;
+  status: StatusFilter;
+  onPlanChange: (v: PlanFilter) => void;
+  onStatusChange: (v: StatusFilter) => void;
+  size?: 'default' | 'compact';
+}) {
+  const h = size === 'compact' ? 'h-9' : 'h-10';
+  return (
+    <>
+      <Select value={plan} onValueChange={(v) => onPlanChange(v as PlanFilter)}>
+        <SelectTrigger aria-label="Filtrar por plan" className={`${h} w-full border-slate-200 text-sm`}>
+          <SelectValue placeholder="Todos los planes" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los planes</SelectItem>
+          <SelectItem value="trial">Trial</SelectItem>
+          <SelectItem value="basic">Básico</SelectItem>
+          <SelectItem value="professional">Profesional</SelectItem>
+          <SelectItem value="enterprise">Enterprise</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={status} onValueChange={(v) => onStatusChange(v as StatusFilter)}>
+        <SelectTrigger aria-label="Filtrar por estado" className={`${h} w-full border-slate-200 text-sm`}>
+          <SelectValue placeholder="Todos los estados" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los estados</SelectItem>
+          <SelectItem value="active">Activos</SelectItem>
+          <SelectItem value="inactive">Suspendidos</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  );
+}
+
 export default function AdminTenantsPage() {
   const { admin, logout } = useAdminAuth();
 
@@ -141,6 +204,7 @@ export default function AdminTenantsPage() {
   const [plan, setPlan] = useState<PlanFilter>('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Data state ──────────────────────────────────────────────────────
   const [items, setItems] = useState<AdminTenant[]>([]);
@@ -202,10 +266,15 @@ export default function AdminTenantsPage() {
     [count],
   );
 
-  const hasActiveFilters = useMemo(
-    () => search !== '' || plan !== 'all' || status !== 'all',
+  const totalActiveFilters = useMemo(
+    () =>
+      (search !== '' ? 1 : 0) +
+      (plan !== 'all' ? 1 : 0) +
+      (status !== 'all' ? 1 : 0),
     [search, plan, status],
   );
+  const hasActiveFilters = totalActiveFilters > 0;
+  const popoverFilterCount = totalActiveFilters - (search !== '' ? 1 : 0);
 
   function clearFilters() {
     setSearch('');
@@ -334,67 +403,143 @@ export default function AdminTenantsPage() {
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_180px_180px_auto]">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, slug o email"
-              aria-label="Buscar tenants"
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 transition-colors focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20"
-            />
+        {/* ── Search + Filters toolbar ──────────────────────────────── */}
+        <div className="mb-3 space-y-3">
+          {/* Row 1: Search bar + filter toggle (mobile) / filter selects (desktop) */}
+          <div className="flex items-center gap-2">
+            {/* Search — always prominent */}
+            <div className="relative flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nombre, slug o email..."
+                aria-label="Buscar tenants"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/20"
+              />
+            </div>
+
+            {/* Desktop: inline filter selects */}
+            <div className="hidden items-center gap-2 md:flex [&>*]:w-44">
+              <TenantFilterSelects
+                plan={plan}
+                status={status}
+                onPlanChange={setPlan}
+                onStatusChange={setStatus}
+              />
+            </div>
+
+            {/* Mobile: filter popover */}
+            <div className="md:hidden">
+              <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Abrir filtros"
+                    className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                  >
+                    <Filter className="h-4 w-4" aria-hidden="true" />
+                    {popoverFilterCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-teal-600 text-[10px] font-semibold text-white">
+                        {popoverFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-64 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-900">
+                      Filtros
+                    </span>
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearFilters();
+                          setFiltersOpen(false);
+                        }}
+                        className="text-xs text-teal-600 transition-colors hover:text-teal-700"
+                      >
+                        Limpiar todo
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    <TenantFilterSelects
+                      plan={plan}
+                      status={status}
+                      onPlanChange={setPlan}
+                      onStatusChange={setStatus}
+                      size="compact"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
-          <Select
-            value={plan}
-            onValueChange={(value) => setPlan(value as PlanFilter)}
-          >
-            <SelectTrigger
-              aria-label="Filtrar por plan"
-              className="h-10 w-full border-slate-200"
-            >
-              <SelectValue placeholder="Todos los planes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los planes</SelectItem>
-              <SelectItem value="trial">Trial</SelectItem>
-              <SelectItem value="basic">Básico</SelectItem>
-              <SelectItem value="professional">Profesional</SelectItem>
-              <SelectItem value="enterprise">Enterprise</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Row 2: Active filter chips */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">Filtros activos:</span>
 
-          <Select
-            value={status}
-            onValueChange={(value) => setStatus(value as StatusFilter)}
-          >
-            <SelectTrigger
-              aria-label="Filtrar por estado"
-              className="h-10 w-full border-slate-200"
-            >
-              <SelectValue placeholder="Todos los estados" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="inactive">Suspendidos</SelectItem>
-            </SelectContent>
-          </Select>
+              {search !== '' && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label={`Quitar búsqueda "${search}"`}
+                  className="group inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span className="max-w-[120px] truncate">
+                    Búsqueda: &ldquo;{search}&rdquo;
+                  </span>
+                  <X className="h-3 w-3 shrink-0 text-slate-400 transition-colors group-hover:text-slate-600" aria-hidden="true" />
+                </button>
+              )}
 
-          <button
-            type="button"
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-400/50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Limpiar
-          </button>
+              {plan !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setPlan('all')}
+                  aria-label={`Quitar ${PLAN_CHIP_LABELS[plan]}`}
+                  className="group inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  {PLAN_CHIP_LABELS[plan]}
+                  <X className="h-3 w-3 shrink-0 text-slate-400 transition-colors group-hover:text-slate-600" aria-hidden="true" />
+                </button>
+              )}
+
+              {status !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setStatus('all')}
+                  aria-label={`Quitar ${STATUS_CHIP_LABELS[status]}`}
+                  className="group inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  {STATUS_CHIP_LABELS[status]}
+                  <X className="h-3 w-3 shrink-0 text-slate-400 transition-colors group-hover:text-slate-600" aria-hidden="true" />
+                </button>
+              )}
+
+              {/* Clear all — desktop only, shown when 2+ filters active */}
+              {totalActiveFilters > 1 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="hidden text-xs text-teal-600 transition-colors hover:text-teal-700 md:inline"
+                >
+                  Limpiar todo
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Errors */}
