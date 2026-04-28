@@ -8,8 +8,8 @@ import { getClientTenantSlug } from '@/lib/tenant';
 import { applyThemeToDOM, type ThemeConfig } from '@/lib/utils/theme-colors';
 import { ErrorState } from '@/components/feedback/ErrorState';
 
-/** Rutas que no requieren tenant (auth, registro, etc.) */
-const AUTH_PATHS = ['/login', '/forgot-password', '/reset-password', '/reactivate', '/register-business', '/ayuda'];
+/** Rutas que no requieren tenant (landing, auth, registro, etc.) */
+const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/reactivate', '/register-business', '/ayuda'];
 
 // Tipos
 export interface TenantModules {
@@ -97,11 +97,13 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const pathname = usePathname();
 
-  // Auth pages don't require tenant — skip loading
-  const isAuthPage = AUTH_PATHS.some(p => pathname?.startsWith(p));
+  // Public/auth pages don't require tenant — skip loading
+  const isPublicPage = PUBLIC_PATHS.some(p =>
+    p === '/' ? pathname === '/' : pathname?.startsWith(p)
+  );
 
   useEffect(() => {
-    if (isAuthPage) {
+    if (isPublicPage) {
       setLoading(false);
       return;
     }
@@ -142,12 +144,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
     };
 
     loadTenantConfig();
-  }, [isAuthPage]);
+  }, [isPublicPage]);
 
   const tenantReady = !!tenantData;
 
   // Auth pages render without tenant context
-  if (isAuthPage) {
+  if (isPublicPage) {
     return (
       <TenantContext.Provider value={tenantData}>
         <TenantReadyContext.Provider value={false}>
