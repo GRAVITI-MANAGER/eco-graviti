@@ -86,7 +86,7 @@ export default function SettingsLayout({
             <div className="flex items-center gap-1.5">
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-500 hover:text-[var(--stg-primary)] hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-[var(--stg-primary)] hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stg-primary)]/50 focus-visible:ring-offset-1 transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">Volver al panel</span>
@@ -95,7 +95,8 @@ export default function SettingsLayout({
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                aria-label="Cerrar sesión"
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-1 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                 Salir

@@ -584,14 +584,19 @@ class PlatformVerifyResetOTPView(APIView):
             first_otp = active_otps.first()
             if first_otp and first_otp.is_valid:
                 success, error, error_code = first_otp.verify(str(code) if code else "")
+                if success:
+                    # Race condition: el OTP coincidió durante verify — usarlo
+                    matched_otp = first_otp
+                else:
+                    return Response(
+                        {"error": error or "Código incorrecto", "error_code": error_code},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
                 return Response(
-                    {"error": error or "Código incorrecto", "error_code": error_code},
+                    {"error": "Solicitud inválida. Solicita un nuevo código."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return Response(
-                {"error": "Solicitud inválida. Solicita un nuevo código."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         # Marcar OTP como usado
         matched_otp.mark_as_used()
@@ -1341,7 +1346,13 @@ class VerifyPasswordResetOTPView(APIView):
                     ),
                 },
             ),
-            400: OpenApiResponse(description="Código inválido o expirado"),
+            400: inline_serializer(
+                name="PasswordResetOtpError",
+                fields={
+                    "error": drf_serializers.CharField(),
+                    "error_code": drf_serializers.CharField(required=False),
+                },
+            ),
         },
     )
     def post(self, request):
@@ -1508,7 +1519,13 @@ class VerifyReactivationOTPView(APIView):
                     ),
                 },
             ),
-            400: OpenApiResponse(description="Código inválido o expirado"),
+            400: inline_serializer(
+                name="ReactivationOtpError",
+                fields={
+                    "error": drf_serializers.CharField(),
+                    "error_code": drf_serializers.CharField(required=False),
+                },
+            ),
         },
     )
     def post(self, request):
