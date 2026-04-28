@@ -7,9 +7,9 @@
 #
 # Called from: .claude/settings.json → SessionStart hook
 
-# Step 1: Fetch latest develop
-git fetch origin develop 2>/dev/null || {
-  echo 'Could not fetch origin/develop (offline?)'
+# Step 1: Fetch latest develop and main refs (both needed for detection)
+git fetch origin develop main 2>/dev/null || {
+  echo 'Could not fetch origin (offline?)'
   exit 0
 }
 
@@ -26,6 +26,11 @@ BRANCH=$(git branch --show-current 2>/dev/null)
 OWN_COMMITS=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 999)
 
 if [ "$OWN_COMMITS" -eq 0 ]; then
+  # Safety check: abort reset if working tree is dirty
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    echo "WARNING: Worktree $BRANCH is fresh from main but has uncommitted changes at $(git rev-parse --short HEAD). Stash or commit before restarting session."
+    exit 0
+  fi
   # Fresh worktree from main — reset to develop
   git reset --hard origin/develop 2>/dev/null && \
     echo "Worktree rebased: branch $BRANCH was at origin/main with 0 own commits — reset to origin/develop ($(git rev-parse --short origin/develop))"

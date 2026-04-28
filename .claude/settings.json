@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/worktree-develop-sync.sh",
+            "command": "bash .claude/hooks/worktree-develop-sync.sh",
             "timeout": 30
           },
           {
