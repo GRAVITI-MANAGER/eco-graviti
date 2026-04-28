@@ -310,10 +310,15 @@ class AdminResetOnboardingView(APIView):
                 tenant.has_bookings = False
                 tenant.has_services = False
                 tenant.has_marketing = False
-                update_fields.extend([
-                    "has_website", "has_shop", "has_bookings",
-                    "has_services", "has_marketing",
-                ])
+                update_fields.extend(
+                    [
+                        "has_website",
+                        "has_shop",
+                        "has_bookings",
+                        "has_services",
+                        "has_marketing",
+                    ]
+                )
 
                 # Delete WebsiteConfig if exists
                 try:
