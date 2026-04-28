@@ -4,8 +4,8 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandHeader } from '@/components/layout/BrandHeader';
 import {
   ArrowLeft,
   KeyRound,
@@ -16,9 +16,6 @@ import {
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-
-// ─── Estilos hoisted ────────────────────────────────────────
-const navyText = { color: '#1C3B57' } as const;
 
 // ─── Navegación del sidebar ────────────────────────────────
 interface NavItem {
@@ -56,7 +53,7 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, tenant, logout } = useAuth();
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.adminOnly || user?.role === 'admin'
@@ -64,11 +61,20 @@ export default function SettingsLayout({
 
   return (
     <>
-      <div className="min-h-screen bg-[#fafbfc]">
+      <div
+        className="min-h-screen bg-[#fafbfc]"
+        style={{
+          '--stg-primary': '#1C3B57',
+          '--stg-primary-hover': '#15304a',
+          '--stg-accent': '#0D9488',
+          '--stg-accent-hover': '#0B7A70',
+          '--stg-accent-subtle': 'rgba(13,148,136,0.08)',
+        } as React.CSSProperties}
+      >
         {/* Skip link */}
         <a
           href="#settings-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-white focus:text-[#1C3B57] focus:rounded-md focus:shadow-md focus:text-sm focus:font-medium"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-white focus:text-[var(--stg-primary)] focus:rounded-md focus:shadow-md focus:text-sm focus:font-medium"
         >
           Ir al contenido
         </a>
@@ -76,24 +82,11 @@ export default function SettingsLayout({
         {/* Header */}
         <div className="bg-white border-b border-gray-100">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Image
-                src="/Isotipo_color_NERBIS.png"
-                alt="Nerbis"
-                width={36}
-                height={36}
-              />
-              <span
-                className="text-[0.85rem] font-semibold tracking-wide"
-                style={navyText}
-              >
-                NERBIS
-              </span>
-            </div>
+            <BrandHeader tenantName={tenant?.name} />
             <div className="flex items-center gap-1.5">
               <Link
                 href="/dashboard"
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-500 hover:text-[#1C3B57] hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-[var(--stg-primary)] hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stg-primary)]/50 focus-visible:ring-offset-1 transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">Volver al panel</span>
@@ -102,7 +95,8 @@ export default function SettingsLayout({
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[0.72rem] text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                aria-label="Cerrar sesión"
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-1 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                 Salir
@@ -130,7 +124,7 @@ export default function SettingsLayout({
                       className={cn(
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.8rem] font-medium whitespace-nowrap transition-all',
                         isActive
-                          ? 'bg-white text-[#1C3B57] shadow-sm border border-gray-200'
+                          ? 'bg-white text-[var(--stg-primary)] shadow-sm border border-gray-200'
                           : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
                       )}
                     >
@@ -152,14 +146,14 @@ export default function SettingsLayout({
                       className={cn(
                         'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[0.8rem] font-medium transition-all',
                         isActive
-                          ? 'bg-white text-[#1C3B57] shadow-sm border border-gray-200'
+                          ? 'bg-white text-[var(--stg-primary)] shadow-sm border border-gray-200'
                           : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
                       )}
                     >
                       <item.icon
                         className={cn(
                           'w-4 h-4',
-                          isActive ? 'text-[#0D9488]' : ''
+                          isActive ? 'text-[var(--stg-accent)]' : ''
                         )}
                         aria-hidden="true"
                       />

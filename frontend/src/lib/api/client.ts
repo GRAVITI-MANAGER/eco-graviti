@@ -115,7 +115,7 @@ function clearSessionAndRedirect() {
  */
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError<{ error?: string; detail?: string; message?: string; code?: string; email?: string }>) => {
+  async (error: AxiosError<{ error?: string; detail?: string; message?: string; code?: string; error_code?: string; email?: string }>) => {
     // Error de red (servidor caído, sin conexión, etc.)
     if (!error.response) {
       const networkError = new ApiError(
@@ -254,7 +254,8 @@ apiClient.interceptors.response.use(
         userMessage = serverMessage || 'Ocurrió un error inesperado. Por favor, intenta de nuevo.';
     }
 
-    const apiError = new ApiError(userMessage, error.response.status);
+    const code = error.response.data?.error_code ?? error.response.data?.code;
+    const apiError = new ApiError(userMessage, error.response.status, code);
     apiError.data = error.response.data;
     return Promise.reject(apiError);
   }

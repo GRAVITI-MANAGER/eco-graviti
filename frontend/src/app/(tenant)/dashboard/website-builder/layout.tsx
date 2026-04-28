@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
+import { BrandHeader } from '@/components/layout/BrandHeader';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, ArrowLeft } from 'lucide-react';
+import { LogOut, ArrowLeft, UserCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -114,37 +114,33 @@ export default function WebsiteBuilderLayout({
       {/* Header — misma identidad que Setup */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          {/* Logo + NERBIS — misma posición que Setup */}
-          <div className="flex items-center gap-2">
-            <Image
-              src="/Isotipo_color_NERBIS.png"
-              alt="Nerbis"
-              width={36}
-              height={36}
-              className="g-pendulum"
-            />
-            <span
-              className="text-[0.85rem] font-semibold tracking-wide"
-              style={{ color: '#1C3B57' }}
-            >
-              NERBIS
-            </span>
-          </div>
+          <BrandHeader tenantName={tenant?.name} />
 
           {/* Step indicator */}
           <span className="text-[0.72rem] text-gray-400 font-medium tracking-wide">
             PASO 2 DE 2
           </span>
 
-          {/* Salir */}
-          <button
-            type="button"
-            onClick={() => logout('/register-business')}
-            className="flex items-center gap-1.5 text-[0.72rem] text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Salir
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-primary hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-1 transition-colors"
+              aria-label="Mi Cuenta"
+            >
+              <UserCircle className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Mi Cuenta</span>
+            </Link>
+            <div className="w-px h-4 bg-gray-200" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => logout('/register-business')}
+              aria-label="Cerrar sesión"
+              className="flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px] text-[0.72rem] text-gray-500 hover:text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:ring-offset-1 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+              Salir
+            </button>
+          </div>
         </div>
       </div>
 
