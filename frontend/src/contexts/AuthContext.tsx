@@ -74,16 +74,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
-  // Redirigir según estado del tenant después de autenticarse
+  // Redirigir según estado del tenant después de autenticarse.
+  // Solo llega al dashboard genérico si el sitio ya está publicado.
   const redirectAfterLogin = (tenant: Tenant | null, customRedirect?: string) => {
     if (customRedirect) {
       router.push(customRedirect);
     } else if (tenant && !tenant.modules_configured) {
+      // Fase: registered / onboarding → Quick Start con Pipe
       router.push('/dashboard/website-builder/quick-start');
-    } else if (tenant?.has_website && tenant.website_status !== 'published') {
+    } else if (tenant && tenant.website_status === 'published') {
+      // Fase: website_published / operational → Dashboard
+      router.push('/dashboard');
+    } else if (tenant && tenant.has_website) {
+      // Fase: website_building / website_generated → Website Builder
       router.push('/dashboard/website-builder');
     } else {
-      router.push('/dashboard');
+      // Fase: modules_configured (sin website creado aún) → Quick Start
+      router.push('/dashboard/website-builder/quick-start');
     }
   };
 

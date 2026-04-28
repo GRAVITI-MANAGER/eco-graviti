@@ -79,21 +79,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       router.push('/login?redirect=/dashboard');
       return;
     }
-    // Redirect to setup/builder only for admins — staff shouldn't manage setup
+    // Redirect to setup/builder only for admins — staff shouldn't manage setup.
+    // Only allow dashboard when website is published (operational phase).
     const isAdmin = user?.role === 'admin';
-    if (isAdmin && tenant && !tenant.modules_configured && !isBypassRoute) {
-      router.push('/dashboard/website-builder/quick-start');
-    } else if (
-      isAdmin &&
-      tenant?.has_website &&
-      tenant.website_status !== 'published' &&
-      !isBypassRoute
-    ) {
-      router.push('/dashboard/website-builder');
+    if (isAdmin && tenant && !isBypassRoute) {
+      if (!tenant.modules_configured) {
+        // Fase: registered / onboarding → Quick Start
+        router.push('/dashboard/website-builder/quick-start');
+      } else if (tenant.website_status === 'published') {
+        // Fase: website_published / operational → allow dashboard
+      } else if (tenant.has_website) {
+        // Fase: website_building / website_generated → Builder
+        router.push('/dashboard/website-builder');
+      } else {
+        // Fase: modules_configured sin website → Quick Start
+        router.push('/dashboard/website-builder/quick-start');
+      }
     }
   }, [mounted, isAuthenticated, isLoading, tenant, user, isBypassRoute, router]);
 
-  // Determinar si se necesita redirect (antes de renderizar cualquier layout)
+  // Determinar si se necesita redirect (antes de renderizar cualquier layout).
+  // Dashboard solo se permite cuando el sitio está publicado.
   const needsRedirect =
     mounted &&
     !isLoading &&
@@ -101,8 +107,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     user?.role === 'admin' &&
     !isBypassRoute &&
     tenant &&
-    (!tenant.modules_configured ||
-      (tenant.has_website && tenant.website_status !== 'published'));
+    tenant.website_status !== 'published';
 
   // Layout limpio para Setup y Website Builder
   if (isCleanLayout) {

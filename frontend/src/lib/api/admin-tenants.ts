@@ -15,6 +15,7 @@ import type {
   AdminTenant,
   AdminTenantDetail,
   AdminTenantFilters,
+  AdminTenantPhaseLogEntry,
   AdminTenantUpdatePayload,
   AdminTenantUser,
   AdminUserDetail,
@@ -162,6 +163,27 @@ export async function adminUnlinkUserSocial(
 // ──────────────────────────────────────────────────────────────────────
 // Tenant onboarding management
 // ──────────────────────────────────────────────────────────────────────
+
+export async function adminGetTenantPhaseLog(
+  tenantId: string,
+): Promise<AdminPaginatedResponse<AdminTenantPhaseLogEntry>> {
+  const { data } = await adminClient.get<
+    AdminPaginatedResponse<AdminTenantPhaseLogEntry>
+  >(`/admin/tenants/${tenantId}/phase-log/`);
+  return data;
+}
+
+export async function adminSetTenantPhase(
+  tenantId: string,
+  phase: string,
+  note?: string,
+): Promise<AdminTenantDetail> {
+  const { data } = await adminClient.post<AdminTenantDetail>(
+    `/admin/tenants/${tenantId}/set-phase/`,
+    { phase, note: note || '' },
+  );
+  return data;
+}
 
 export async function adminResetOnboarding(
   tenantId: string,

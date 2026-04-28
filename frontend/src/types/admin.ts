@@ -47,6 +47,17 @@ export type AdminSubscriptionStatus =
   | 'expired'
   | 'inactive';
 
+/** Tenant lifecycle phase computed by the backend (Tenant.onboarding_phase). */
+export type AdminTenantPhase =
+  | 'registered'
+  | 'onboarding'
+  | 'modules_configured'
+  | 'website_building'
+  | 'website_generated'
+  | 'website_published'
+  | 'operational'
+  | 'suspended';
+
 /** Plans supported by the platform. */
 export type AdminTenantPlan = 'trial' | 'basic' | 'professional' | 'enterprise';
 
@@ -72,6 +83,7 @@ export interface AdminTenant {
   /** Null when there is no subscription_ends_at set on the tenant. */
   days_remaining: number | null;
   user_count: number;
+  onboarding_phase: AdminTenantPhase;
   created_at: string;
   /**
    * Optional because the backend serializer does not explicitly expose
@@ -119,7 +131,8 @@ export interface AdminTenantDetail {
   has_marketing: boolean;
   modules_configured: boolean;
 
-  // Website onboarding
+  // Onboarding lifecycle
+  onboarding_phase: AdminTenantPhase;
   website_status: 'draft' | 'onboarding' | 'generating' | 'review' | 'published' | null;
 
   // Branding
@@ -276,6 +289,19 @@ export interface AdminUserDetail {
 export interface AdminUserUpdatePayload {
   is_active?: boolean;
   role?: AdminTenantUserRole;
+}
+
+/**
+ * Entry in the tenant phase transition log.
+ * Mirrors `AdminTenantPhaseLogSerializer`.
+ */
+export interface AdminTenantPhaseLogEntry {
+  id: number;
+  from_phase: AdminTenantPhase;
+  to_phase: AdminTenantPhase;
+  triggered_by: string;
+  note: string;
+  created_at: string;
 }
 
 /** Query parameters accepted by `GET /api/admin/tenants/<uuid>/users/`. */

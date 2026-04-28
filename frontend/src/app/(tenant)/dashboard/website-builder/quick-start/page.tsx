@@ -19,7 +19,9 @@ import {
   ShoppingCart,
   CalendarCheck,
   Briefcase,
+  UserCircle,
 } from 'lucide-react';
+import Link from 'next/link';
 import { quickStartGenerate, QuickStartResponse } from '@/lib/api/websites';
 import { configureModules, ModuleSelection } from '@/lib/api/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -698,17 +700,30 @@ export default function QuickStartPage() {
             NERBIS
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => logout('/register-business')}
-          className="flex items-center gap-1.5 text-[0.72rem] font-medium transition-colors cursor-pointer"
-          style={{ color: WARM_GRAY_400 }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#EF4444')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = WARM_GRAY_400)}
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Salir
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/profile"
+            className="flex items-center gap-1.5 text-[0.72rem] font-medium transition-colors"
+            style={{ color: WARM_GRAY_400 }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
+            onMouseLeave={(e) => (e.currentTarget.style.color = WARM_GRAY_400)}
+          >
+            <UserCircle className="w-3.5 h-3.5" />
+            Mi cuenta
+          </Link>
+          <span style={{ color: WARM_GRAY_200 }}>|</span>
+          <button
+            type="button"
+            onClick={() => logout('/register-business')}
+            className="flex items-center gap-1.5 text-[0.72rem] font-medium transition-colors cursor-pointer"
+            style={{ color: WARM_GRAY_400 }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#EF4444')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = WARM_GRAY_400)}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Salir
+          </button>
+        </div>
       </div>
     </div>
   );

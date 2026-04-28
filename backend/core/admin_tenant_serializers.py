@@ -18,7 +18,7 @@ from typing import Any
 
 from rest_framework import serializers
 
-from core.models import SocialAccount, Tenant, User, WebAuthnCredential
+from core.models import SocialAccount, Tenant, TenantPhaseLog, User, WebAuthnCredential
 
 
 class AdminTenantListSerializer(serializers.ModelSerializer):
@@ -32,6 +32,7 @@ class AdminTenantListSerializer(serializers.ModelSerializer):
     user_count = serializers.IntegerField(read_only=True)
     subscription_status = serializers.CharField(read_only=True)
     days_remaining = serializers.IntegerField(read_only=True, allow_null=True)
+    onboarding_phase = serializers.CharField(read_only=True)
 
     class Meta:
         model = Tenant
@@ -47,6 +48,7 @@ class AdminTenantListSerializer(serializers.ModelSerializer):
             "subscription_status",
             "days_remaining",
             "user_count",
+            "onboarding_phase",
             "created_at",
         ]
         read_only_fields = fields
@@ -66,6 +68,7 @@ class AdminTenantDetailSerializer(serializers.ModelSerializer):
     subscription_status = serializers.CharField(read_only=True)
     days_remaining = serializers.IntegerField(read_only=True, allow_null=True)
     website_status = serializers.SerializerMethodField()
+    onboarding_phase = serializers.CharField(read_only=True)
 
     class Meta:
         model = Tenant
@@ -98,7 +101,8 @@ class AdminTenantDetailSerializer(serializers.ModelSerializer):
             "has_services",
             "has_marketing",
             "modules_configured",
-            # Website onboarding
+            # Onboarding lifecycle
+            "onboarding_phase",
             "website_status",
             # Branding
             "logo",
@@ -307,3 +311,19 @@ class AdminUserUpdateSerializer(serializers.Serializer):
         choices=["admin", "staff", "customer"],
         required=False,
     )
+
+
+class AdminTenantPhaseLogSerializer(serializers.ModelSerializer):
+    """Entrada del historial de fases de un tenant."""
+
+    class Meta:
+        model = TenantPhaseLog
+        fields = [
+            "id",
+            "from_phase",
+            "to_phase",
+            "triggered_by",
+            "note",
+            "created_at",
+        ]
+        read_only_fields = fields

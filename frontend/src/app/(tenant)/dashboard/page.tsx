@@ -193,9 +193,15 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Admin que no ha configurado módulos → redirigir a quick-start
-    if (user?.role === 'admin' && tenant && !tenant.modules_configured) {
-      router.push('/dashboard/website-builder/quick-start');
+    // Admin sin sitio publicado → no debería estar en el dashboard
+    if (user?.role === 'admin' && tenant && tenant.website_status !== 'published') {
+      if (!tenant.modules_configured) {
+        router.push('/dashboard/website-builder/quick-start');
+      } else if (tenant.has_website) {
+        router.push('/dashboard/website-builder');
+      } else {
+        router.push('/dashboard/website-builder/quick-start');
+      }
     }
   }, [user, tenant, router]);
 
