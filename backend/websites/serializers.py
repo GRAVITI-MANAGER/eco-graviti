@@ -255,6 +255,41 @@ class WebsiteConfigCreateSerializer(serializers.Serializer):
 
 
 # ===================================
+# QUICK-START ONBOARDING (Fase 2)
+# ===================================
+
+
+class QuickStartSerializer(serializers.Serializer):
+    """Serializer para el onboarding rapido (3 campos).
+
+    Acepta los datos minimos para generar un sitio de calidad en un solo
+    request, sin pasar por el flujo de seleccion de template + onboarding
+    de 4 secciones.
+    """
+
+    business_description = serializers.CharField(
+        max_length=1000,
+        help_text="Descripcion del negocio + que lo diferencia (2-3 lineas)",
+    )
+    main_services = serializers.CharField(
+        max_length=2000,
+        help_text="Servicios principales, separados por coma o salto de linea",
+    )
+    business_whatsapp = serializers.CharField(
+        max_length=20,
+        required=False,
+        allow_blank=True,
+        help_text="Numero de WhatsApp (opcional, se pre-llena con phone del tenant)",
+    )
+    website_sections = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        help_text="Secciones seleccionadas por el usuario (ej: ['Servicios', 'Sobre nosotros']). "
+        "Si no se envia, se usan los defaults del vertical.",
+    )
+
+
+# ===================================
 # CHAT CON IA
 # ===================================
 

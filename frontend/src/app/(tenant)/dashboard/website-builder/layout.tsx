@@ -71,6 +71,12 @@ export default function WebsiteBuilderLayout({
   const maxReached = getMaxStepFromStatus(tenant?.website_status);
 
   const isEditorPage = pathname.startsWith('/dashboard/website-builder/editor');
+  const isQuickStartPage = pathname.startsWith('/dashboard/website-builder/quick-start');
+
+  // ─── Quick Start: has its own full layout (Pipe chat UI) ───
+  if (isQuickStartPage) {
+    return <>{children}</>;
+  }
 
   // ─── Editor: immersive full-screen layout (no stepper) ─────
   if (isEditorPage) {
@@ -149,7 +155,7 @@ export default function WebsiteBuilderLayout({
         <div className="max-w-5xl mx-auto px-6 py-5 relative">
           {/* Volver — posicionado a la izquierda sin afectar el centrado del stepper */}
           <Link
-            href="/dashboard/setup"
+            href="/dashboard/website-builder/quick-start"
             className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[0.72rem] text-gray-400 hover:text-gray-600 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

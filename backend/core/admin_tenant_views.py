@@ -266,6 +266,82 @@ class AdminTenantDetailView(generics.RetrieveUpdateAPIView):
 # ---------------------------------------------------------------------------
 
 
+class AdminResetOnboardingView(APIView):
+    """POST ``/api/admin/tenants/<uuid:pk>/reset-onboarding/``.
+
+    Resetea el estado de onboarding de un tenant:
+    - Siempre pone ``modules_configured = False``
+    - Si ``delete_website=true`` en el body, elimina el ``WebsiteConfig``
+      y pone ``has_website = False`` (y dependientes)
+    - Registra ``AdminAuditLog`` con action ``reset_onboarding``
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request, pk, *args, **kwargs):
+        tenant = Tenant.objects.filter(pk=pk).first()
+        if tenant is None:
+            return Response(
+                {"detail": "Tenant not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        delete_website = request.data.get("delete_website", False)
+
+        with transaction.atomic():
+            tenant = Tenant.objects.select_for_update().get(pk=pk)
+
+            previous_state = {
+                "modules_configured": tenant.modules_configured,
+                "has_website": tenant.has_website,
+                "has_shop": tenant.has_shop,
+                "has_bookings": tenant.has_bookings,
+                "has_services": tenant.has_services,
+            }
+
+            tenant.modules_configured = False
+            update_fields = ["modules_configured"]
+
+            if delete_website:
+                tenant.has_website = False
+                tenant.has_shop = False
+                tenant.has_bookings = False
+                tenant.has_services = False
+                tenant.has_marketing = False
+                update_fields.extend([
+                    "has_website", "has_shop", "has_bookings",
+                    "has_services", "has_marketing",
+                ])
+
+                # Delete WebsiteConfig if exists
+                try:
+                    from websites.models import WebsiteConfig
+
+                    WebsiteConfig.objects.filter(tenant=tenant).delete()
+                except Exception:
+                    pass
+
+            tenant.save(update_fields=update_fields)
+
+            AdminAuditLog.objects.create(
+                actor=request.user,
+                action="reset_onboarding",
+                target_type="Tenant",
+                target_id=str(tenant.id),
+                target_repr=f"tenant: {tenant.slug}",
+                details={
+                    "previous_state": previous_state,
+                    "delete_website": delete_website,
+                },
+                ip_address=get_client_ip(request),
+            )
+
+        return Response(
+            {"detail": "Onboarding reset successfully.", "delete_website": delete_website},
+            status=status.HTTP_200_OK,
+        )
+
+
 class AdminTenantUsersListView(generics.ListAPIView):
     """GET ``/api/admin/tenants/<uuid:pk>/users/`` — usuarios de un tenant.
 

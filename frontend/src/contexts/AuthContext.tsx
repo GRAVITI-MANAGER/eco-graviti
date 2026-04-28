@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (customRedirect) {
       router.push(customRedirect);
     } else if (tenant && !tenant.modules_configured) {
-      router.push('/dashboard/setup');
+      router.push('/dashboard/website-builder/quick-start');
     } else if (tenant?.has_website && tenant.website_status !== 'published') {
       router.push('/dashboard/website-builder');
     } else {
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (response.tenant) {
       setTenant(response.tenant);
     }
-    router.push('/dashboard/setup');
+    router.push('/dashboard/website-builder/quick-start');
     return { message: response.message || 'Negocio creado exitosamente' };
   };
 

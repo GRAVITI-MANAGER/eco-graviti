@@ -158,3 +158,18 @@ export async function adminUnlinkUserSocial(
     `/admin/users/${userId}/social/${encodeURIComponent(provider)}/`,
   );
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Tenant onboarding management
+// ──────────────────────────────────────────────────────────────────────
+
+export async function adminResetOnboarding(
+  tenantId: string,
+  deleteWebsite = false,
+): Promise<{ message: string }> {
+  const { data } = await adminClient.post<{ detail?: string }>(
+    `/admin/tenants/${tenantId}/reset-onboarding/`,
+    { delete_website: deleteWebsite },
+  );
+  return { message: data.detail ?? 'Onboarding reset successfully.' };
+}

@@ -119,6 +119,9 @@ export interface AdminTenantDetail {
   has_marketing: boolean;
   modules_configured: boolean;
 
+  // Website onboarding
+  website_status: 'draft' | 'onboarding' | 'generating' | 'review' | 'published' | null;
+
   // Branding
   logo: string | null;
   primary_color: string;

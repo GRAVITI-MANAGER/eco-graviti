@@ -130,6 +130,44 @@ export async function getOnboardingStatus(): Promise<{
 }
 
 // ===================================
+// QUICK-START (Fase 2 — flujo <60s)
+// ===================================
+
+export interface QuickStartRequest {
+  business_description: string;
+  main_services: string;
+  business_whatsapp?: string;
+  website_sections?: string[];
+}
+
+export interface QuickStartResponse {
+  content_data: Record<string, unknown>;
+  seo_data: Record<string, unknown>;
+  theme_data: Record<string, unknown>;
+  tokens_used: number;
+  remaining_generations: number;
+  status: string;
+  template: {
+    slug: string;
+    name: string;
+  };
+}
+
+/**
+ * Genera un sitio completo con 3 campos (onboarding rapido).
+ * Auto-resuelve template por industria del tenant.
+ */
+export async function quickStartGenerate(
+  payload: QuickStartRequest
+): Promise<QuickStartResponse> {
+  const { data } = await apiClient.post<QuickStartResponse>(
+    '/websites/onboarding/quick-start/',
+    payload
+  );
+  return data;
+}
+
+// ===================================
 // AI GENERATION
 // ===================================
 

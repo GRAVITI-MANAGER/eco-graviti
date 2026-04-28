@@ -193,9 +193,9 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Admin que no ha configurado módulos → redirigir a setup
+    // Admin que no ha configurado módulos → redirigir a quick-start
     if (user?.role === 'admin' && tenant && !tenant.modules_configured) {
-      router.push('/dashboard/setup');
+      router.push('/dashboard/website-builder/quick-start');
     }
   }, [user, tenant, router]);
 

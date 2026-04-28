@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Rutas que no requieren módulos configurados ni website publicado
-const BYPASS_ROUTES = ['/dashboard/setup', '/dashboard/profile', '/dashboard/team', '/dashboard/settings'];
+const BYPASS_ROUTES = ['/dashboard/setup', '/dashboard/website-builder/quick-start', '/dashboard/profile', '/dashboard/team', '/dashboard/settings'];
 
 // NERBIS platform tokens — restored on dashboard entry so tenant
 // ThemeInjector (which writes to :root) doesn't bleed into the panel.
@@ -51,7 +51,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Rutas con layout limpio (sin Header/Footer de tienda)
   const isBuilderRoute = pathname.startsWith('/dashboard/website-builder');
-  const isSetupRoute = pathname === '/dashboard/setup';
+  const isSetupRoute = pathname === '/dashboard/setup' || pathname === '/dashboard/website-builder/quick-start';
   const isBypassRoute = BYPASS_ROUTES.some((r) => pathname.startsWith(r)) || isBuilderRoute;
   const isCleanLayout = isBuilderRoute || isSetupRoute || pathname === '/dashboard/profile' || pathname.startsWith('/dashboard/settings');
 
@@ -82,7 +82,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     // Redirect to setup/builder only for admins — staff shouldn't manage setup
     const isAdmin = user?.role === 'admin';
     if (isAdmin && tenant && !tenant.modules_configured && !isBypassRoute) {
-      router.push('/dashboard/setup');
+      router.push('/dashboard/website-builder/quick-start');
     } else if (
       isAdmin &&
       tenant?.has_website &&

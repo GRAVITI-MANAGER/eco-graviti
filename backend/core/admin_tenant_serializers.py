@@ -65,6 +65,7 @@ class AdminTenantDetailSerializer(serializers.ModelSerializer):
     admin_count = serializers.IntegerField(read_only=True)
     subscription_status = serializers.CharField(read_only=True)
     days_remaining = serializers.IntegerField(read_only=True, allow_null=True)
+    website_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Tenant
@@ -97,6 +98,8 @@ class AdminTenantDetailSerializer(serializers.ModelSerializer):
             "has_services",
             "has_marketing",
             "modules_configured",
+            # Website onboarding
+            "website_status",
             # Branding
             "logo",
             "primary_color",
@@ -113,6 +116,19 @@ class AdminTenantDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_website_status(self, obj: Tenant) -> str | None:
+        """Estado del sitio web del tenant (del WebsiteConfig relacionado)."""
+        config = getattr(obj, "website_config", None)
+        if config is None:
+            # Try fetching if not prefetched
+            try:
+                from websites.models import WebsiteConfig
+
+                config = WebsiteConfig.objects.filter(tenant=obj).first()
+            except Exception:
+                pass
+        return config.status if config else None
 
 
 class AdminTenantUpdateSerializer(serializers.Serializer):
@@ -150,6 +166,7 @@ class AdminTenantUpdateSerializer(serializers.Serializer):
     has_bookings = serializers.BooleanField(required=False)
     has_services = serializers.BooleanField(required=False)
     has_marketing = serializers.BooleanField(required=False)
+    modules_configured = serializers.BooleanField(required=False)
 
 
 # ---------------------------------------------------------------------------

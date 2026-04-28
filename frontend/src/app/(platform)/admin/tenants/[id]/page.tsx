@@ -24,6 +24,7 @@ import {
   MapPin,
   Pencil,
   Phone,
+  RotateCcw,
   Search,
   ShieldCheck,
   ShieldOff,
@@ -36,6 +37,7 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   adminGetTenant,
   adminListTenantUsers,
+  adminResetOnboarding,
   adminUpdateTenant,
 } from '@/lib/api/admin-tenants';
 import type {
@@ -314,6 +316,30 @@ export default function AdminTenantDetailPage({
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // ── Reset onboarding state ────────────────────────────────────────
+  const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
+  const [resetDeleteWebsite, setResetDeleteWebsite] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+
+  async function handleResetOnboarding() {
+    if (!tenant) return;
+    setResetSubmitting(true);
+    try {
+      await adminResetOnboarding(tenant.id, resetDeleteWebsite);
+      toast.success('Onboarding reseteado correctamente');
+      // Refresh tenant data
+      const refreshed = await adminGetTenant(tenant.id);
+      setTenant(refreshed);
+      setResetOnboardingOpen(false);
+      setResetDeleteWebsite(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al resetear onboarding';
+      toast.error(message);
+    } finally {
+      setResetSubmitting(false);
+    }
+  }
 
   // ── Edit business data dialog ──────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
@@ -681,6 +707,7 @@ export default function AdminTenantDetailPage({
         {tenantLoading ? (
           <AdminTenantDetailSkeleton />
         ) : tenant ? (
+          <>
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Business info */}
             <section
@@ -846,7 +873,140 @@ export default function AdminTenantDetailPage({
               </div>
             </section>
           </div>
+
+          {/* Onboarding status + reset */}
+          <section
+            aria-labelledby="tenant-onboarding-heading"
+            className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                <h3
+                  id="tenant-onboarding-heading"
+                  className="text-sm font-semibold text-slate-900"
+                >
+                  Onboarding
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetOnboardingOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                Resetear
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                  Modulos configurados
+                </p>
+                <p className="mt-1 text-sm font-semibold">
+                  {tenant.modules_configured ? (
+                    <span className="text-emerald-600">Completado</span>
+                  ) : (
+                    <span className="text-amber-600">Pendiente</span>
+                  )}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                  Website
+                </p>
+                <p className="mt-1 text-sm font-semibold">
+                  {tenant.website_status ? (
+                    <span className={
+                      tenant.website_status === 'published'
+                        ? 'text-emerald-600'
+                        : tenant.website_status === 'review'
+                          ? 'text-blue-600'
+                          : 'text-amber-600'
+                    }>
+                      {tenant.website_status === 'draft' && 'Borrador'}
+                      {tenant.website_status === 'onboarding' && 'En onboarding'}
+                      {tenant.website_status === 'generating' && 'Generando'}
+                      {tenant.website_status === 'review' && 'En revision'}
+                      {tenant.website_status === 'published' && 'Publicado'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Sin iniciar</span>
+                  )}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                  Paso actual
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">
+                  {!tenant.modules_configured
+                    ? 'Quick Start'
+                    : tenant.website_status === 'published'
+                      ? 'Completado'
+                      : tenant.has_website
+                        ? 'Website Builder'
+                        : 'Dashboard'}
+                </p>
+              </div>
+            </div>
+          </section>
+          </>
         ) : null}
+
+        {/* Reset onboarding dialog */}
+        <AlertDialog open={resetOnboardingOpen} onOpenChange={setResetOnboardingOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resetear onboarding</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esto devolvera al tenant al inicio del flujo de onboarding (Quick Start con Pipe).
+                La proxima vez que el admin del tenant inicie sesion, vera el Quick Start.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="my-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resetDeleteWebsite}
+                  onChange={(e) => setResetDeleteWebsite(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="text-sm text-slate-700">
+                  Tambien eliminar el sitio web generado
+                </span>
+              </label>
+              {resetDeleteWebsite && (
+                <p className="mt-2 text-xs text-red-500">
+                  Esto eliminara el WebsiteConfig y todo el contenido generado. Esta accion no se puede deshacer.
+                </p>
+              )}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={resetSubmitting}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResetOnboarding();
+                }}
+                disabled={resetSubmitting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+              >
+                {resetSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Reseteando...
+                  </>
+                ) : (
+                  'Resetear onboarding'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Users table */}
         <section

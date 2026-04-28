@@ -535,6 +535,9 @@ TWILIO_ENABLED = os.getenv("TWILIO_ENABLED", "False") == "True"
 # ===================================
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
+# Modelo para la generacion inicial del sitio (calidad sobre costo). Los precios
+# por modelo se resuelven en websites.services.ai_service.MODEL_PRICING.
+ANTHROPIC_MODEL_INITIAL = os.getenv("ANTHROPIC_MODEL_INITIAL", "claude-sonnet-4-6")
 ANTHROPIC_PRICE_INPUT = os.getenv("ANTHROPIC_PRICE_INPUT", "0.25")  # USD por 1M tokens
 ANTHROPIC_PRICE_OUTPUT = os.getenv("ANTHROPIC_PRICE_OUTPUT", "1.25")  # USD por 1M tokens
 
