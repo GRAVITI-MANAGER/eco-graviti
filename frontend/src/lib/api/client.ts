@@ -254,7 +254,8 @@ apiClient.interceptors.response.use(
         userMessage = serverMessage || 'Ocurrió un error inesperado. Por favor, intenta de nuevo.';
     }
 
-    const apiError = new ApiError(userMessage, error.response.status, error.response.data?.error_code);
+    const code = error.response.data?.error_code ?? error.response.data?.code;
+    const apiError = new ApiError(userMessage, error.response.status, code);
     apiError.data = error.response.data;
     return Promise.reject(apiError);
   }

@@ -17,10 +17,7 @@ export function BrandHeader({ tenantName }: BrandHeaderProps) {
         width={36}
         height={36}
       />
-      <span
-        className="text-[0.85rem] font-semibold tracking-wide"
-        style={{ color: '#1C3B57' }}
-      >
+      <span className="text-[0.85rem] font-semibold tracking-wide text-primary">
         NERBIS
       </span>
       {tenantName && (

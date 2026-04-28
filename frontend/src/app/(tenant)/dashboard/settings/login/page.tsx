@@ -333,7 +333,13 @@ export default function LoginSettingsPage() {
         setResetOtp('');
         setResetNewPassword('');
         setResetConfirmPassword('');
-        toast.error('El código expiró. Solicitá uno nuevo.');
+        const otpMessage =
+          errorCode === 'OTP_USED'
+            ? 'Ese código ya fue usado. Solicitá uno nuevo.'
+            : errorCode === 'OTP_MAX_ATTEMPTS'
+              ? 'Se alcanzó el límite de intentos. Solicitá un nuevo código.'
+              : 'El código expiró. Solicitá uno nuevo.';
+        toast.error(otpMessage);
       } else {
         setResetError(msg);
       }
