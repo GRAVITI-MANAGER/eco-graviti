@@ -104,7 +104,7 @@ function clearSessionAndRedirect() {
     localStorage.removeItem('user');
     localStorage.removeItem('tenant');
     const currentPath = window.location.pathname;
-    if (!currentPath.includes('/login') && !currentPath.includes('/register')) {
+    if (currentPath !== '/' && !currentPath.includes('/login') && !currentPath.includes('/register')) {
       window.location.href = '/login';
     }
   }
