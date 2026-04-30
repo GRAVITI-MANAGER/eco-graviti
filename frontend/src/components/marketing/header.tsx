@@ -57,6 +57,8 @@ export function MarketingHeader() {
           className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:text-white md:hidden"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label={mobileOpen ? 'Cerrar menu' : 'Abrir menu'}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-menu"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -64,7 +66,7 @@ export function MarketingHeader() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t border-zinc-800/50 bg-zinc-950/95 backdrop-blur-xl md:hidden">
+        <nav id="mobile-menu" aria-label="Menu principal" className="border-t border-zinc-800/50 bg-zinc-950/95 backdrop-blur-xl md:hidden">
           <div className="flex flex-col gap-1 px-4 py-4">
             {navLinks.map((link) => (
               <a
@@ -92,7 +94,7 @@ export function MarketingHeader() {
               Crear sitio gratis
             </Link>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );

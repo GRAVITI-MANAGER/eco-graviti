@@ -19,7 +19,7 @@ export function Hero() {
         <div className="anim-fade-up mb-6 flex justify-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-sm text-zinc-400">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
+              <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-teal-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-400" />
             </span>
             Disponible en Latinoamerica
