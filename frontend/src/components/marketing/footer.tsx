@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import Image from 'next/image';
+import { NerbisWordmark } from './nerbis-wordmark';
 
 const footerLinks = {
   Producto: [
@@ -26,15 +28,8 @@ export function MarketingFooter() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <Link href="/" className="flex items-center gap-2">
-              <Image
-                src="/Isotipo_color_NERBIS.png"
-                alt="NERBIS"
-                width={32}
-                height={32}
-                className="h-8 w-8"
-              />
-              <span className="text-lg font-bold tracking-tight text-white">NERBIS</span>
+            <Link href="/" className="flex items-center">
+              <NerbisWordmark size={18} className="text-white" />
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-zinc-500">
               Tu negocio online en 30 segundos.
