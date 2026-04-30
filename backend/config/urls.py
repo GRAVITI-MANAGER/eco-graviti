@@ -11,9 +11,12 @@ from core.admin_site import nerbis_admin_site
 from core.admin_tenant_views import (
     AdminDeletePasskeyView,
     AdminDisable2FAView,
+    AdminResetOnboardingView,
     AdminResetPasswordView,
+    AdminSetPhaseView,
     AdminTenantDetailView,
     AdminTenantListView,
+    AdminTenantPhaseLogView,
     AdminTenantUsersListView,
     AdminUnlinkSocialView,
     AdminUserDetailView,
@@ -101,6 +104,21 @@ urlpatterns = [
         "api/admin/tenants/<uuid:pk>/users/",
         AdminTenantUsersListView.as_view(),
         name="admin-tenant-users-list",
+    ),
+    path(
+        "api/admin/tenants/<uuid:pk>/reset-onboarding/",
+        AdminResetOnboardingView.as_view(),
+        name="admin-tenant-reset-onboarding",
+    ),
+    path(
+        "api/admin/tenants/<uuid:pk>/set-phase/",
+        AdminSetPhaseView.as_view(),
+        name="admin-tenant-set-phase",
+    ),
+    path(
+        "api/admin/tenants/<uuid:pk>/phase-log/",
+        AdminTenantPhaseLogView.as_view(),
+        name="admin-tenant-phase-log",
     ),
     path(
         "api/admin/users/<int:pk>/",

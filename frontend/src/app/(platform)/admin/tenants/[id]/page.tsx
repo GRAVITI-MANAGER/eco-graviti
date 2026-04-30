@@ -24,6 +24,7 @@ import {
   MapPin,
   Pencil,
   Phone,
+  RotateCcw,
   Search,
   ShieldCheck,
   ShieldOff,
@@ -36,11 +37,14 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   adminGetTenant,
   adminListTenantUsers,
+  adminResetOnboarding,
+  adminSetTenantPhase,
   adminUpdateTenant,
 } from '@/lib/api/admin-tenants';
 import type {
   AdminSubscriptionStatus,
   AdminTenantDetail,
+  AdminTenantPhase,
   AdminTenantPlan,
   AdminTenantUpdatePayload,
   AdminTenantUser,
@@ -267,6 +271,134 @@ function FeatureFlag({
   );
 }
 
+// ── Phase stepper constants ───────────────────────────────────────────
+
+const PHASE_META: Record<AdminTenantPhase, { label: string; color: string; bgColor: string; ringColor: string }> = {
+  onboarding: { label: 'En Onboarding', color: 'text-amber-700', bgColor: 'bg-amber-50', ringColor: 'ring-amber-200' },
+  modules_configured: { label: 'Modulos OK', color: 'text-blue-700', bgColor: 'bg-blue-50', ringColor: 'ring-blue-200' },
+  website_building: { label: 'Construyendo', color: 'text-violet-700', bgColor: 'bg-violet-50', ringColor: 'ring-violet-200' },
+  website_generated: { label: 'Generado', color: 'text-indigo-700', bgColor: 'bg-indigo-50', ringColor: 'ring-indigo-200' },
+  operational: { label: 'Operativo', color: 'text-emerald-700', bgColor: 'bg-emerald-50', ringColor: 'ring-emerald-200' },
+  suspended: { label: 'Suspendido', color: 'text-red-700', bgColor: 'bg-red-50', ringColor: 'ring-red-200' },
+};
+
+const PHASE_ORDER: AdminTenantPhase[] = [
+  'onboarding',
+  'modules_configured',
+  'website_building',
+  'website_generated',
+  'operational',
+];
+
+function PhaseStepperIndex(phase: AdminTenantPhase): number {
+  if (phase === 'suspended') return -1;
+  return PHASE_ORDER.indexOf(phase);
+}
+
+function PhaseStepper({ phase }: { phase: AdminTenantPhase }) {
+  const currentIdx = PhaseStepperIndex(phase);
+  const isSuspended = phase === 'suspended';
+  const meta = PHASE_META[phase];
+
+  return (
+    <div className="space-y-3">
+      {/* Current phase badge */}
+      <div className="flex items-center gap-2.5">
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${meta.bgColor} ${meta.color} ${meta.ringColor}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${isSuspended ? 'bg-red-500' : 'bg-current'} ${!isSuspended ? 'animate-pulse' : ''}`} />
+          {meta.label}
+        </span>
+        {!isSuspended && (
+          <span className="text-[11px] text-slate-400">
+            Paso {currentIdx + 1} de {PHASE_ORDER.length}
+          </span>
+        )}
+      </div>
+
+      {/* Horizontal stepper track */}
+      <div className="flex items-center gap-0">
+        {PHASE_ORDER.map((p, idx) => {
+          const isCompleted = !isSuspended && idx < currentIdx;
+          const isCurrent = !isSuspended && idx === currentIdx;
+          const isUpcoming = isSuspended || idx > currentIdx;
+
+          return (
+            <div key={p} className="flex items-center flex-1 min-w-0 last:flex-none">
+              {/* Step dot */}
+              <div className="relative group flex-shrink-0">
+                <div
+                  className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                    isCompleted
+                      ? 'bg-[#1C3B57]'
+                      : isCurrent
+                        ? 'bg-[#0D9488] ring-4 ring-teal-100'
+                        : isSuspended
+                          ? 'bg-red-200'
+                          : 'bg-slate-200'
+                  }`}
+                />
+                {/* Tooltip */}
+                <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  {PHASE_META[p].label}
+                </span>
+              </div>
+              {/* Connector line */}
+              {idx < PHASE_ORDER.length - 1 && (
+                <div
+                  className={`h-[2px] flex-1 min-w-2 transition-colors duration-500 ${
+                    isCompleted
+                      ? 'bg-[#1C3B57]'
+                      : isSuspended
+                        ? 'bg-red-100'
+                        : 'bg-slate-200'
+                  }`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Step labels (only on wider screens) */}
+      <div className="hidden sm:flex items-center gap-0">
+        {PHASE_ORDER.map((p, idx) => {
+          const isCompleted = !isSuspended && idx < currentIdx;
+          const isCurrent = !isSuspended && idx === currentIdx;
+
+          return (
+            <div key={p} className="flex items-center flex-1 min-w-0 last:flex-none">
+              <span
+                className={`text-[10px] font-medium leading-tight truncate ${
+                  isCurrent
+                    ? 'text-[#1C3B57] font-semibold'
+                    : isCompleted
+                      ? 'text-slate-500'
+                      : 'text-slate-300'
+                }`}
+              >
+                {PHASE_META[p].label}
+              </span>
+              {idx < PHASE_ORDER.length - 1 && (
+                <div className="flex-1 min-w-2" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PhaseBadge({ phase }: { phase: AdminTenantPhase }) {
+  const meta = PHASE_META[phase];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${meta.bgColor} ${meta.color} ${meta.ringColor}`}>
+      <span className={`h-1.5 w-1.5 rounded-full bg-current ${phase !== 'suspended' && phase !== 'operational' ? 'animate-pulse' : ''}`} />
+      {meta.label}
+    </span>
+  );
+}
+
 function AdminTenantDetailSkeleton() {
   return (
     <div className="animate-pulse space-y-4" aria-hidden="true">
@@ -314,6 +446,58 @@ export default function AdminTenantDetailPage({
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // ── Reset onboarding state ────────────────────────────────────────
+  const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
+  const [resetDeleteWebsite, setResetDeleteWebsite] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+
+  // ── Set phase state ─────────────────────────────────────────────────
+  const [phaseDialogOpen, setPhaseDialogOpen] = useState(false);
+  const [targetPhase, setTargetPhase] = useState<AdminTenantPhase | null>(null);
+  const [phaseSubmitting, setPhaseSubmitting] = useState(false);
+
+  function openPhaseDialog(phase: AdminTenantPhase) {
+    if (!tenant || phase === tenant.onboarding_phase) return;
+    setTargetPhase(phase);
+    setPhaseDialogOpen(true);
+  }
+
+  async function handleSetPhase() {
+    if (!tenant || !targetPhase) return;
+    setPhaseSubmitting(true);
+    try {
+      const updated = await adminSetTenantPhase(tenant.id, targetPhase);
+      setTenant(updated);
+      toast.success(`Fase cambiada a "${PHASE_META[targetPhase].label}"`);
+      setPhaseDialogOpen(false);
+      setTargetPhase(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cambiar fase';
+      toast.error(message);
+    } finally {
+      setPhaseSubmitting(false);
+    }
+  }
+
+  async function handleResetOnboarding() {
+    if (!tenant) return;
+    setResetSubmitting(true);
+    try {
+      await adminResetOnboarding(tenant.id, resetDeleteWebsite);
+      toast.success('Onboarding reseteado correctamente');
+      // Refresh tenant data
+      const refreshed = await adminGetTenant(tenant.id);
+      setTenant(refreshed);
+      setResetOnboardingOpen(false);
+      setResetDeleteWebsite(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al resetear onboarding';
+      toast.error(message);
+    } finally {
+      setResetSubmitting(false);
+    }
+  }
 
   // ── Edit business data dialog ──────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
@@ -681,6 +865,7 @@ export default function AdminTenantDetailPage({
         {tenantLoading ? (
           <AdminTenantDetailSkeleton />
         ) : tenant ? (
+          <>
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Business info */}
             <section
@@ -846,7 +1031,213 @@ export default function AdminTenantDetailPage({
               </div>
             </section>
           </div>
+
+          {/* Lifecycle phase stepper */}
+          <section
+            aria-labelledby="tenant-lifecycle-heading"
+            className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                <h3
+                  id="tenant-lifecycle-heading"
+                  className="text-sm font-semibold text-slate-900"
+                >
+                  Lifecycle del tenant
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Phase change dropdown */}
+                <Select
+                  value={tenant.onboarding_phase}
+                  onValueChange={(v) => openPhaseDialog(v as AdminTenantPhase)}
+                >
+                  <SelectTrigger className="h-8 w-[180px] text-xs border-slate-200">
+                    <SelectValue placeholder="Cambiar fase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {([...PHASE_ORDER, 'suspended'] as AdminTenantPhase[]).map((p) => {
+                      const meta = PHASE_META[p];
+                      const isCurrent = p === tenant.onboarding_phase;
+                      return (
+                        <SelectItem
+                          key={p}
+                          value={p}
+                          disabled={isCurrent}
+                          className="text-xs"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className={`h-1.5 w-1.5 rounded-full ${isCurrent ? 'bg-teal-500' : meta.color.replace('text-', 'bg-').replace('-700', '-400').replace('-600', '-400')}`} />
+                            {meta.label}
+                            {isCurrent && <span className="text-[10px] text-slate-400 ml-1">(actual)</span>}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <button
+                  type="button"
+                  onClick={() => setResetOnboardingOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                >
+                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  Resetear
+                </button>
+              </div>
+            </div>
+
+            <PhaseStepper phase={tenant.onboarding_phase} />
+
+            {/* Detail chips below stepper */}
+            <div className="mt-5 flex flex-wrap items-center gap-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                Modulos:
+                <span className={tenant.modules_configured ? 'text-emerald-600' : 'text-amber-600'}>
+                  {tenant.modules_configured ? 'Configurados' : 'Pendiente'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                Website:
+                <span className={
+                  tenant.website_status === 'published' ? 'text-emerald-600'
+                    : tenant.website_status === 'review' ? 'text-blue-600'
+                      : tenant.website_status ? 'text-amber-600'
+                        : 'text-slate-400'
+                }>
+                  {tenant.website_status
+                    ? { draft: 'Borrador', onboarding: 'En onboarding', generating: 'Generando', review: 'En revision', published: 'Publicado' }[tenant.website_status]
+                    : 'Sin iniciar'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600">
+                Activo:
+                <span className={tenant.is_active ? 'text-emerald-600' : 'text-red-600'}>
+                  {tenant.is_active ? 'Si' : 'No'}
+                </span>
+              </div>
+            </div>
+          </section>
+          </>
         ) : null}
+
+        {/* Reset onboarding dialog */}
+        <AlertDialog open={resetOnboardingOpen} onOpenChange={setResetOnboardingOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resetear onboarding</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esto devolvera al tenant al inicio del flujo de onboarding (Quick Start con Pipe).
+                La proxima vez que el admin del tenant inicie sesion, vera el Quick Start.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="my-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resetDeleteWebsite}
+                  onChange={(e) => setResetDeleteWebsite(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="text-sm text-slate-700">
+                  Tambien eliminar el sitio web generado
+                </span>
+              </label>
+              {resetDeleteWebsite && (
+                <p className="mt-2 text-xs text-red-500">
+                  Esto eliminara el WebsiteConfig y todo el contenido generado. Esta accion no se puede deshacer.
+                </p>
+              )}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={resetSubmitting}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResetOnboarding();
+                }}
+                disabled={resetSubmitting}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+              >
+                {resetSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Reseteando...
+                  </>
+                ) : (
+                  'Resetear onboarding'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Set phase confirmation dialog */}
+        <AlertDialog open={phaseDialogOpen} onOpenChange={setPhaseDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cambiar fase del tenant</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    Vas a cambiar la fase de <strong>{tenant?.name}</strong>:
+                  </p>
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    {tenant && (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${PHASE_META[tenant.onboarding_phase].bgColor} ${PHASE_META[tenant.onboarding_phase].color} ${PHASE_META[tenant.onboarding_phase].ringColor}`}>
+                        {PHASE_META[tenant.onboarding_phase].label}
+                      </span>
+                    )}
+                    <span className="text-slate-400">→</span>
+                    {targetPhase && (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${PHASE_META[targetPhase].bgColor} ${PHASE_META[targetPhase].color} ${PHASE_META[targetPhase].ringColor}`}>
+                        {PHASE_META[targetPhase].label}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Esto modificara los flags internos del tenant (modulos, website, estado) para reflejar la fase seleccionada. La transicion quedara registrada en el historial.
+                  </p>
+                  {targetPhase === 'suspended' && (
+                    <p className="text-xs font-medium text-red-600">
+                      El tenant sera suspendido y sus usuarios no podran acceder a la plataforma.
+                    </p>
+                  )}
+                  {targetPhase === 'onboarding' && (
+                    <p className="text-xs font-medium text-amber-600">
+                      Esto eliminara el sitio web del tenant si existe. Esta accion no se puede deshacer.
+                    </p>
+                  )}
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={phaseSubmitting}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSetPhase();
+                }}
+                disabled={phaseSubmitting}
+                className={targetPhase === 'suspended' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1C3B57] hover:bg-[#1C3B57]/90'}
+              >
+                {phaseSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cambiando...
+                  </>
+                ) : (
+                  'Confirmar cambio'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Users table */}
         <section

@@ -137,8 +137,17 @@ adminClient.interceptors.response.use(
       requestUrl.includes('/admin/auth/login') ||
       requestUrl.includes('/admin/auth/refresh');
 
+    // Intercept both 401 (unauthenticated) and 403 with "Superadmin privileges
+    // required" (happens when the admin access cookie expired but a tenant
+    // cookie is still valid — the backend authenticates the tenant user who
+    // then fails the IsSuperAdmin permission check).
+    const is403SuperadminMsg =
+      error.response.status === 403 &&
+      typeof error.response.data?.detail === 'string' &&
+      error.response.data.detail.toLowerCase().includes('superadmin');
+
     if (
-      error.response.status === 401 &&
+      (error.response.status === 401 || is403SuperadminMsg) &&
       original &&
       !original._retried &&
       !isAdminAuthEndpoint

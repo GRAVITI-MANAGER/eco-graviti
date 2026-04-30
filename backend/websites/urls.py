@@ -17,6 +17,7 @@ from .views import (
     PreviewRenderView,
     PreviewWebsiteView,
     PublishWebsiteView,
+    QuickStartView,
     RemoveSectionView,
     ReorderSectionsView,
     SaveOnboardingResponsesView,
@@ -39,6 +40,7 @@ urlpatterns = [
     path("onboarding/start/", StartOnboardingView.as_view(), name="onboarding-start"),
     path("onboarding/responses/", SaveOnboardingResponsesView.as_view(), name="onboarding-responses"),
     path("onboarding/status/", OnboardingStatusView.as_view(), name="onboarding-status"),
+    path("onboarding/quick-start/", QuickStartView.as_view(), name="onboarding-quick-start"),
     # AI Generation
     path("generate/", GenerateContentView.as_view(), name="generate-content"),
     # Chat

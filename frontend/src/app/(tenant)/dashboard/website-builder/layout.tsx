@@ -2,7 +2,8 @@
 
 import { BrandHeader } from '@/components/layout/BrandHeader';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LogOut, ArrowLeft, UserCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -66,11 +67,26 @@ export default function WebsiteBuilderLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout, tenant } = useAuth();
   const currentIndex = getCurrentStepIndex(pathname);
   const maxReached = getMaxStepFromStatus(tenant?.website_status);
 
   const isEditorPage = pathname.startsWith('/dashboard/website-builder/editor');
+  const isQuickStartPage = pathname.startsWith('/dashboard/website-builder/quick-start');
+
+  // Phase guard: users who haven't configured modules belong in Quick Start
+  useEffect(() => {
+    if (!tenant) return;
+    if (!tenant.modules_configured && !isQuickStartPage) {
+      router.replace('/dashboard/website-builder/quick-start');
+    }
+  }, [tenant, isQuickStartPage, router]);
+
+  // ─── Quick Start: has its own full layout (Pipe chat UI) ───
+  if (isQuickStartPage) {
+    return <>{children}</>;
+  }
 
   // ─── Editor: immersive full-screen layout (no stepper) ─────
   if (isEditorPage) {
@@ -149,7 +165,7 @@ export default function WebsiteBuilderLayout({
         <div className="max-w-5xl mx-auto px-6 py-5 relative">
           {/* Volver — posicionado a la izquierda sin afectar el centrado del stepper */}
           <Link
-            href="/dashboard/setup"
+            href="/dashboard/website-builder/quick-start"
             className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[0.72rem] text-gray-400 hover:text-gray-600 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />

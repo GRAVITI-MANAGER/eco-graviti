@@ -28,6 +28,7 @@ from rest_framework.views import APIView
 from core.admin_tenant_serializers import (
     AdminTenantDetailSerializer,
     AdminTenantListSerializer,
+    AdminTenantPhaseLogSerializer,
     AdminTenantUpdateSerializer,
     AdminTenantUserSerializer,
     AdminUserDetailSerializer,
@@ -38,6 +39,7 @@ from core.models import (
     PasswordSetToken,
     SocialAccount,
     Tenant,
+    TenantPhaseLog,
     TOTPDevice,
     User,
     WebAuthnCredential,
@@ -264,6 +266,242 @@ class AdminTenantDetailView(generics.RetrieveUpdateAPIView):
 # ---------------------------------------------------------------------------
 # Tenant users list view — Phase 3 (Issue #110)
 # ---------------------------------------------------------------------------
+
+
+class AdminResetOnboardingView(APIView):
+    """POST ``/api/admin/tenants/<uuid:pk>/reset-onboarding/``.
+
+    Resetea el estado de onboarding de un tenant:
+    - Siempre pone ``modules_configured = False``
+    - Si ``delete_website=true`` en el body, elimina el ``WebsiteConfig``
+      y pone ``has_website = False`` (y dependientes)
+    - Registra ``AdminAuditLog`` con action ``reset_onboarding``
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request, pk, *args, **kwargs):
+        tenant = Tenant.objects.filter(pk=pk).first()
+        if tenant is None:
+            return Response(
+                {"detail": "Tenant not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        delete_website = request.data.get("delete_website", False)
+
+        with transaction.atomic():
+            tenant = Tenant.objects.select_for_update().get(pk=pk)
+
+            previous_state = {
+                "modules_configured": tenant.modules_configured,
+                "has_website": tenant.has_website,
+                "has_shop": tenant.has_shop,
+                "has_bookings": tenant.has_bookings,
+                "has_services": tenant.has_services,
+            }
+
+            tenant.modules_configured = False
+            update_fields = ["modules_configured"]
+
+            if delete_website:
+                tenant.has_website = False
+                tenant.has_shop = False
+                tenant.has_bookings = False
+                tenant.has_services = False
+                tenant.has_marketing = False
+                update_fields.extend(
+                    [
+                        "has_website",
+                        "has_shop",
+                        "has_bookings",
+                        "has_services",
+                        "has_marketing",
+                    ]
+                )
+
+                # Delete WebsiteConfig if exists
+                try:
+                    from websites.models import WebsiteConfig
+
+                    WebsiteConfig.objects.filter(tenant=tenant).delete()
+                except Exception:
+                    pass
+
+            tenant.save(update_fields=update_fields)
+
+            AdminAuditLog.objects.create(
+                actor=request.user,
+                action="reset_onboarding",
+                target_type="Tenant",
+                target_id=str(tenant.id),
+                target_repr=f"tenant: {tenant.slug}",
+                details={
+                    "previous_state": previous_state,
+                    "delete_website": delete_website,
+                },
+                ip_address=get_client_ip(request),
+            )
+
+        return Response(
+            {"detail": "Onboarding reset successfully.", "delete_website": delete_website},
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSetPhaseView(APIView):
+    """POST ``/api/admin/tenants/<uuid:pk>/set-phase/``.
+
+    Permite al superadmin forzar una transición de fase del tenant.
+    Recibe ``{"phase": "<target_phase>"}`` y aplica los cambios de flags
+    necesarios para que ``Tenant.onboarding_phase`` compute la fase destino.
+
+    Registra la transición en ``TenantPhaseLog`` y ``AdminAuditLog``.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    # Mapping: phase → (tenant flag changes, website_status change)
+    # None for website_status means "don't touch"; "delete" means remove WebsiteConfig.
+    PHASE_FLAGS: dict[str, dict] = {
+        "onboarding": {
+            "tenant": {"modules_configured": False, "has_website": False, "is_active": True},
+            "website": "delete",
+        },
+        "modules_configured": {
+            "tenant": {"modules_configured": True, "has_website": False, "is_active": True},
+            "website": "delete",
+        },
+        "website_building": {
+            "tenant": {"modules_configured": True, "has_website": True, "is_active": True},
+            "website": "draft",
+        },
+        "website_generated": {
+            "tenant": {"modules_configured": True, "has_website": True, "is_active": True},
+            "website": "review",
+        },
+        "operational": {
+            "tenant": {"modules_configured": True, "has_website": True, "is_active": True},
+            "website": "published",
+        },
+        "suspended": {
+            "tenant": {"is_active": False},
+            "website": None,
+        },
+    }
+
+    VALID_PHASES = set(PHASE_FLAGS.keys())
+
+    def post(self, request, pk, *args, **kwargs):
+        target_phase = (request.data.get("phase") or "").strip()
+        if target_phase not in self.VALID_PHASES:
+            return Response(
+                {"detail": f"Invalid phase: {target_phase!r}. Valid: {sorted(self.VALID_PHASES)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not Tenant.objects.filter(pk=pk).exists():
+            return Response(
+                {"detail": "Tenant not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        flags = self.PHASE_FLAGS[target_phase]
+        tenant_flags = flags.get("tenant", {})
+        website_action = flags.get("website")
+
+        with transaction.atomic():
+            tenant = Tenant.objects.select_for_update().get(pk=pk)
+            previous_phase = tenant.onboarding_phase
+
+            if previous_phase == target_phase:
+                return Response(
+                    {"detail": f"Tenant already in phase '{target_phase}'.", "phase": target_phase},
+                    status=status.HTTP_200_OK,
+                )
+            update_fields: list[str] = []
+
+            for field, value in tenant_flags.items():
+                setattr(tenant, field, value)
+                update_fields.append(field)
+
+            if update_fields:
+                tenant.save(update_fields=update_fields)
+
+            # Handle website status changes
+            from websites.models import WebsiteConfig, WebsiteTemplate
+
+            if website_action == "delete":
+                WebsiteConfig.objects.filter(tenant=tenant).delete()
+            elif website_action in ("draft", "onboarding", "generating", "review", "published"):
+                config = WebsiteConfig.objects.filter(tenant=tenant).first()
+                if config:
+                    config.status = website_action
+                    config.save(update_fields=["status"])
+                else:
+                    # Create a minimal WebsiteConfig if none exists
+                    template = WebsiteTemplate.objects.first()
+                    if template:
+                        WebsiteConfig.objects.create(
+                            tenant=tenant,
+                            template=template,
+                            status=website_action,
+                        )
+
+            # Record phase transition
+            TenantPhaseLog.objects.create(
+                tenant=tenant,
+                from_phase=previous_phase,
+                to_phase=target_phase,
+                triggered_by=f"admin:{request.user.email}",
+                note=request.data.get("note", ""),
+            )
+
+            AdminAuditLog.objects.create(
+                actor=request.user,
+                action="set_phase",
+                target_type="Tenant",
+                target_id=str(tenant.id),
+                target_repr=f"tenant: {tenant.slug}",
+                details={
+                    "from_phase": previous_phase,
+                    "to_phase": target_phase,
+                    "flags_changed": tenant_flags,
+                    "website_action": website_action,
+                },
+                ip_address=get_client_ip(request),
+            )
+
+        # Re-fetch to return fresh computed phase
+        refreshed = Tenant.objects.annotate(
+            user_count=Count("users"),
+            admin_count=Count("users", filter=Q(users__role="admin")),
+        ).get(pk=pk)
+
+        return Response(
+            AdminTenantDetailSerializer(refreshed).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminTenantPhaseLogView(generics.ListAPIView):
+    """GET ``/api/admin/tenants/<uuid:pk>/phase-log/`` — historial de fases.
+
+    Lista paginada de transiciones de fase del tenant, ordenada por fecha
+    descendente (más reciente primero).
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = AdminPagination
+    serializer_class = AdminTenantPhaseLogSerializer
+
+    def get_queryset(self) -> QuerySet[TenantPhaseLog]:
+        tenant_id = self.kwargs.get("pk")
+        if not Tenant.objects.filter(pk=tenant_id).exists():
+            from django.http import Http404
+
+            raise Http404("Tenant not found")
+        return TenantPhaseLog.objects.filter(tenant_id=tenant_id)
 
 
 class AdminTenantUsersListView(generics.ListAPIView):

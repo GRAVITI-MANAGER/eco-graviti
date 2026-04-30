@@ -494,6 +494,63 @@ class Tenant(models.Model):
         }
         return status_map.get(self.subscription_status, "Desconocido")
 
+    # ===========================================
+    # FASE DE ONBOARDING (computed)
+    # ===========================================
+
+    PHASE_CHOICES = [
+        ("onboarding", "En Onboarding"),
+        ("modules_configured", "Módulos Configurados"),
+        ("website_building", "Construyendo Sitio"),
+        ("website_generated", "Sitio Generado"),
+        ("operational", "Operativo"),
+        ("suspended", "Suspendido"),
+    ]
+
+    @property
+    def onboarding_phase(self) -> str:
+        """Fase actual del tenant, computada desde flags existentes.
+
+        Orden de prioridad (de mayor a menor):
+        - suspended: is_active = False
+        - operational: sitio publicado (fase final)
+        - website_generated: WebsiteConfig.status == 'review'
+        - website_building: WebsiteConfig.status in ('draft', 'onboarding', 'generating')
+        - modules_configured: modules_configured = True (sin website)
+        - onboarding: registro + quick start (fase inicial)
+        """
+        if not self.is_active:
+            return "suspended"
+
+        # Obtener estado del website
+        website_status = None
+        config = getattr(self, "_prefetched_website_config", None)
+        if config is None:
+            config = getattr(self, "website_config", None)
+            if config is None:
+                try:
+                    from websites.models import WebsiteConfig
+
+                    config = WebsiteConfig.objects.filter(tenant=self).only("status").first()
+                except Exception:
+                    config = None
+        if config:
+            website_status = config.status
+
+        if website_status == "published":
+            return "operational"
+
+        if website_status == "review":
+            return "website_generated"
+
+        if website_status in ("draft", "onboarding", "generating"):
+            return "website_building"
+
+        if self.modules_configured:
+            return "modules_configured"
+
+        return "onboarding"
+
 
 class TenantConfig(Tenant):
     """
@@ -1601,3 +1658,58 @@ class AdminAuditLog(models.Model):
     def __str__(self) -> str:
         actor_repr = self.actor.email if self.actor else "system"
         return f"{actor_repr} -> {self.action} on {self.target_repr}"
+
+
+class TenantPhaseLog(models.Model):
+    """Registro append-only de transiciones de fase de un tenant.
+
+    Cada vez que la fase computada de un tenant cambia, se registra aquí.
+    Esto permite al superadmin ver la línea de tiempo del lifecycle.
+
+    NO es TenantAwareModel — es un modelo a nivel de plataforma.
+    """
+
+    tenant = models.ForeignKey(
+        "core.Tenant",
+        on_delete=models.CASCADE,
+        related_name="phase_logs",
+        verbose_name="Tenant",
+    )
+    from_phase = models.CharField(
+        max_length=30,
+        choices=Tenant.PHASE_CHOICES,
+        verbose_name="Fase anterior",
+    )
+    to_phase = models.CharField(
+        max_length=30,
+        choices=Tenant.PHASE_CHOICES,
+        verbose_name="Fase nueva",
+    )
+    triggered_by = models.CharField(
+        max_length=254,
+        default="system",
+        verbose_name="Disparador",
+        help_text="Quién disparó el cambio: 'system', 'admin:<email>', 'user:<email>'",
+    )
+    note = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Nota",
+        help_text="Contexto adicional opcional sobre la transición.",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name="Fecha",
+    )
+
+    class Meta:
+        verbose_name = "Tenant Phase Log"
+        verbose_name_plural = "Tenant Phase Logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["tenant", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tenant.slug}: {self.from_phase} → {self.to_phase}"

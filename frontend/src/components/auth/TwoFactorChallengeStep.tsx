@@ -170,7 +170,7 @@ export function TwoFactorChallengeStep({
       let target = redirectTo;
       if (!target) {
         if (authData.tenant && !authData.tenant.modules_configured) {
-          target = '/dashboard/setup';
+          target = '/dashboard/website-builder/quick-start';
         } else if (authData.tenant?.has_website && authData.tenant.website_status !== 'published') {
           target = '/dashboard/website-builder';
         } else {

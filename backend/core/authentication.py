@@ -33,18 +33,29 @@ class CookieJWTAuthentication(JWTAuthentication):
 
     def authenticate(self, request: Request) -> tuple[User, Token] | None:
         """Return ``(user, validated_token)`` or ``None``."""
-        # 1. Try tenant access cookie
-        raw_token = request.COOKIES.get(_TENANT_ACCESS_COOKIE)
+        # Determine cookie priority based on request path.
+        # Admin routes MUST try the admin cookie first — otherwise a
+        # concurrent tenant session cookie "wins", the user resolves to
+        # the tenant user (not superadmin), and IsSuperAdmin returns 403.
+        path = request.path or ""
+        is_admin_route = path.startswith("/api/admin/")
 
-        # 2. Try admin access cookie
-        if not raw_token:
+        if is_admin_route:
+            # 1a. Admin route → prefer admin cookie
             raw_token = request.COOKIES.get(_ADMIN_ACCESS_COOKIE)
+            if not raw_token:
+                raw_token = request.COOKIES.get(_TENANT_ACCESS_COOKIE)
+        else:
+            # 1b. Tenant route → prefer tenant cookie
+            raw_token = request.COOKIES.get(_TENANT_ACCESS_COOKIE)
+            if not raw_token:
+                raw_token = request.COOKIES.get(_ADMIN_ACCESS_COOKIE)
 
-        # 3. If a cookie was found, validate it
+        # 2. If a cookie was found, validate it
         if raw_token:
             validated_token = self.get_validated_token(raw_token)
             user = self.get_user(validated_token)
             return user, validated_token
 
-        # 4. Fallback to standard Authorization header
+        # 3. Fallback to standard Authorization header
         return super().authenticate(request)

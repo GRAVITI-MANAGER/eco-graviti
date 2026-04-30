@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Rutas que no requieren módulos configurados ni website publicado
-const BYPASS_ROUTES = ['/dashboard/setup', '/dashboard/profile', '/dashboard/team', '/dashboard/settings'];
+const BYPASS_ROUTES = ['/dashboard/setup', '/dashboard/website-builder/quick-start', '/dashboard/profile', '/dashboard/team', '/dashboard/settings'];
 
 // NERBIS platform tokens — restored on dashboard entry so tenant
 // ThemeInjector (which writes to :root) doesn't bleed into the panel.
@@ -51,7 +51,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Rutas con layout limpio (sin Header/Footer de tienda)
   const isBuilderRoute = pathname.startsWith('/dashboard/website-builder');
-  const isSetupRoute = pathname === '/dashboard/setup';
+  const isSetupRoute = pathname === '/dashboard/setup' || pathname === '/dashboard/website-builder/quick-start';
   const isBypassRoute = BYPASS_ROUTES.some((r) => pathname.startsWith(r)) || isBuilderRoute;
   const isCleanLayout = isBuilderRoute || isSetupRoute || pathname === '/dashboard/profile' || pathname.startsWith('/dashboard/settings');
 
@@ -79,21 +79,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       router.push('/login?redirect=/dashboard');
       return;
     }
-    // Redirect to setup/builder only for admins — staff shouldn't manage setup
+    // Redirect to setup/builder only for admins — staff shouldn't manage setup.
+    // Only allow dashboard when website is published (operational phase).
     const isAdmin = user?.role === 'admin';
-    if (isAdmin && tenant && !tenant.modules_configured && !isBypassRoute) {
-      router.push('/dashboard/setup');
-    } else if (
-      isAdmin &&
-      tenant?.has_website &&
-      tenant.website_status !== 'published' &&
-      !isBypassRoute
-    ) {
-      router.push('/dashboard/website-builder');
+    if (isAdmin && tenant && !isBypassRoute) {
+      if (!tenant.modules_configured) {
+        // Fase: registered / onboarding → Quick Start
+        router.push('/dashboard/website-builder/quick-start');
+      } else if (tenant.website_status === 'published') {
+        // Fase: operational → allow dashboard
+      } else if (tenant.has_website) {
+        // Fase: website_building / website_generated → Builder
+        router.push('/dashboard/website-builder');
+      } else {
+        // Fase: modules_configured sin website → Website Builder
+        router.push('/dashboard/website-builder');
+      }
     }
   }, [mounted, isAuthenticated, isLoading, tenant, user, isBypassRoute, router]);
 
-  // Determinar si se necesita redirect (antes de renderizar cualquier layout)
+  // Determinar si se necesita redirect (antes de renderizar cualquier layout).
+  // Dashboard solo se permite cuando el sitio está publicado.
   const needsRedirect =
     mounted &&
     !isLoading &&
@@ -101,8 +107,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     user?.role === 'admin' &&
     !isBypassRoute &&
     tenant &&
-    (!tenant.modules_configured ||
-      (tenant.has_website && tenant.website_status !== 'published'));
+    tenant.website_status !== 'published';
 
   // Layout limpio para Setup y Website Builder
   if (isCleanLayout) {

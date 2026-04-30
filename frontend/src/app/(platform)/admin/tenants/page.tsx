@@ -33,6 +33,7 @@ import {
 import type {
   AdminTenant,
   AdminTenantFilters,
+  AdminTenantPhase,
   AdminTenantPlan,
   AdminSubscriptionStatus,
 } from '@/types/admin';
@@ -116,6 +117,15 @@ function subscriptionBadgeClass(
       return 'bg-slate-100 text-slate-600 ring-slate-200';
   }
 }
+
+const PHASE_BADGE_META: Record<AdminTenantPhase, { label: string; cls: string }> = {
+  onboarding: { label: 'Onboarding', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  modules_configured: { label: 'Modulos OK', cls: 'bg-blue-50 text-blue-700 ring-blue-200' },
+  website_building: { label: 'Construyendo', cls: 'bg-violet-50 text-violet-700 ring-violet-200' },
+  website_generated: { label: 'Generado', cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
+  operational: { label: 'Operativo', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  suspended: { label: 'Suspendido', cls: 'bg-red-50 text-red-700 ring-red-200' },
+};
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '\u2014';
@@ -630,6 +640,9 @@ export default function AdminTenantsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Estado
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Fase
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
                     Usuarios
                   </th>
@@ -678,6 +691,17 @@ export default function AdminTenantsPage() {
                           ? SUBSCRIPTION_LABELS[tenant.subscription_status]
                           : 'Suspendido'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const pm = PHASE_BADGE_META[tenant.onboarding_phase] ?? PHASE_BADGE_META.onboarding;
+                        return (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${pm.cls}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full bg-current ${tenant.onboarding_phase !== 'suspended' && tenant.onboarding_phase !== 'operational' ? 'animate-pulse' : ''}`} />
+                            {pm.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums text-slate-700">
                       {tenant.user_count}
