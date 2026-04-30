@@ -10,14 +10,13 @@ const footerLinks = {
     { label: 'Reservas', href: '#features' },
   ],
   Recursos: [
-    { label: 'Blog', href: '#' },
-    { label: 'Ayuda', href: '#' },
-    { label: 'Contacto', href: '#' },
+    { label: 'Ayuda', href: '/ayuda' },
+    { label: 'Contacto', href: '/contacto' },
   ],
   Legal: [
-    { label: 'Terminos', href: '#' },
-    { label: 'Privacidad', href: '#' },
-    { label: 'Cookies', href: '#' },
+    { label: 'Terminos', href: '/terms' },
+    { label: 'Privacidad', href: '/privacy' },
+    { label: 'Cookies', href: '/cookies' },
   ],
 };
 
@@ -43,12 +42,21 @@ export function MarketingFooter() {
               <ul className="mt-4 space-y-3">
                 {links.map((link) => (
                   <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm text-zinc-500 transition-colors hover:text-zinc-300"
-                    >
-                      {link.label}
-                    </a>
+                    {link.href.startsWith('#') ? (
+                      <a
+                        href={link.href}
+                        className="text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
