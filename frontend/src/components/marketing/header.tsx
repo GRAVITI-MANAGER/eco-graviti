@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
+import { NerbisWordmark } from './nerbis-wordmark';
 
 const navLinks = [
   { label: 'Producto', href: '#features' },
@@ -18,15 +18,8 @@ export function MarketingHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-zinc-800/50 bg-zinc-950/80 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <Image
-            src="/Isotipo_color_NERBIS.png"
-            alt="NERBIS"
-            width={32}
-            height={32}
-            className="h-8 w-8"
-          />
-          <span className="text-lg font-bold tracking-tight text-white">NERBIS</span>
+        <Link href="/" className="flex items-center">
+          <NerbisWordmark size={18} className="text-white" />
         </Link>
 
         {/* Desktop nav */}
