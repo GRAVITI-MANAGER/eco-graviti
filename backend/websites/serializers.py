@@ -302,9 +302,7 @@ class QuickStartSerializer(serializers.Serializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["website_sections"].child.choices = [
-            (s, s) for s in self.ALLOWED_SECTIONS
-        ]
+        self.fields["website_sections"].child.choices = [(s, s) for s in self.ALLOWED_SECTIONS]
 
 
 # ===================================
