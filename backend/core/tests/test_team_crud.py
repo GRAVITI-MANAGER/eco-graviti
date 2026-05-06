@@ -105,12 +105,10 @@ class TestTeamUpdateMember:
         assert response.status_code == 400
         assert "propio rol" in response.data["error"]
 
-    def test_last_admin_demotion_prevented(self, auth_admin_client, staff_user):
-        """Solo hay 1 admin — no se puede degradar a otro admin si es el unico."""
-        # staff_user ya es staff, promoverlo a admin primero
+    def test_last_admin_demotion_allowed_with_two(self, auth_admin_client, staff_user):
+        """Con 2 admins, degradar a uno deberia funcionar."""
         staff_user.role = "admin"
         staff_user.save()
-        # Ahora degradar — hay 2 admins, deberia funcionar
         url = reverse("core:team_member_detail", kwargs={"user_id": staff_user.id})
         response = auth_admin_client.patch(url, {"role": "staff"}, format="json")
         assert response.status_code == 200

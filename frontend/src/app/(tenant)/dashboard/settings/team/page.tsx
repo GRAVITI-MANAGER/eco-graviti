@@ -197,6 +197,10 @@ export default function SettingsTeamPage() {
     open: boolean;
     member: TeamMember | null;
   }>({ open: false, member: null });
+  const [unblockDialog, setUnblockDialog] = useState<{
+    open: boolean;
+    member: TeamMember | null;
+  }>({ open: false, member: null });
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     member: TeamMember | null;
@@ -247,8 +251,8 @@ export default function SettingsTeamPage() {
       toast.success('Miembro actualizado');
       setRoleDialog({ open: false, member: null });
     },
-    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
-      toast.error(error.response?.data?.error || error.message || 'Error al actualizar el miembro');
+    onError: (error: Error & { data?: { error?: string } }) => {
+      toast.error(error.data?.error || error.message || 'Error al actualizar el miembro');
     },
   });
 
@@ -259,8 +263,8 @@ export default function SettingsTeamPage() {
       toast.success(data.message);
       setBlockDialog({ open: false, member: null });
     },
-    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
-      toast.error(error.response?.data?.error || error.message || 'Error al bloquear el usuario');
+    onError: (error: Error & { data?: { error?: string } }) => {
+      toast.error(error.data?.error || error.message || 'Error al bloquear el usuario');
     },
   });
 
@@ -269,9 +273,10 @@ export default function SettingsTeamPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       toast.success(data.message);
+      setUnblockDialog({ open: false, member: null });
     },
-    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
-      toast.error(error.response?.data?.error || error.message || 'Error al desbloquear el usuario');
+    onError: (error: Error & { data?: { error?: string } }) => {
+      toast.error(error.data?.error || error.message || 'Error al desbloquear el usuario');
     },
   });
 
@@ -282,8 +287,8 @@ export default function SettingsTeamPage() {
       toast.success(data.message);
       setDeleteDialog({ open: false, member: null });
     },
-    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
-      toast.error(error.response?.data?.error || error.message || 'Error al eliminar el miembro');
+    onError: (error: Error & { data?: { error?: string } }) => {
+      toast.error(error.data?.error || error.message || 'Error al eliminar el miembro');
     },
   });
 
@@ -598,16 +603,20 @@ export default function SettingsTeamPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedRole(member.role === 'admin' ? 'admin' : 'staff');
-                              setRoleDialog({ open: true, member });
-                            }}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Cambiar rol
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
+                          {member.role !== 'customer' && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedRole(member.role === 'admin' ? 'admin' : 'staff');
+                                  setRoleDialog({ open: true, member });
+                                }}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Cambiar rol
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
                           {member.is_active ? (
                             <DropdownMenuItem
                               onClick={() => setBlockDialog({ open: true, member })}
@@ -618,7 +627,7 @@ export default function SettingsTeamPage() {
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
-                              onClick={() => unblockMemberMutation.mutate(member.id)}
+                              onClick={() => setUnblockDialog({ open: true, member })}
                             >
                               <UserCheck className="h-4 w-4 mr-2" />
                               Desbloquear usuario
@@ -916,6 +925,42 @@ export default function SettingsTeamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmación para desbloquear */}
+      <AlertDialog
+        open={unblockDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setUnblockDialog({ open: false, member: null });
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desbloquear usuario</AlertDialogTitle>
+            <AlertDialogDescription>
+              {unblockDialog.member && (
+                <>
+                  ¿Desbloquear a <strong>{unblockDialog.member.full_name}</strong>?
+                  <br /><br />
+                  El usuario podrá iniciar sesión nuevamente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (unblockDialog.member) {
+                  unblockMemberMutation.mutate(unblockDialog.member.id);
+                }
+              }}
+              disabled={unblockMemberMutation.isPending}
+            >
+              {unblockMemberMutation.isPending ? 'Desbloqueando...' : 'Desbloquear'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog de confirmación para bloquear */}
       <AlertDialog

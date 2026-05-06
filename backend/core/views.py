@@ -2398,6 +2398,21 @@ class TeamReset2FAView(APIView):
 # ===================================
 
 
+def _team_audit_log(request, target_user, message):
+    from django.contrib.admin.models import CHANGE, LogEntry
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(User)
+    LogEntry.objects.log_action(
+        user_id=request.user.pk,
+        content_type_id=ct.pk,
+        object_id=str(target_user.pk),
+        object_repr=target_user.get_full_name() or target_user.email,
+        action_flag=CHANGE,
+        change_message=message,
+    )
+
+
 class TeamMemberDetailView(APIView):
     """
     PATCH  /api/team/{user_id}/ — Modificar rol y datos de un miembro.
@@ -2415,25 +2430,19 @@ class TeamMemberDetailView(APIView):
             return None
 
     def _audit_log(self, request, target_user, message):
-        from django.contrib.admin.models import CHANGE, LogEntry
-        from django.contrib.contenttypes.models import ContentType
-
-        ct = ContentType.objects.get_for_model(User)
-        LogEntry.objects.log_action(
-            user_id=request.user.pk,
-            content_type_id=ct.pk,
-            object_id=str(target_user.pk),
-            object_repr=target_user.get_full_name() or target_user.email,
-            action_flag=CHANGE,
-            change_message=message,
-        )
+        _team_audit_log(request, target_user, message)
 
     def patch(self, request, user_id):
+        from django.db import transaction
+
         target_user = self._get_target_user(request, user_id)
         if not target_user:
             return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
-        new_role = request.data.get("role")
+        serializer = TeamUpdateMemberSerializer(target_user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        new_role = serializer.validated_data.get("role")
 
         # No permitir cambiar su propio rol
         if new_role and target_user.id == request.user.id:
@@ -2442,31 +2451,34 @@ class TeamMemberDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Validar que no quede sin admins
-        if new_role and new_role != "admin" and target_user.role == "admin":
-            other_admins = User.objects.filter(tenant=request.user.tenant, role="admin", is_active=True).exclude(
-                id=target_user.id
-            )
-            if not other_admins.exists():
-                return Response(
-                    {"error": "Debe haber al menos un administrador activo en el equipo"},
-                    status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            # Validar que no quede sin admins (con lock para evitar race condition)
+            if new_role and new_role != "admin" and target_user.role == "admin":
+                other_admins = (
+                    User.objects.select_for_update()
+                    .filter(tenant=request.user.tenant, role="admin", is_active=True)
+                    .exclude(id=target_user.id)
                 )
+                if not other_admins.exists():
+                    return Response(
+                        {"error": "Debe haber al menos un administrador activo en el equipo"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        serializer = TeamUpdateMemberSerializer(target_user, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+            serializer.save()
 
-        changes = ", ".join(f"{k}={v}" for k, v in request.data.items())
-        self._audit_log(request, target_user, f"Admin id={request.user.pk} actualizó miembro: {changes}")
+        changed_fields = ", ".join(serializer.validated_data.keys())
+        self._audit_log(request, target_user, f"Admin id={request.user.pk} actualizó miembro: {changed_fields}")
         logger.info(
-            f"Team update: usuario_id={target_user.pk} actualizado ({changes}) "
+            f"Team update: usuario_id={target_user.pk} actualizado ({changed_fields}) "
             f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"
         )
 
         return Response(TeamMemberSerializer(target_user).data)
 
     def delete(self, request, user_id):
+        from django.db import transaction
+
         target_user = self._get_target_user(request, user_id)
         if not target_user:
             return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
@@ -2477,20 +2489,23 @@ class TeamMemberDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Validar que no quede sin admins
-        if target_user.role == "admin":
-            other_admins = User.objects.filter(tenant=request.user.tenant, role="admin", is_active=True).exclude(
-                id=target_user.id
-            )
-            if not other_admins.exists():
-                return Response(
-                    {"error": "Debe haber al menos un administrador activo en el equipo"},
-                    status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            # Validar que no quede sin admins (con lock para evitar race condition)
+            if target_user.role == "admin":
+                other_admins = (
+                    User.objects.select_for_update()
+                    .filter(tenant=request.user.tenant, role="admin", is_active=True)
+                    .exclude(id=target_user.id)
                 )
+                if not other_admins.exists():
+                    return Response(
+                        {"error": "Debe haber al menos un administrador activo en el equipo"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        target_user.is_active = False
-        target_user.role = "customer"
-        target_user.save(update_fields=["is_active", "role"])
+            target_user.is_active = False
+            target_user.role = "customer"
+            target_user.save(update_fields=["is_active", "role"])
 
         self._audit_log(
             request, target_user, f"Admin id={request.user.pk} eliminó (soft) al miembro id={target_user.pk}"
@@ -2514,6 +2529,8 @@ class TeamBlockMemberView(APIView):
     permission_classes = [IsAuthenticated, IsTenantAdmin]
 
     def post(self, request, user_id):
+        from django.db import transaction
+
         try:
             target_user = User.objects.get(id=user_id, tenant=request.user.tenant)
         except User.DoesNotExist:
@@ -2531,32 +2548,24 @@ class TeamBlockMemberView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Validar que no quede sin admins
-        if target_user.role == "admin":
-            other_admins = User.objects.filter(tenant=request.user.tenant, role="admin", is_active=True).exclude(
-                id=target_user.id
-            )
-            if not other_admins.exists():
-                return Response(
-                    {"error": "Debe haber al menos un administrador activo en el equipo"},
-                    status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            # Validar que no quede sin admins (con lock para evitar race condition)
+            if target_user.role == "admin":
+                other_admins = (
+                    User.objects.select_for_update()
+                    .filter(tenant=request.user.tenant, role="admin", is_active=True)
+                    .exclude(id=target_user.id)
                 )
+                if not other_admins.exists():
+                    return Response(
+                        {"error": "Debe haber al menos un administrador activo en el equipo"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        target_user.is_active = False
-        target_user.save(update_fields=["is_active"])
+            target_user.is_active = False
+            target_user.save(update_fields=["is_active"])
 
-        from django.contrib.admin.models import CHANGE, LogEntry
-        from django.contrib.contenttypes.models import ContentType
-
-        ct = ContentType.objects.get_for_model(User)
-        LogEntry.objects.log_action(
-            user_id=request.user.pk,
-            content_type_id=ct.pk,
-            object_id=str(target_user.pk),
-            object_repr=target_user.get_full_name() or target_user.email,
-            action_flag=CHANGE,
-            change_message=f"Admin id={request.user.pk} bloqueó al usuario id={target_user.pk}",
-        )
+        _team_audit_log(request, target_user, f"Admin id={request.user.pk} bloqueó al usuario id={target_user.pk}")
         logger.info(
             f"Team block: usuario_id={target_user.pk} bloqueado "
             f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"
@@ -2590,18 +2599,7 @@ class TeamUnblockMemberView(APIView):
         target_user.is_active = True
         target_user.save(update_fields=["is_active"])
 
-        from django.contrib.admin.models import CHANGE, LogEntry
-        from django.contrib.contenttypes.models import ContentType
-
-        ct = ContentType.objects.get_for_model(User)
-        LogEntry.objects.log_action(
-            user_id=request.user.pk,
-            content_type_id=ct.pk,
-            object_id=str(target_user.pk),
-            object_repr=target_user.get_full_name() or target_user.email,
-            action_flag=CHANGE,
-            change_message=f"Admin id={request.user.pk} desbloqueó al usuario id={target_user.pk}",
-        )
+        _team_audit_log(request, target_user, f"Admin id={request.user.pk} desbloqueó al usuario id={target_user.pk}")
         logger.info(
             f"Team unblock: usuario_id={target_user.pk} desbloqueado "
             f"por admin_id={request.user.pk} (tenant: {request.user.tenant.slug})"
